@@ -729,12 +729,24 @@
       </div>
 
       <!-- PRODUCT DESCRIPTION -->
-      <div class="form-group">
-        <label>Product Description</label>
-        <textarea id="f-description" rows="6" placeholder="Describe the product — features, what's included, specifications, condition, compatibility, etc. This will be shown to customers on the storefront. You can write as much detail as you like."
-          style="width:100%; padding:12px 14px; border:1.5px solid var(--border); border-radius:8px; font-size:0.88rem; font-family:'Inter',sans-serif; outline:none; transition:border-color 0.2s; background:var(--white); resize:vertical; line-height:1.6;"
-          onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'"></textarea>
-        <div id="desc-word-count" style="font-size:0.68rem; color:var(--grey); margin-top:4px; text-align:right;">0 words</div>
+      <div style="background:#fff8e6; border:2px solid var(--gold); border-radius:12px; padding:16px 18px; margin-bottom:16px;">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+          <span style="font-size:1.2rem;">📝</span>
+          <div>
+            <div style="font-size:0.78rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:var(--gold-dark);">Product Description</div>
+            <div style="font-size:0.7rem; color:#888; margin-top:1px;">Tell customers what this product is, what's included, key features and specs</div>
+          </div>
+        </div>
+        <textarea id="f-description" rows="6"
+          placeholder="Example: The KZ Castor Pro is a premium in-ear monitor featuring dual dynamic drivers. It comes with a detachable 2-pin cable, 3 pairs of ear tips (S/M/L), and a carrying pouch. Compatible with all devices via 3.5mm jack. Ideal for audiophiles and stage monitoring..."
+          style="width:100%; padding:12px 14px; border:2px solid #ddd; border-radius:8px; font-size:0.88rem; font-family:'Inter',sans-serif; outline:none; background:#fff; color:#000; resize:vertical; line-height:1.7; box-sizing:border-box;"
+          onfocus="this.style.borderColor='var(--gold)'; this.style.outline='none';"
+          onblur="this.style.borderColor='#ddd';"
+          oninput="updateDescWordCount(this)"></textarea>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
+          <div style="font-size:0.68rem; color:#888;">Customers will see a "Read more" button if description exceeds 250 words</div>
+          <div id="desc-word-count" style="font-size:0.72rem; font-weight:700; color:var(--grey);">0 words</div>
+        </div>
       </div>
 
       <!-- PRODUCT IMAGES -->
@@ -1092,14 +1104,20 @@
   window.doLogout = doLogout;
 
   // ── DESCRIPTION WORD COUNTER ──
+  function updateDescWordCount(textarea) {
+    var wordCount = document.getElementById('desc-word-count');
+    if (!wordCount) return;
+    var words = textarea.value.trim() === '' ? 0 : textarea.value.trim().split(/\s+/).length;
+    wordCount.textContent = words + ' word' + (words !== 1 ? 's' : '');
+    wordCount.style.color = words > 250 ? 'var(--green)' : words > 200 ? 'var(--amber)' : 'var(--grey)';
+  }
+
   document.addEventListener('DOMContentLoaded', function() {
     var descArea = document.getElementById('f-description');
     var wordCount = document.getElementById('desc-word-count');
     if (descArea && wordCount) {
       descArea.addEventListener('input', function() {
-        var words = this.value.trim() === '' ? 0 : this.value.trim().split(/\s+/).length;
-        wordCount.textContent = words + ' word' + (words !== 1 ? 's' : '');
-        wordCount.style.color = words > 250 ? 'var(--green)' : 'var(--grey)';
+        updateDescWordCount(this);
       });
     }
   });
@@ -1704,6 +1722,8 @@
     document.getElementById('f-sku').value = '';
     document.getElementById('f-threshold').value = threshold;
     document.getElementById('f-description').value = '';
+    var wc = document.getElementById('desc-word-count');
+    if (wc) { wc.textContent = '0 words'; wc.style.color = 'var(--grey)'; }
     document.getElementById('images-list').innerHTML = '';
     addImageRow();
     document.getElementById('f-video').value = '';
@@ -1727,6 +1747,7 @@
     document.getElementById('f-sku').value = p.sku || '';
     document.getElementById('f-threshold').value = p.threshold || threshold;
     document.getElementById('f-description').value = p.description || '';
+    updateDescWordCount(document.getElementById('f-description'));
     document.getElementById('images-list').innerHTML = '';
     const images = p.images || (p.image ? [p.image] : []);
     if (images.length === 0) { addImageRow(); }
