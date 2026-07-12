@@ -2600,7 +2600,15 @@
         </div>
       `).join('');
 
+      // Grand total = sum of every individual line shown below (sales + other income)
+      const grandTotal = m.salesItems.reduce((s,it) => s + (it.isFree ? 0 : it.lineTotal), 0)
+        + m.incomeEntries.reduce((s,e) => s + (parseInt(e.amount)||0), 0);
+
       body.innerHTML = `
+        <div style="background:#e8f5e9; border:1.5px solid #a5d6a7; border-radius:10px; padding:14px 16px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-size:0.8rem; font-weight:700; color:#2e7d32;">💰 Total Income — ${periodTxt}</span>
+          <span style="font-size:1.15rem; font-weight:800; color:#2e7d32;">${fmt(grandTotal)}</span>
+        </div>
         <div class="fin-breakdown-subhdr">🛒 Sales (${m.salesItems.length}) — ${fmt(m.salesIncome)}</div>
         ${salesRows || '<div class="fin-empty">No sales in this period.</div>'}
         <div class="fin-breakdown-subhdr" style="margin-top:16px;">💰 Other Income (${m.incomeEntries.length}) — ${fmt(m.otherIncome)}</div>
@@ -2627,7 +2635,15 @@
         </div>
       `).join('');
 
+      // Grand total = sum of every individual line shown below (cost of goods + other expenses)
+      const grandTotal = m.cogsItems.reduce((s,it) => s + (parseInt(it.lineTotal)||0), 0)
+        + m.expenseEntries.reduce((s,e) => s + (parseInt(e.amount)||0), 0);
+
       body.innerHTML = `
+        <div style="background:#fdecea; border:1.5px solid #f5c6c0; border-radius:10px; padding:14px 16px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-size:0.8rem; font-weight:700; color:var(--red);">📤 Total Expenses — ${periodTxt}</span>
+          <span style="font-size:1.15rem; font-weight:800; color:var(--red);">${fmt(grandTotal)}</span>
+        </div>
         <div class="fin-breakdown-subhdr">📦 Cost of Goods Sold (${m.cogsItems.length}) — ${fmt(m.cogs)}</div>
         ${cogsRows || '<div class="fin-empty">No cost-of-goods data in this period.</div>'}
         <div class="fin-breakdown-subhdr" style="margin-top:16px;">📤 Other Expenses (${m.expenseEntries.length}) — ${fmt(m.manualExpense)}</div>
