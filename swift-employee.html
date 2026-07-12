@@ -161,6 +161,55 @@
     .who-name-btn:hover { background: #262626; border-color: var(--gold); }
     .who-name-btn:active { background: var(--gold); color: var(--black); }
 
+    /* ── FLOATING RECORD A SALE BUTTON ── */
+    #fab-record-sale {
+      position: fixed; bottom: 26px; right: 26px; z-index: 500;
+      display: flex; align-items: center; gap: 9px;
+      background: linear-gradient(135deg, var(--gold-light, #f0c563), var(--gold));
+      color: var(--black); border: none; border-radius: 32px;
+      padding: 15px 24px 15px 18px; font-family: 'Inter', sans-serif;
+      font-weight: 800; font-size: 0.9rem; cursor: pointer;
+      box-shadow: 0 6px 20px rgba(232, 160, 32, 0.45), 0 2px 6px rgba(0,0,0,0.15);
+      animation: fabPulse 2.6s ease-in-out infinite;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    #fab-record-sale:hover {
+      transform: translateY(-2px) scale(1.03);
+      box-shadow: 0 10px 26px rgba(232, 160, 32, 0.55), 0 3px 8px rgba(0,0,0,0.2);
+    }
+    #fab-record-sale:active { transform: translateY(0) scale(0.98); }
+    #fab-record-sale .fab-icon { font-size: 1.15rem; }
+    @keyframes fabPulse {
+      0%, 100% { box-shadow: 0 6px 20px rgba(232, 160, 32, 0.45), 0 2px 6px rgba(0,0,0,0.15), 0 0 0 0 rgba(232,160,32,0.5); }
+      50% { box-shadow: 0 6px 20px rgba(232, 160, 32, 0.45), 0 2px 6px rgba(0,0,0,0.15), 0 0 0 10px rgba(232,160,32,0); }
+    }
+    @media (max-width: 600px) {
+      #fab-record-sale { bottom: 18px; right: 18px; padding: 14px 18px 14px 16px; }
+      #fab-record-sale .fab-label { display: none; }
+      #fab-record-sale .fab-icon { font-size: 1.4rem; }
+    }
+
+    /* ── FLOATING STALE ORDER ALERT ── */
+    #stale-order-alert {
+      position: fixed; bottom: 26px; left: 26px; z-index: 499;
+      background: var(--red); color: #fff; border-radius: 14px;
+      padding: 14px 18px; max-width: 260px; cursor: pointer;
+      box-shadow: 0 8px 24px rgba(214, 59, 47, 0.4);
+      font-family: 'Inter', sans-serif;
+      animation: staleAlertIn 0.4s cubic-bezier(0.34,1.56,0.64,1), staleAlertPulse 2s ease-in-out infinite;
+    }
+    #stale-order-alert:hover { transform: translateY(-2px); }
+    #stale-order-alert .stale-title { font-size: 0.78rem; font-weight: 800; display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+    #stale-order-alert .stale-sub { font-size: 0.72rem; opacity: 0.9; }
+    @keyframes staleAlertIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes staleAlertPulse {
+      0%, 100% { box-shadow: 0 8px 24px rgba(214, 59, 47, 0.4), 0 0 0 0 rgba(214,59,47,0.5); }
+      50% { box-shadow: 0 8px 24px rgba(214, 59, 47, 0.4), 0 0 0 8px rgba(214,59,47,0); }
+    }
+    @media (max-width: 600px) {
+      #stale-order-alert { left: 18px; bottom: 18px; max-width: 200px; }
+    }
+
     /* Login responsive sizing */
     @media (min-width: 1024px) {
       .login-box { max-width: 440px; padding: 40px 36px; }
@@ -720,33 +769,17 @@
   </div>
 </div>
 
-<!-- MY PROFILE MODAL -->
-<div class="modal-overlay" id="profile-modal">
-  <div class="modal-box" style="max-width:400px;">
-    <div class="modal-hdr">
-      <h3>👤 My Profile</h3>
-      <button class="modal-close-btn" onclick="closeProfileModal()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div style="text-align:center; margin-bottom:18px;">
-        <div id="profile-photo-preview" style="width:96px; height:96px; border-radius:50%; background:var(--light); border:2px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:2.4rem; margin:0 auto 10px; overflow:hidden;">👤</div>
-        <div id="profile-name-display" style="font-weight:800; font-size:1.05rem;"></div>
-      </div>
-      <div class="form-group">
-        <label>Profile Picture Link</label>
-        <input type="text" id="profile-photo-input" placeholder="Paste a Google Drive or direct image link" oninput="previewProfilePhoto(this.value)"/>
-        <div style="font-size:0.72rem; color:#888; margin-top:5px;">Paste a direct image URL, or a Google Drive share link (must be set to "Anyone with the link can view"). Leave blank to remove your photo.</div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-cancel" onclick="closeProfileModal()">Cancel</button>
-      <button class="btn-gold" id="profile-save-btn" onclick="saveMyProfilePhoto()">💾 Save Photo</button>
-    </div>
-  </div>
-</div>
-
 <!-- APP -->
 <div class="app" id="app">
+
+  <!-- FLOATING RECORD A SALE BUTTON -->
+  <button id="fab-record-sale" onclick="openCashSaleModal()" title="Record a Sale">
+    <span class="fab-icon">🛒</span>
+    <span class="fab-label">Record a Sale</span>
+  </button>
+
+  <!-- FLOATING STALE ORDER ALERT -->
+  <div id="stale-order-alert" style="display:none;" onclick="showPage('open-orders')"></div>
 
   <!-- SIDEBAR OVERLAY -->
   <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
@@ -804,7 +837,6 @@
         </button>
         <button class="whatsapp-alert-btn" onclick="sendWAAlert()">📲 Send Stock Alert</button>
         <button class="whatsapp-alert-btn" style="background:var(--gold); border-color:var(--gold-dark); color:var(--black);" onclick="openFinanceEntryModal()">💵 Add Income/Expense</button>
-        <button onclick="openProfileModal()" title="My Profile" id="profile-avatar-btn" style="width:34px; height:34px; border-radius:50%; border:2px solid var(--gold); background:var(--black); color:#fff; display:flex; align-items:center; justify-content:center; font-size:0.95rem; cursor:pointer; padding:0; overflow:hidden; flex-shrink:0;">👤</button>
       </div>
     </div>
 
@@ -816,7 +848,6 @@
 
         <!-- QUICK ACTIONS -->
         <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:24px;">
-          <button class="btn-gold" style="padding:14px 22px; font-size:0.9rem;" onclick="openCashSaleModal()">🛒 Record a Sale</button>
           <button class="btn-gold" style="padding:14px 22px; font-size:0.9rem; background:#fff; border:2px solid var(--gold); color:var(--gold-dark);" onclick="openFinanceEntryModal()">💵 Add Income / Expense</button>
         </div>
 
@@ -1493,7 +1524,6 @@
     document.getElementById('app').classList.add('visible');
     const fbStatusBar = document.getElementById('fb-status');
     if (fbStatusBar) { fbStatusBar.textContent = '🟢 Live — ' + name; fbStatusBar.style.color = 'var(--green)'; }
-    updateProfileAvatarDisplay();
     renderAll();
     const notifBtn = document.getElementById('notif-btn');
     if (notifBtn) { notifBtn.textContent = '🔔 Alerts On'; notifBtn.classList.add('enabled'); }
@@ -1603,69 +1633,6 @@
   window.requireMasterPassword = requireMasterPassword;
   window.closeMasterPasswordModal = closeMasterPasswordModal;
   window.submitMasterPassword = submitMasterPassword;
-
-  // ── MY PROFILE (self-service picture) ──
-  function updateProfileAvatarDisplay() {
-    const btn = document.getElementById('profile-avatar-btn');
-    if (!btn) return;
-    btn.innerHTML = currentEmployeePhotoUrl
-      ? `<img src="${currentEmployeePhotoUrl}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='👤'"/>`
-      : '👤';
-  }
-
-  function openProfileModal() {
-    document.getElementById('profile-name-display').textContent = currentEmployeeName || '';
-    document.getElementById('profile-photo-input').value = currentEmployeePhotoUrl || '';
-    previewProfilePhoto(currentEmployeePhotoUrl || '');
-    document.getElementById('profile-modal').classList.add('open');
-  }
-
-  function closeProfileModal() {
-    document.getElementById('profile-modal').classList.remove('open');
-  }
-
-  function previewProfilePhoto(url) {
-    const preview = document.getElementById('profile-photo-preview');
-    if (!url || !url.trim()) { preview.innerHTML = '👤'; return; }
-    preview.innerHTML = `<img src="${url.trim()}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='❌'"/>`;
-  }
-
-  async function saveMyProfilePhoto() {
-    if (!currentEmployeeFbDocId) {
-      alert('Could not identify your staff record. Please sign out and back in, then try again.');
-      return;
-    }
-    const url = document.getElementById('profile-photo-input').value.trim();
-    if (!window.fbDb || !window.fbFns) { alert('Not connected. Check your internet connection.'); return; }
-    const { doc, updateDoc } = window.fbFns;
-    const btn = document.getElementById('profile-save-btn');
-    btn.disabled = true;
-    btn.textContent = 'Saving...';
-    try {
-      await updateDoc(doc(window.fbDb, 'employees', currentEmployeeFbDocId), { photoUrl: url });
-      currentEmployeePhotoUrl = url;
-      updateProfileAvatarDisplay();
-      const emp = staffNames.find(s => s.fbDocId === currentEmployeeFbDocId);
-      if (emp) emp.photoUrl = url;
-      closeProfileModal();
-    } catch(e) {
-      alert('Error saving photo. Check your internet connection.');
-      console.error(e);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = '💾 Save Photo';
-    }
-  }
-
-  window.openProfileModal = openProfileModal;
-  window.closeProfileModal = closeProfileModal;
-  window.previewProfilePhoto = previewProfilePhoto;
-  window.saveMyProfilePhoto = saveMyProfilePhoto;
-
-  document.addEventListener('DOMContentLoaded', function() {
-    const profModal = document.getElementById('profile-modal');
-    if (profModal) profModal.addEventListener('click', function(e) { if (e.target === this) closeProfileModal(); });
-  });
 
 
 
@@ -2129,7 +2096,24 @@
       renderClosedOrders();
       updateOpenOrdersBadge();
       renderFinanceOverview();
+      renderStaleOrderAlert();
     });
+  }
+
+  function renderStaleOrderAlert() {
+    const el = document.getElementById('stale-order-alert');
+    if (!el) return;
+    const stale = orders.filter(isStaleOrder);
+    if (stale.length === 0) {
+      el.style.display = 'none';
+      return;
+    }
+    const mine = stale.filter(o => o.recordedBy === currentEmployeeName).length;
+    el.innerHTML = `
+      <div class="stale-title">⏰ ${stale.length} unfinished order${stale.length!==1?'s':''}</div>
+      <div class="stale-sub">${mine > 0 ? mine + ' assigned to you. ' : ''}Tap to review.</div>
+    `;
+    el.style.display = 'block';
   }
 
   function refreshOrders() { fbListenOrders(); }
@@ -2151,6 +2135,22 @@
            d.toLocaleTimeString('en-UG', { hour:'2-digit', minute:'2-digit' });
   }
 
+  function isStaleOrder(o) {
+    if (o.status !== 'pending' && o.status !== 'confirmed') return false;
+    if (!o.timestamp) return false;
+    const d = new Date(o.timestamp);
+    if (isNaN(d.getTime())) return false;
+    return d.toDateString() !== new Date().toDateString();
+  }
+
+  function daysAgoLabel(timestamp) {
+    const d = new Date(timestamp);
+    const now = new Date();
+    const diffDays = Math.floor((now.setHours(0,0,0,0) - new Date(d).setHours(0,0,0,0)) / 86400000);
+    if (diffDays === 1) return 'yesterday';
+    return diffDays + ' days ago';
+  }
+
   function renderOrderCard(o, isClosed) {
     const statusMap = {
       pending: '<span class="order-status-badge status-pending">⏳ Pending</span>',
@@ -2163,15 +2163,26 @@
       'We will deliver to ' + (o.deliveryArea||'') + ' shortly. Thank you!'
     );
     const waLink = 'https://wa.me/' + (o.phone||'').replace(/[^0-9]/g,'') + '?text=' + waMsg;
+    const stale = !isClosed && isStaleOrder(o);
+    // A stale (overdue) order can only be completed by the employee who created it — or the admin.
+    // Since online/unclaimed orders (no recordedBy) aren't "owned" by anyone, they stay admin-only once stale.
+    const canComplete = !stale || (o.recordedBy && o.recordedBy === currentEmployeeName);
 
-    const actions = isClosed
-      ? `<button class="btn-reopen" onclick="updateOrderStatus('${o.fbDocId}','pending')">↩ Reopen</button>
-         <button class="btn-wa-order" onclick="window.open('${waLink}','_blank')">💬 WhatsApp</button>`
-      : `<button class="btn-confirm" onclick="updateOrderStatus('${o.fbDocId}','confirmed')" ${o.status==='confirmed'?'style="opacity:0.5"':''}>
+    let actions;
+    if (isClosed) {
+      actions = `<button class="btn-reopen" onclick="updateOrderStatus('${o.fbDocId}','pending')">↩ Reopen</button>
+         <button class="btn-wa-order" onclick="window.open('${waLink}','_blank')">💬 WhatsApp</button>`;
+    } else if (canComplete) {
+      actions = `<button class="btn-confirm" onclick="updateOrderStatus('${o.fbDocId}','confirmed')" ${o.status==='confirmed'?'style="opacity:0.5"':''}>
            ${o.status==='confirmed'?'✅ Confirmed':'✅ Confirm Order'}
          </button>
          <button class="btn-close-order" onclick="updateOrderStatus('${o.fbDocId}','closed')">📦 Close Order</button>
          <button class="btn-wa-order" onclick="window.open('${waLink}','_blank')">💬 WhatsApp</button>`;
+    } else {
+      const lockMsg = o.recordedBy ? `Only ${o.recordedBy} or the admin can complete this` : 'Only the admin can complete this';
+      actions = `<div style="font-size:0.76rem; color:var(--red); font-weight:700; padding:8px 0;">🔒 ${lockMsg}</div>
+         <button class="btn-wa-order" onclick="window.open('${waLink}','_blank')">💬 WhatsApp</button>`;
+    }
 
     const cleanPhone = (o.phone || '').replace(/[^0-9+]/g, '');
     const phoneLink = cleanPhone
@@ -2197,7 +2208,8 @@
     }
 
     return `
-      <div class="order-card ${isClosed?'closed':''}">
+      <div class="order-card ${isClosed?'closed':''}" ${stale ? 'style="border:2px solid var(--red);"' : ''}>
+        ${stale ? `<div style="background:#fdecea; color:var(--red); font-size:0.72rem; font-weight:800; padding:6px 10px; border-radius:6px; margin-bottom:10px; display:flex; align-items:center; gap:6px;">⏰ Still open from ${daysAgoLabel(o.timestamp)} — needs attention</div>` : ''}
         <div class="order-card-hdr">
           <div>
             <div class="order-card-id">Order #${o.fbDocId ? o.fbDocId.slice(-6).toUpperCase() : 'N/A'}</div>
@@ -2239,7 +2251,7 @@
               <button onclick="markOrderBalancePaid('${o.fbDocId}')" style="background:var(--green); color:#fff; border:none; padding:5px 10px; border-radius:6px; font-size:0.72rem; font-weight:700; cursor:pointer;">✅ Mark Paid</button>
             </div>
           ` : (o.paymentStatus === 'paid' && o.pricing ? `
-            <div style="width:100%; margin-top:6px; font-size:0.74rem; color:var(--green); font-weight:700;">✅ Paid in full</div>
+            <div style="width:100%; margin-top:6px; font-size:0.74rem; color:var(--green); font-weight:700; display:flex; align-items:center; gap:6px;">✅ Paid in full <span style="font-weight:800; color:var(--green); font-size:0.88rem;">${fmt(o.pricing.total)}</span></div>
           ` : '')}
         </div>
         <div class="order-card-actions">${actions}</div>

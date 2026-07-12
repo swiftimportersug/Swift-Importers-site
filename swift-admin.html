@@ -468,6 +468,23 @@
       to   { opacity:1; transform:translateY(0) scale(1); }
     }
 
+    /* ── FLOATING STALE ORDER ALERT ── */
+    #stale-order-alert {
+      position: fixed; bottom: 26px; left: 26px; z-index: 499;
+      background: var(--red); color: #fff; border-radius: 14px;
+      padding: 14px 18px; max-width: 300px; cursor: pointer;
+      box-shadow: 0 8px 24px rgba(214, 59, 47, 0.4);
+      font-family: 'Inter', sans-serif;
+      animation: staleAlertIn 0.4s cubic-bezier(0.34,1.56,0.64,1), staleAlertPulse 2s ease-in-out infinite;
+    }
+    #stale-order-alert:hover { transform: translateY(-2px); }
+    #stale-order-alert .stale-title { font-size: 0.78rem; font-weight: 800; display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+    #stale-order-alert .stale-sub { font-size: 0.72rem; opacity: 0.9; }
+    @keyframes staleAlertIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes staleAlertPulse {
+      0%, 100% { box-shadow: 0 8px 24px rgba(214, 59, 47, 0.4), 0 0 0 0 rgba(214,59,47,0.5); }
+      50% { box-shadow: 0 8px 24px rgba(214, 59, 47, 0.4), 0 0 0 8px rgba(214,59,47,0); }
+    }
     .notif-btn {
       background: #1a1a1a; border: 1px solid #333; color: #888;
       padding: 7px 12px; border-radius:6px; font-size:0.8rem;
@@ -603,6 +620,9 @@
 
 <!-- APP -->
 <div class="app" id="app">
+
+  <!-- FLOATING STALE ORDER ALERT -->
+  <div id="stale-order-alert" style="display:none;" onclick="showPage('open-orders')"></div>
 
   <!-- SIDEBAR OVERLAY -->
   <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
@@ -2144,7 +2164,23 @@
       renderClosedOrders();
       updateOpenOrdersBadge();
       renderFinanceOverview();
+      renderStaleOrderAlert();
     });
+  }
+
+  function renderStaleOrderAlert() {
+    const el = document.getElementById('stale-order-alert');
+    if (!el) return;
+    const stale = orders.filter(isStaleOrder);
+    if (stale.length === 0) {
+      el.style.display = 'none';
+      return;
+    }
+    el.innerHTML = `
+      <div class="stale-title">⏰ ${stale.length} unfinished order${stale.length!==1?'s':''}</div>
+      <div class="stale-sub">Still open from a previous day. Tap to review.</div>
+    `;
+    el.style.display = 'block';
   }
 
   function refreshOrders() { fbListenOrders(); }
@@ -2166,6 +2202,22 @@
            d.toLocaleTimeString('en-UG', { hour:'2-digit', minute:'2-digit' });
   }
 
+  function isStaleOrder(o) {
+    if (o.status !== 'pending' && o.status !== 'confirmed') return false;
+    if (!o.timestamp) return false;
+    const d = new Date(o.timestamp);
+    if (isNaN(d.getTime())) return false;
+    return d.toDateString() !== new Date().toDateString();
+  }
+
+  function daysAgoLabel(timestamp) {
+    const d = new Date(timestamp);
+    const now = new Date();
+    const diffDays = Math.floor((now.setHours(0,0,0,0) - new Date(d).setHours(0,0,0,0)) / 86400000);
+    if (diffDays === 1) return 'yesterday';
+    return diffDays + ' days ago';
+  }
+
   function renderOrderCard(o, isClosed) {
     const statusMap = {
       pending: '<span class="order-status-badge status-pending">⏳ Pending</span>',
@@ -2178,6 +2230,7 @@
       'We will deliver to ' + (o.deliveryArea||'') + ' shortly. Thank you!'
     );
     const waLink = 'https://wa.me/' + (o.phone||'').replace(/[^0-9]/g,'') + '?text=' + waMsg;
+    const stale = !isClosed && isStaleOrder(o);
 
     const actions = isClosed
       ? `<button class="btn-reopen" onclick="updateOrderStatus('${o.fbDocId}','pending')">↩ Reopen</button>
@@ -2212,7 +2265,8 @@
     }
 
     return `
-      <div class="order-card ${isClosed?'closed':''}">
+      <div class="order-card ${isClosed?'closed':''}" ${stale ? 'style="border:2px solid var(--red);"' : ''}>
+        ${stale ? `<div style="background:#fdecea; color:var(--red); font-size:0.72rem; font-weight:800; padding:6px 10px; border-radius:6px; margin-bottom:10px; display:flex; align-items:center; gap:6px;">⏰ Still open from ${daysAgoLabel(o.timestamp)} — needs attention</div>` : ''}
         <div class="order-card-hdr">
           <div>
             <div class="order-card-id">Order #${o.fbDocId ? o.fbDocId.slice(-6).toUpperCase() : 'N/A'}</div>
@@ -2254,7 +2308,7 @@
               <button onclick="markOrderBalancePaid('${o.fbDocId}')" style="background:var(--green); color:#fff; border:none; padding:5px 10px; border-radius:6px; font-size:0.72rem; font-weight:700; cursor:pointer;">✅ Mark Paid</button>
             </div>
           ` : (o.paymentStatus === 'paid' && o.pricing ? `
-            <div style="width:100%; margin-top:6px; font-size:0.74rem; color:var(--green); font-weight:700;">✅ Paid in full</div>
+            <div style="width:100%; margin-top:6px; font-size:0.74rem; color:var(--green); font-weight:700; display:flex; align-items:center; gap:6px;">✅ Paid in full <span style="font-weight:800; color:var(--green); font-size:0.88rem;">${fmt(o.pricing.total)}</span></div>
           ` : '')}
         </div>
         <div class="order-card-actions">${actions}</div>
