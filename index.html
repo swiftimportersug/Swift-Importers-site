@@ -215,7 +215,7 @@
     .pd-gallery{width:100%;height:340px;background:var(--light);position:relative;overflow:hidden;touch-action:pan-y;}
     .pd-gallery-track{display:flex;height:100%;transition:transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94);will-change:transform;}
     .pd-gallery-slide{min-width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:5rem;flex-shrink:0;}
-    .pd-gallery-slide img{width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in;}
+    .pd-gallery-slide img{width:100%;height:100%;object-fit:contain;display:block;cursor:zoom-in;background:var(--light);}
     .pd-dots{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:6px;}
     .pd-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.5);transition:background 0.2s;}
     .pd-dot.active{background:#fff;}
@@ -224,8 +224,19 @@
     .pd-arrow-right{right:10px;}
     .fs-overlay{display:none;position:fixed;inset:0;background:#000;z-index:500;align-items:center;justify-content:center;overflow-y:auto;-webkit-overflow-scrolling:touch;}
     .fs-overlay.open{display:flex;}
-    .fs-overlay img{max-width:100%;max-height:100%;object-fit:contain;cursor:zoom-out;}
-    .fs-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.15);color:#fff;border:none;width:38px;height:38px;border-radius:50%;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+    .fs-overlay img{max-width:100%;max-height:100%;object-fit:contain;cursor:zoom-out;touch-action:pan-y;}
+    .fs-close{position:absolute;top:18px;right:18px;background:rgba(255,255,255,0.18);color:#fff;border:none;width:42px;height:42px;border-radius:50%;font-size:1.6rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;box-shadow:0 2px 10px rgba(0,0,0,0.4);transition:background 0.15s;}
+    .fs-close:hover{background:rgba(255,255,255,0.3);}
+    .fs-arrow{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);color:#fff;border:none;width:46px;height:46px;border-radius:50%;font-size:1.5rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background 0.15s;}
+    .fs-arrow:hover{background:rgba(255,255,255,0.3);}
+    .fs-arrow.fs-hidden{display:none;}
+    .fs-arrow-left{left:16px;}
+    .fs-arrow-right{right:16px;}
+    .fs-counter{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,0.15);color:#fff;font-size:0.78rem;font-weight:600;padding:5px 14px;border-radius:20px;z-index:10;display:none;}
+    .fs-counter.fs-visible{display:block;}
+    @media(max-width:768px){
+      .fs-arrow{display:none !important;}
+    }
     .pd-body{padding:14px 16px 90px;}
     .pd-category{font-size:0.65rem;font-weight:700;color:var(--grey);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;}
     .pd-name{font-family:var(--serif);font-size:1.15rem;font-weight:600;color:var(--black);margin-bottom:6px;line-height:1.25;}
@@ -712,9 +723,13 @@
 </footer>
 
 <!-- FULLSCREEN IMAGE VIEWER -->
-<div class="fs-overlay" id="fs-overlay" onclick="document.getElementById('fs-overlay').classList.remove('open')">
-  <button class="fs-close" onclick="document.getElementById('fs-overlay').classList.remove('open')">X</button>
+<div class="fs-overlay" id="fs-overlay" onclick="fsOverlayClick(event)"
+     ontouchstart="fsTouchStart(event)" ontouchmove="fsTouchMove(event)" ontouchend="fsTouchEnd(event)">
+  <button class="fs-close" onclick="event.stopPropagation(); closeFullscreen();">&times;</button>
+  <button class="fs-arrow fs-arrow-left" id="fs-arrow-left" onclick="fsNav(-1, event)">&#8249;</button>
   <img id="fs-img" src="" alt="Full image"/>
+  <button class="fs-arrow fs-arrow-right" id="fs-arrow-right" onclick="fsNav(1, event)">&#8250;</button>
+  <div class="fs-counter" id="fs-counter"></div>
 </div>
 
 <!-- PRODUCT DETAIL MODAL -->
@@ -1167,8 +1182,8 @@
         slide.className = 'pd-gallery-slide';
         var im = document.createElement('img');
         im.src = img; im.alt = 'Photo '+(i+1);
-        im.style.cssText = 'width:100%;height:100%;object-fit:cover;cursor:zoom-in;';
-        im.onclick = function(){ openFullscreen(img); };
+        im.style.cssText = 'width:100%;height:100%;object-fit:contain;cursor:zoom-in;background:var(--light);';
+        im.onclick = function(){ openFullscreen(i); };
         slide.appendChild(im);
         track.appendChild(slide);
         var dot = document.createElement('div');
@@ -1283,7 +1298,64 @@
       d.classList.toggle('active', i === pdSlideIdx);
     });
   }
-  function openFullscreen(src){ document.getElementById('fs-img').src=src; document.getElementById('fs-overlay').classList.add('open'); }
+  var fsIndex = 0;
+  var fsTouchStartX = 0;
+  var fsTouchMoved = false;
+
+  function openFullscreen(idx){
+    fsIndex = idx || 0;
+    updateFsImage();
+    document.getElementById('fs-overlay').classList.add('open');
+  }
+
+  function updateFsImage(){
+    if (!pdImages || pdImages.length === 0) return;
+    document.getElementById('fs-img').src = pdImages[fsIndex];
+    var multi = pdImages.length > 1;
+    document.getElementById('fs-arrow-left').classList.toggle('fs-hidden', !multi);
+    document.getElementById('fs-arrow-right').classList.toggle('fs-hidden', !multi);
+    var counter = document.getElementById('fs-counter');
+    counter.textContent = multi ? (fsIndex + 1) + ' / ' + pdImages.length : '';
+    counter.classList.toggle('fs-visible', multi);
+  }
+
+  function fsNav(dir, evt){
+    if (evt) evt.stopPropagation();
+    if (!pdImages || pdImages.length <= 1) return;
+    fsIndex = (fsIndex + dir + pdImages.length) % pdImages.length;
+    updateFsImage();
+  }
+
+  function closeFullscreen(){
+    document.getElementById('fs-overlay').classList.remove('open');
+  }
+
+  function fsTouchStart(e){
+    fsTouchStartX = e.touches[0].clientX;
+    fsTouchMoved = false;
+  }
+  function fsTouchMove(e){
+    if (Math.abs(e.touches[0].clientX - fsTouchStartX) > 10) fsTouchMoved = true;
+  }
+  function fsTouchEnd(e){
+    var diff = fsTouchStartX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 40) {
+      fsNav(diff > 0 ? 1 : -1);
+      fsTouchMoved = true;
+    }
+  }
+  function fsOverlayClick(e){
+    if (fsTouchMoved) { fsTouchMoved = false; return; }
+    closeFullscreen();
+  }
+
+  document.addEventListener('keydown', function(e){
+    var overlay = document.getElementById('fs-overlay');
+    if (!overlay || !overlay.classList.contains('open')) return;
+    if (e.key === 'ArrowLeft') fsNav(-1);
+    else if (e.key === 'ArrowRight') fsNav(1);
+    else if (e.key === 'Escape') closeFullscreen();
+  });
 
   function renderRelated(p) {
     var w = document.getElementById('pd-related');
@@ -1389,7 +1461,7 @@
         if (firstSlide) {
           var varImg = new Image();
           varImg.src = p.variants[idx].variantImage;
-          varImg.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in;';
+          varImg.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;cursor:zoom-in;background:var(--light);';
           varImg.onerror = function() {};
           firstSlide.style.opacity = '0';
           firstSlide.style.transition = 'opacity 0.2s';
