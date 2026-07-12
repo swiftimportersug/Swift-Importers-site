@@ -161,18 +161,20 @@
     .who-name-btn:hover { background: #262626; border-color: var(--gold); }
     .who-name-btn:active { background: var(--gold); color: var(--black); }
 
-    /* ── FLOATING RECORD A SALE BUTTON ── */
+    /* ── FLOATING RECORD A SALE BUTTON (draggable) ── */
     #fab-record-sale {
       position: fixed; bottom: 26px; right: 26px; z-index: 500;
       display: flex; align-items: center; gap: 9px;
       background: linear-gradient(135deg, var(--gold-light, #f0c563), var(--gold));
       color: var(--black); border: none; border-radius: 32px;
       padding: 15px 24px 15px 18px; font-family: 'Inter', sans-serif;
-      font-weight: 800; font-size: 0.9rem; cursor: pointer;
+      font-weight: 800; font-size: 0.9rem; cursor: grab;
       box-shadow: 0 6px 20px rgba(232, 160, 32, 0.45), 0 2px 6px rgba(0,0,0,0.15);
       animation: fabPulse 2.6s ease-in-out infinite;
       transition: transform 0.15s, box-shadow 0.15s;
+      touch-action: none; user-select: none; -webkit-user-select: none;
     }
+    #fab-record-sale.dragging { cursor: grabbing; animation: none; transition: none; }
     #fab-record-sale:hover {
       transform: translateY(-2px) scale(1.03);
       box-shadow: 0 10px 26px rgba(232, 160, 32, 0.55), 0 3px 8px rgba(0,0,0,0.2);
@@ -191,7 +193,7 @@
 
     /* ── FLOATING STALE ORDER ALERT ── */
     #stale-order-alert {
-      position: fixed; bottom: 26px; left: 26px; z-index: 499;
+      position: fixed; bottom: 100px; left: 26px; z-index: 499;
       background: var(--red); color: #fff; border-radius: 14px;
       padding: 14px 18px; max-width: 260px; cursor: pointer;
       box-shadow: 0 8px 24px rgba(214, 59, 47, 0.4);
@@ -207,7 +209,7 @@
       50% { box-shadow: 0 8px 24px rgba(214, 59, 47, 0.4), 0 0 0 8px rgba(214,59,47,0); }
     }
     @media (max-width: 600px) {
-      #stale-order-alert { left: 18px; bottom: 18px; max-width: 200px; }
+      #stale-order-alert { left: 18px; bottom: 90px; max-width: 200px; }
     }
 
     /* Login responsive sizing */
@@ -773,7 +775,7 @@
 <div class="app" id="app">
 
   <!-- FLOATING RECORD A SALE BUTTON -->
-  <button id="fab-record-sale" onclick="openCashSaleModal()" title="Record a Sale">
+  <button id="fab-record-sale" title="Record a Sale · drag to move">
     <span class="fab-icon">🛒</span>
     <span class="fab-label">Record a Sale</span>
   </button>
@@ -4766,6 +4768,110 @@
     const diff = adminFsTouchStartX - e.changedTouches[0].clientX;
     if (Math.abs(diff) > 40) adminFsNav(diff > 0 ? 1 : -1);
   }
+</script>
+
+<!-- DRAGGABLE FLOATING RECORD-A-SALE BUTTON -->
+<script>
+  (function() {
+    const FAB_POS_KEY = 'swiftFabPosition';
+    let fab, dragging = false, moved = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
+
+    function clampToViewport(left, top) {
+      const maxLeft = window.innerWidth - fab.offsetWidth - 6;
+      const maxTop = window.innerHeight - fab.offsetHeight - 6;
+      return {
+        left: Math.max(6, Math.min(left, maxLeft)),
+        top: Math.max(6, Math.min(top, maxTop))
+      };
+    }
+
+    function applyPosition(left, top) {
+      fab.style.left = left + 'px';
+      fab.style.top = top + 'px';
+      fab.style.right = 'auto';
+      fab.style.bottom = 'auto';
+    }
+
+    function loadSavedPosition() {
+      const saved = localStorage.getItem(FAB_POS_KEY);
+      if (!saved) return;
+      try {
+        const pos = JSON.parse(saved);
+        if (typeof pos.left === 'number' && typeof pos.top === 'number') {
+          const clamped = clampToViewport(pos.left, pos.top);
+          applyPosition(clamped.left, clamped.top);
+        }
+      } catch (e) {}
+    }
+
+    function savePosition() {
+      const rect = fab.getBoundingClientRect();
+      localStorage.setItem(FAB_POS_KEY, JSON.stringify({ left: rect.left, top: rect.top }));
+    }
+
+    function onPointerDown(e) {
+      dragging = true;
+      moved = false;
+      const rect = fab.getBoundingClientRect();
+      startX = e.clientX;
+      startY = e.clientY;
+      startLeft = rect.left;
+      startTop = rect.top;
+      fab.classList.add('dragging');
+      try { fab.setPointerCapture(e.pointerId); } catch (err) {}
+    }
+
+    function onPointerMove(e) {
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (Math.abs(dx) > 6 || Math.abs(dy) > 6) moved = true;
+      if (moved) {
+        const clamped = clampToViewport(startLeft + dx, startTop + dy);
+        applyPosition(clamped.left, clamped.top);
+      }
+    }
+
+    function onPointerUp() {
+      if (!dragging) return;
+      dragging = false;
+      fab.classList.remove('dragging');
+      if (moved) savePosition();
+    }
+
+    function onClick(e) {
+      if (moved) {
+        // This click was the tail end of a drag — don't open the modal.
+        e.preventDefault();
+        e.stopPropagation();
+        moved = false;
+        return;
+      }
+      if (typeof openCashSaleModal === 'function') openCashSaleModal();
+    }
+
+    function init() {
+      fab = document.getElementById('fab-record-sale');
+      if (!fab) return;
+      loadSavedPosition();
+      fab.addEventListener('pointerdown', onPointerDown);
+      fab.addEventListener('pointermove', onPointerMove);
+      fab.addEventListener('pointerup', onPointerUp);
+      fab.addEventListener('pointercancel', onPointerUp);
+      fab.addEventListener('click', onClick);
+      window.addEventListener('resize', function() {
+        const rect = fab.getBoundingClientRect();
+        const clamped = clampToViewport(rect.left, rect.top);
+        if (clamped.left !== rect.left || clamped.top !== rect.top) applyPosition(clamped.left, clamped.top);
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  })();
 </script>
 
 </body>

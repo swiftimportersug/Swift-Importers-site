@@ -470,7 +470,7 @@
 
     /* ── FLOATING STALE ORDER ALERT ── */
     #stale-order-alert {
-      position: fixed; bottom: 26px; left: 26px; z-index: 499;
+      position: fixed; bottom: 100px; left: 26px; z-index: 499;
       background: var(--red); color: #fff; border-radius: 14px;
       padding: 14px 18px; max-width: 300px; cursor: pointer;
       box-shadow: 0 8px 24px rgba(214, 59, 47, 0.4);
@@ -484,6 +484,9 @@
     @keyframes staleAlertPulse {
       0%, 100% { box-shadow: 0 8px 24px rgba(214, 59, 47, 0.4), 0 0 0 0 rgba(214,59,47,0.5); }
       50% { box-shadow: 0 8px 24px rgba(214, 59, 47, 0.4), 0 0 0 8px rgba(214,59,47,0); }
+    }
+    @media (max-width: 600px) {
+      #stale-order-alert { left: 18px; bottom: 90px; max-width: 200px; }
     }
     .notif-btn {
       background: #1a1a1a; border: 1px solid #333; color: #888;
