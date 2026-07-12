@@ -2870,7 +2870,7 @@
             <div style="display:flex;align-items:center;gap:10px;">
               ${thumb}
               <div>
-                <strong style="font-size:0.9rem;">${p.name}</strong>${p.hotDeal ? ' <span style="background:var(--red);color:#fff;font-size:0.6rem;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.04em;vertical-align:middle;">🔥 HOT</span>' : ''}${p.variants.some(v => parseInt(v.discountPrice) > 0 && parseInt(v.discountPrice) < parseInt(v.sell)) ? ' <span style="background:var(--gold);color:var(--black);font-size:0.6rem;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.04em;vertical-align:middle;">🏷️ SALE</span>' : ''}
+                <strong style="font-size:0.9rem;">${p.name}</strong>${p.hotDeal ? ' <span style="background:var(--red);color:#fff;font-size:0.6rem;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.04em;vertical-align:middle;">🔥 HOT</span>' : ''}${p.variants.some(v => csHasDiscount(v)) ? ' <span style="background:var(--gold);color:var(--black);font-size:0.6rem;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.04em;vertical-align:middle;">🏷️ SALE</span>' : ''}
                 ${p.store ? '<br/><span style="font-size:0.68rem;color:var(--gold-dark);font-weight:700;">🏬 '+p.store+'</span>' : ''}
                 ${p.sku ? '<br/><span style="font-size:0.7rem;color:var(--grey);">SKU: '+p.sku+'</span>' : ''}
                 <br/>
@@ -3916,10 +3916,21 @@
     document.getElementById('cs-selfpick-note').style.display = type === 'selfpick' ? '' : 'none';
   }
 
-  function csEffectivePrice(v) {
+  function csDiscountExpiryMs(v) {
+    if (!v.discountExpiresAt) return null;
+    const t = new Date(v.discountExpiresAt).getTime();
+    return isNaN(t) ? null : t;
+  }
+  function csHasDiscount(v) {
     const sell = parseInt(v.sell) || 0;
     const disc = parseInt(v.discountPrice) || 0;
-    return (disc > 0 && disc < sell) ? disc : sell;
+    if (!(disc > 0 && disc < sell)) return false;
+    const exp = csDiscountExpiryMs(v);
+    if (exp !== null && exp <= Date.now()) return false; // countdown has run out — back to normal price
+    return true;
+  }
+  function csEffectivePrice(v) {
+    return csHasDiscount(v) ? (parseInt(v.discountPrice) || 0) : (parseInt(v.sell) || 0);
   }
 
   function openCashSaleModal() {
