@@ -723,20 +723,25 @@
         </div>
 
         <!-- EMPLOYEE NAMES -->
-        <div style="background:#fff; border:1px solid var(--border); border-radius:12px; padding:16px 20px; margin-bottom:24px;">
-          <div style="font-size:0.95rem; font-weight:800; display:flex; align-items:center; gap:8px; margin-bottom:3px;">👤 Staff Names &amp; Secret Codes</div>
-          <div style="font-size:0.76rem; color:#888; margin-bottom:12px; max-width:640px;">Each staff member gets their own 4-digit secret code on top of the shared PIN. At login they enter the shared PIN, pick their name, then must enter their own code — so no one can record sales under someone else's name.</div>
-          <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-            <input type="text" id="new-employee-name-input" placeholder="e.g. Sarah Namuli"
-              style="flex:1; max-width:220px; padding:9px 12px; border:1.5px solid var(--border); border-radius:7px; font-size:0.85rem; font-family:'Inter',sans-serif;"
-              onkeydown="if(event.key==='Enter') document.getElementById('new-employee-code-input').focus();"/>
-            <input type="text" id="new-employee-code-input" maxlength="4" inputmode="numeric" placeholder="4-digit code"
-              style="width:130px; text-align:center; letter-spacing:0.2em; padding:9px 12px; border:1.5px solid var(--border); border-radius:7px; font-size:0.85rem; font-family:'Inter',sans-serif;"
-              oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4);"
-              onkeydown="if(event.key==='Enter') addEmployeeName();"/>
-            <button class="btn-gold" style="padding:9px 16px; font-size:0.8rem;" onclick="addEmployeeName()">+ Add Staff</button>
+        <div style="background:#fff; border:1px solid var(--border); border-radius:12px; margin-bottom:24px; overflow:hidden;">
+          <div onclick="toggleStaffSection()" style="padding:16px 20px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            <div style="font-size:0.95rem; font-weight:800; display:flex; align-items:center; gap:8px;">👤 Staff Names &amp; Secret Codes</div>
+            <span id="staff-section-arrow" style="font-size:0.9rem; color:#888; transition:transform 0.2s;">▸</span>
           </div>
-          <div id="employee-names-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+          <div id="staff-section-body" style="display:none; padding:0 20px 20px;">
+            <div style="font-size:0.76rem; color:#888; margin-bottom:12px; max-width:640px;">Each staff member gets their own 4-digit secret code on top of the shared PIN. At login they enter the shared PIN, pick their name, then must enter their own code — so no one can record sales under someone else's name.</div>
+            <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+              <input type="text" id="new-employee-name-input" placeholder="e.g. Sarah Namuli"
+                style="flex:1; max-width:220px; padding:9px 12px; border:1.5px solid var(--border); border-radius:7px; font-size:0.85rem; font-family:'Inter',sans-serif;"
+                onkeydown="if(event.key==='Enter') document.getElementById('new-employee-code-input').focus();"/>
+              <input type="text" id="new-employee-code-input" maxlength="4" inputmode="numeric" placeholder="4-digit code"
+                style="width:130px; text-align:center; letter-spacing:0.2em; padding:9px 12px; border:1.5px solid var(--border); border-radius:7px; font-size:0.85rem; font-family:'Inter',sans-serif;"
+                oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4);"
+                onkeydown="if(event.key==='Enter') addEmployeeName();"/>
+              <button class="btn-gold" style="padding:9px 16px; font-size:0.8rem;" onclick="addEmployeeName()">+ Add Staff</button>
+            </div>
+            <div id="employee-names-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+          </div>
         </div>
 
         <!-- FINANCE OVERVIEW -->
@@ -979,17 +984,8 @@
         </div>
         <div class="form-group">
           <label>Category *</label>
-          <select id="f-cat">
+          <select id="f-cat" data-current="" onchange="onCategorySelectChange(this)">
             <option value="">Select category</option>
-            <option>Smartphones</option>
-            <option>Laptops</option>
-            <option>Audio</option>
-            <option>TVs</option>
-            <option>Accessories</option>
-            <option>Cameras</option>
-            <option>Printers</option>
-            <option>Home Appliances</option>
-            <option>Other</option>
           </select>
         </div>
       </div>
@@ -1373,6 +1369,7 @@
       fbListenStores();
       fbListenEmployees();
       fbListenAdjustmentsLog();
+      fbListenCategories();
       loadEmployeePin();
       fbLoadThreshold();
       renderAll();
@@ -1513,6 +1510,72 @@
     localStorage.setItem('si_threshold', threshold);
     fbSaveThreshold(threshold);
     renderAll();
+  }
+
+  // ── CATEGORIES (built-ins + admin-added custom ones) ──
+  let customCategories = [];
+  let unsubscribeCategories = null;
+  const BASE_CATEGORIES = ['Smartphones','Laptops','Audio','TVs','Accessories','Cameras','Printers','Home Appliances'];
+
+  function fbListenCategories() {
+    if (!window.fbDb) return;
+    const { collection, onSnapshot } = window.fbFns;
+    if (unsubscribeCategories) unsubscribeCategories();
+    unsubscribeCategories = onSnapshot(collection(window.fbDb, 'categories'), (snapshot) => {
+      customCategories = snapshot.docs.map(d => ({ fbDocId: d.id, ...d.data() }));
+      customCategories.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+      renderCategoryDropdown();
+    });
+  }
+
+  function allCategoryNames() {
+    const custom = customCategories.map(c => c.name).filter(Boolean);
+    const combined = [...BASE_CATEGORIES, ...custom, 'Other'];
+    return [...new Set(combined)];
+  }
+
+  function categoryOptionsHtml(selected) {
+    let names = allCategoryNames();
+    if (selected && !names.includes(selected)) names = [selected, ...names]; // keep legacy/unknown category visible
+    let html = '<option value="">Select category</option>';
+    html += names.map(c => `<option value="${c}" ${selected===c?'selected':''}>${c}</option>`).join('');
+    html += '<option value="__add_new__">+ Add New Category...</option>';
+    return html;
+  }
+
+  function renderCategoryDropdown() {
+    const sel = document.getElementById('f-cat');
+    if (!sel) return;
+    const current = sel.getAttribute('data-current') || sel.value;
+    sel.innerHTML = categoryOptionsHtml(current);
+  }
+
+  function onCategorySelectChange(selectEl) {
+    if (selectEl.value === '__add_new__') {
+      addNewCategory(selectEl);
+    } else {
+      selectEl.setAttribute('data-current', selectEl.value);
+    }
+  }
+
+  async function addNewCategory(fromSelectEl) {
+    const name = prompt('Name of the new category:');
+    if (!name || !name.trim()) { if (fromSelectEl) fromSelectEl.value = fromSelectEl.getAttribute('data-current') || ''; return; }
+    const trimmed = name.trim();
+    if (allCategoryNames().some(c => c.toLowerCase() === trimmed.toLowerCase())) {
+      alert('That category already exists.');
+      if (fromSelectEl) { fromSelectEl.value = trimmed; fromSelectEl.setAttribute('data-current', trimmed); }
+      return;
+    }
+    if (!window.fbDb || !window.fbFns) { alert('Not connected. Check your internet connection.'); return; }
+    const { addDoc, collection } = window.fbFns;
+    try {
+      await addDoc(collection(window.fbDb, 'categories'), { name: trimmed, createdAt: new Date().toISOString() });
+      if (fromSelectEl) setTimeout(() => { fromSelectEl.value = trimmed; fromSelectEl.setAttribute('data-current', trimmed); }, 300);
+    } catch(e) {
+      alert('Error adding category. Check your internet connection.');
+      console.error(e);
+    }
   }
 
   // ── STORES (multi-store support) ──
@@ -1749,6 +1812,14 @@
         </div>
       `).join('');
     }
+  }
+
+  function toggleStaffSection() {
+    const body = document.getElementById('staff-section-body');
+    const arrow = document.getElementById('staff-section-arrow');
+    const isOpen = body.style.display !== 'none';
+    body.style.display = isOpen ? 'none' : 'block';
+    arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
   }
 
   function renderEmployeeNamesList() {
@@ -2968,7 +3039,10 @@
     document.getElementById('modal-title').textContent = '+ Add New Product';
     document.getElementById('edit-id').value = '';
     document.getElementById('f-name').value = '';
-    document.getElementById('f-cat').value = '';
+    const catSelAdd = document.getElementById('f-cat');
+    catSelAdd.innerHTML = categoryOptionsHtml('');
+    catSelAdd.value = '';
+    catSelAdd.setAttribute('data-current', '');
     const storeSelAdd = document.getElementById('f-store');
     storeSelAdd.innerHTML = storeOptionsHtml('');
     storeSelAdd.value = stores.length ? stores[0].name : '';
@@ -2999,7 +3073,10 @@
     document.getElementById('modal-title').textContent = '✏️ Edit Product';
     document.getElementById('edit-id').value = id;
     document.getElementById('f-name').value = p.name;
-    document.getElementById('f-cat').value = p.category;
+    const catSelEdit = document.getElementById('f-cat');
+    catSelEdit.innerHTML = categoryOptionsHtml(p.category || '');
+    catSelEdit.value = p.category || '';
+    catSelEdit.setAttribute('data-current', p.category || '');
     const storeSelEdit = document.getElementById('f-store');
     storeSelEdit.innerHTML = storeOptionsHtml(p.store || '');
     storeSelEdit.value = p.store || (stores.length ? stores[0].name : '');
@@ -3213,7 +3290,7 @@
     const name = document.getElementById('f-name').value.trim();
     const cat = document.getElementById('f-cat').value;
     const store = document.getElementById('f-store').value;
-    if (!name || !cat) { alert('Please enter a product name and category.'); return; }
+    if (!name || !cat || cat === '__add_new__') { alert('Please enter a product name and category.'); return; }
     if (!store || store === '__add_new__') { alert('Please select which store this product belongs to.'); return; }
 
     const rows = document.querySelectorAll('#variants-list .variant-row');
