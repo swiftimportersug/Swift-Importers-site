@@ -644,11 +644,18 @@
     <div class="order-form">
       <h3>Order Form</h3>
 
-      <!-- Selected items summary (shown when Buy Now is used) -->
+      <!-- Selected items summary (shown when items are in the cart) -->
       <div id="order-items-summary" style="display:none;background:#f0ffe8;border:1.5px solid #a5d6a7;border-radius:8px;padding:12px 14px;margin-bottom:16px;">
-        <div style="font-size:0.7rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#2e7d32;margin-bottom:6px;">Items in your order</div>
-        <div id="order-items-list" style="font-size:0.85rem;color:#1b5e20;font-weight:600;"></div>
-        <button onclick="clearOrderSummary()" style="margin-top:8px;background:none;border:none;color:#888;font-size:0.72rem;cursor:pointer;text-decoration:underline;">Remove &amp; fill manually</button>
+        <div style="font-size:0.7rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#2e7d32;margin-bottom:8px;">Items in your order</div>
+        <div id="order-items-list"></div>
+        <div id="order-items-total" style="font-size:0.85rem;font-weight:800;color:#1b5e20;margin-top:8px;padding-top:8px;border-top:1px solid #a5d6a7;"></div>
+        <button onclick="openAddMoreItemsModal()" style="margin-top:10px;width:100%;background:var(--black);color:#fff;border:none;padding:10px;border-radius:7px;font-size:0.8rem;font-weight:700;cursor:pointer;">+ Add More Items</button>
+        <button onclick="clearOrderSummary()" style="margin-top:8px;background:none;border:none;color:#888;font-size:0.72rem;cursor:pointer;text-decoration:underline;">Remove all &amp; fill manually</button>
+      </div>
+
+      <!-- Prompt to add items when the manual field is showing -->
+      <div id="order-add-items-prompt" style="margin-bottom:16px;">
+        <button onclick="openAddMoreItemsModal()" style="width:100%;background:#fff;border:1.5px dashed var(--gold);color:var(--gold-dark);padding:10px;border-radius:7px;font-size:0.8rem;font-weight:700;cursor:pointer;">🔍 Search &amp; Add Items Instead of Typing</button>
       </div>
 
       <!-- Hidden field carrying selected products to submitOrder -->
@@ -945,7 +952,19 @@
     <div class="cart-total" id="cart-total-row" style="display:none;">
       <span>Total</span><span id="cart-total-val"></span>
     </div>
-    <button class="submit-btn" onclick="closeCart();document.getElementById('order').scrollIntoView({behavior:'smooth'})">Proceed to Order</button>
+    <button class="submit-btn" onclick="closeCart();renderOrderItemsSummary();document.getElementById('order').scrollIntoView({behavior:'smooth'})">Proceed to Order</button>
+  </div>
+</div>
+
+<!-- ADD MORE ITEMS AT CHECKOUT -->
+<div class="modal-overlay" id="add-more-items-modal">
+  <div class="modal" style="max-width:480px;">
+    <button class="modal-close" onclick="closeAddMoreItemsModal()">X</button>
+    <h2>Add More Items</h2>
+    <p style="font-size:0.85rem;color:#666;margin-bottom:12px;">Search for another product to add — everything ships together in one order.</p>
+    <input type="text" id="ami-search" placeholder="Search products..." oninput="searchAmiProducts(this.value)"
+      style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;font-family:'Inter',sans-serif;"/>
+    <div id="ami-results" style="max-height:340px;overflow-y:auto;"></div>
   </div>
 </div>
 
@@ -1597,21 +1616,7 @@
 
   function pdBuyNow() {
     if (!pdAddToCart()) return;
-    // Build item summary from cart
-    var itemLines = cart.map(function(c){
-      return c.name + ' x' + c.qty + ' (' + fmtPrice(c.price * c.qty) + ')';
-    }).join('\n');
-    var total = cart.reduce(function(s,c){ return s + c.price * c.qty; }, 0);
-    itemLines += '\nTotal: ' + fmtPrice(total);
-    // Show pre-filled summary, hide manual field
-    var summary = document.getElementById('order-items-summary');
-    var manualWrap = document.getElementById('order-manual-products-wrap');
-    var itemsList = document.getElementById('order-items-list');
-    var hiddenField = document.getElementById('order-products-hidden');
-    if (summary) summary.style.display = 'block';
-    if (manualWrap) manualWrap.style.display = 'none';
-    if (itemsList) itemsList.innerText = itemLines;
-    if (hiddenField) hiddenField.value = itemLines;
+    renderOrderItemsSummary();
     // Close modal and scroll to form
     setTimeout(function(){
       document.getElementById('pd-overlay').classList.remove('open');
@@ -1624,12 +1629,58 @@
     }, 300);
   }
 
-  function clearOrderSummary() {
+  function renderOrderItemsSummary() {
     var summary = document.getElementById('order-items-summary');
     var manualWrap = document.getElementById('order-manual-products-wrap');
+    var addPrompt = document.getElementById('order-add-items-prompt');
+    var itemsList = document.getElementById('order-items-list');
+    var totalEl = document.getElementById('order-items-total');
+    var hiddenField = document.getElementById('order-products-hidden');
+
+    if (cart.length === 0) {
+      if (summary) summary.style.display = 'none';
+      if (manualWrap) manualWrap.style.display = 'block';
+      if (addPrompt) addPrompt.style.display = 'block';
+      if (hiddenField) hiddenField.value = '';
+      return;
+    }
+
+    if (summary) summary.style.display = 'block';
+    if (manualWrap) manualWrap.style.display = 'none';
+    if (addPrompt) addPrompt.style.display = 'none';
+
+    if (itemsList) {
+      itemsList.innerHTML = cart.map(function(c){
+        return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #d5ecc7;font-size:0.83rem;color:#1b5e20;">' +
+          '<span style="font-weight:600;">' + c.name + ' &times;' + c.qty + '</span>' +
+          '<span style="display:flex;align-items:center;gap:8px;"><span style="font-weight:700;">' + fmtPrice(c.price * c.qty) + '</span>' +
+          '<button onclick="removeItemFromCheckout(\'' + c.cartKey + '\')" style="background:none;border:none;color:#c0392b;cursor:pointer;font-size:0.85rem;padding:0 2px;" title="Remove">&times;</button></span>' +
+          '</div>';
+      }).join('');
+    }
+    var total = cart.reduce(function(s,c){ return s + c.price * c.qty; }, 0);
+    if (totalEl) totalEl.textContent = 'Total: ' + fmtPrice(total);
+
+    var itemLines = cart.map(function(c){ return c.name + ' x' + c.qty + ' (' + fmtPrice(c.price * c.qty) + ')'; }).join('\n') + '\nTotal: ' + fmtPrice(total);
+    if (hiddenField) hiddenField.value = itemLines;
+  }
+
+  function removeItemFromCheckout(cartKey) {
+    cart = cart.filter(function(c){ return c.cartKey !== cartKey; });
+    updateCartCount();
+    renderOrderItemsSummary();
+  }
+
+  function clearOrderSummary() {
+    cart = [];
+    updateCartCount();
+    var summary = document.getElementById('order-items-summary');
+    var manualWrap = document.getElementById('order-manual-products-wrap');
+    var addPrompt = document.getElementById('order-add-items-prompt');
     var hiddenField = document.getElementById('order-products-hidden');
     if (summary) summary.style.display = 'none';
     if (manualWrap) manualWrap.style.display = 'block';
+    if (addPrompt) addPrompt.style.display = 'block';
     if (hiddenField) hiddenField.value = '';
   }
 
@@ -1751,6 +1802,113 @@
   }
 
   function closeCart(){ document.getElementById('cart-modal').classList.remove('open'); }
+
+  // ADD MORE ITEMS AT CHECKOUT
+  var amiSelectedProduct = null;
+  var amiSelectedVariantIdx = null;
+  var amiQty = 1;
+
+  function openAddMoreItemsModal() {
+    amiSelectedProduct = null;
+    amiSelectedVariantIdx = null;
+    amiQty = 1;
+    document.getElementById('ami-search').value = '';
+    document.getElementById('ami-results').innerHTML = '<div style="text-align:center;color:#999;padding:20px;font-size:0.85rem;">Type to search for a product...</div>';
+    document.getElementById('add-more-items-modal').classList.add('open');
+    setTimeout(function(){ document.getElementById('ami-search').focus(); }, 200);
+  }
+
+  function closeAddMoreItemsModal() {
+    document.getElementById('add-more-items-modal').classList.remove('open');
+  }
+
+  function searchAmiProducts(query) {
+    var q = query.trim().toLowerCase();
+    var box = document.getElementById('ami-results');
+    if (!q) { box.innerHTML = '<div style="text-align:center;color:#999;padding:20px;font-size:0.85rem;">Type to search for a product...</div>'; return; }
+    var matches = products.filter(function(p){ return p.name.toLowerCase().indexOf(q) !== -1; }).slice(0, 8);
+    if (matches.length === 0) { box.innerHTML = '<div style="text-align:center;color:#999;padding:20px;font-size:0.85rem;">No products found.</div>'; return; }
+    box.innerHTML = matches.map(function(p){
+      var totalStk = p.variants.reduce(function(s,v){return s+(parseInt(v.stock)||0);},0);
+      var priceDisplay = fmtPrice(effectivePrice(p.variants[0]));
+      var thumb = p.image ? '<img src="'+p.image+'" style="width:100%;height:100%;object-fit:cover;"/>' : (catIcons[p.category]||'📦');
+      return '<div style="display:flex;align-items:center;gap:10px;padding:10px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="selectAmiProduct(\'' + p.id + '\')">' +
+        '<div style="width:44px;height:44px;background:var(--light);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;overflow:hidden;flex-shrink:0;">' + thumb + '</div>' +
+        '<div style="flex:1;"><div style="font-weight:700;font-size:0.85rem;">' + p.name + '</div><div style="font-size:0.78rem;color:#888;">' + priceDisplay + (totalStk===0?' &middot; Out of stock':'') + '</div></div>' +
+        '</div>';
+    }).join('');
+  }
+
+  function selectAmiProduct(id) {
+    var p = products.find(function(x){return x.id===id;});
+    if (!p) return;
+    amiSelectedProduct = p;
+    amiSelectedVariantIdx = p.variants.length === 1 ? 0 : null;
+    amiQty = 1;
+    renderAmiVariantPicker();
+  }
+
+  function renderAmiVariantPicker() {
+    var p = amiSelectedProduct;
+    var box = document.getElementById('ami-results');
+    var hasVariants = p.variants.length > 1;
+    var variantHtml = '';
+    if (hasVariants) {
+      variantHtml = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;">' + p.variants.map(function(v,i){
+        var stock = parseInt(v.stock)||0;
+        var active = amiSelectedVariantIdx === i;
+        return '<button onclick="amiSelectVariant(' + i + ')" ' + (stock===0?'disabled':'') + ' style="padding:8px 12px;border-radius:7px;border:2px solid ' + (active?'var(--gold)':'var(--border)') + ';background:' + (active?'#fffbf0':'#fff') + ';font-size:0.78rem;font-weight:700;cursor:' + (stock===0?'not-allowed':'pointer') + ';opacity:' + (stock===0?'0.4':'1') + ';font-family:\'Inter\',sans-serif;">' + v.name + (v.color?' ('+v.color+')':'') + '<br/><span style="font-weight:400;color:#888;">' + fmtPrice(effectivePrice(v)) + '</span></button>';
+      }).join('') + '</div>';
+    }
+    var selectedVariant = amiSelectedVariantIdx !== null ? p.variants[amiSelectedVariantIdx] : null;
+
+    box.innerHTML = '<div style="padding:6px 0;">' +
+      '<button onclick="searchAmiProducts(document.getElementById(\'ami-search\').value)" style="background:none;border:none;color:#888;font-size:0.78rem;cursor:pointer;margin-bottom:10px;">&larr; Back to results</button>' +
+      '<div style="font-weight:800;font-size:0.95rem;">' + p.name + '</div>' +
+      variantHtml +
+      (selectedVariant ? (
+        '<div style="display:flex;align-items:center;gap:12px;margin:14px 0;">' +
+          '<span style="font-size:0.8rem;font-weight:700;">Quantity</span>' +
+          '<button onclick="amiChangeQty(-1)" style="width:32px;height:32px;border-radius:6px;border:1.5px solid var(--border);background:#fff;cursor:pointer;font-weight:700;">-</button>' +
+          '<span id="ami-qty" style="font-weight:800;min-width:20px;text-align:center;">' + amiQty + '</span>' +
+          '<button onclick="amiChangeQty(1)" style="width:32px;height:32px;border-radius:6px;border:1.5px solid var(--border);background:#fff;cursor:pointer;font-weight:700;">+</button>' +
+        '</div>' +
+        '<button onclick="confirmAddAmiItem()" style="width:100%;background:var(--gold);color:var(--black);border:none;padding:12px;border-radius:8px;font-weight:800;font-size:0.85rem;cursor:pointer;">+ Add to Order</button>'
+      ) : '<div style="font-size:0.8rem;color:#888;margin-top:10px;">Choose a variant above.</div>') +
+      '</div>';
+  }
+
+  function amiSelectVariant(idx) {
+    amiSelectedVariantIdx = idx;
+    amiQty = 1;
+    renderAmiVariantPicker();
+  }
+
+  function amiChangeQty(delta) {
+    var p = amiSelectedProduct;
+    var v = p.variants[amiSelectedVariantIdx];
+    var maxStock = parseInt(v.stock)||0;
+    amiQty = Math.max(1, Math.min(maxStock, amiQty + delta));
+    document.getElementById('ami-qty').textContent = amiQty;
+  }
+
+  function confirmAddAmiItem() {
+    var p = amiSelectedProduct;
+    var v = p.variants[amiSelectedVariantIdx];
+    var hasVariants = p.variants.length > 1;
+    var cartKey = p.id + '_' + amiSelectedVariantIdx;
+    var existing = cart.find(function(c){ return c.cartKey === cartKey; });
+    var available = parseInt(v.stock) || 0;
+    if (existing) {
+      if (existing.qty + amiQty > available) { alert('Only ' + available + ' pieces available.'); return; }
+      existing.qty += amiQty;
+    } else {
+      cart.push({ cartKey: cartKey, id: p.id, name: p.name + (hasVariants ? ' - ' + v.name + (v.color ? ' (' + v.color + ')' : '') : ''), price: effectivePrice(v), cost: 0, icon: catIcons[p.category] || '', qty: amiQty, variantIdx: amiSelectedVariantIdx, maxStock: available });
+    }
+    updateCartCount();
+    renderOrderItemsSummary();
+    closeAddMoreItemsModal();
+  }
 
   // ORDER
   function submitOrder() {
@@ -1930,7 +2088,7 @@
   }
 
   // Close on overlay click
-  ['returns-modal','track-order-modal','payment-guide-modal','delivery-info-modal','how-to-order-modal','cart-modal','success-modal'].forEach(function(id){
+  ['returns-modal','track-order-modal','payment-guide-modal','delivery-info-modal','how-to-order-modal','cart-modal','success-modal','add-more-items-modal'].forEach(function(id){
     var el=document.getElementById(id);
     if(el) el.addEventListener('click',function(e){ if(e.target===this){ if(id==='cart-modal'){closeCart();}else{this.classList.remove('open');} } });
   });

@@ -3949,6 +3949,14 @@
     </div>
     <div class="modal-body">
 
+      <!-- ITEMS ADDED SO FAR (persistent across the whole search/add loop) -->
+      <div id="cs-items-summary" style="display:none; background:#eef7ee; border:1.5px solid #a5d6a7; border-radius:10px; padding:12px 14px; margin-bottom:16px;">
+        <div style="font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:#2e7d32; margin-bottom:8px;">🛒 Items in This Sale</div>
+        <div id="cs-items-list"></div>
+        <div id="cs-items-total" style="font-size:0.85rem; font-weight:800; color:#1b5e20; margin-top:8px; padding-top:8px; border-top:1px solid #a5d6a7;"></div>
+        <button type="button" onclick="csGoToCheckout()" style="margin-top:10px; width:100%; background:var(--black); color:#fff; border:none; padding:11px; border-radius:7px; font-size:0.82rem; font-weight:700; cursor:pointer;">✅ Done Adding Items — Continue</button>
+      </div>
+
       <div id="cs-step-search">
         <div class="form-group">
           <label>Find the item *</label>
@@ -3978,6 +3986,13 @@
             <span id="cs-total" style="font-size:0.9rem;font-weight:700;color:var(--gold-dark);margin-left:8px;"></span>
           </div>
         </div>
+
+        <button type="button" onclick="csAddItemToSale()" style="width:100%; background:var(--gold); color:var(--black); border:none; padding:12px; border-radius:8px; font-weight:800; font-size:0.85rem; cursor:pointer; margin-bottom:10px;">➕ Add This Item to Sale</button>
+        <button type="button" onclick="cashSaleBackToSearch()" style="background:none; border:none; color:var(--gold-dark); font-size:0.8rem; font-weight:700; cursor:pointer; padding:0;">&#8592; Choose a different item</button>
+      </div>
+
+      <div id="cs-step-checkout" style="display:none;">
+        <button type="button" onclick="csBackToItems()" style="background:none; border:none; color:var(--gold-dark); font-size:0.8rem; font-weight:700; cursor:pointer; padding:0; margin-bottom:14px;">&#8592; Back to items</button>
 
         <div style="background:var(--light); border-radius:10px; padding:12px 14px; margin-bottom:14px;">
           <div style="font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:var(--gold-dark); margin-bottom:10px;">💵 Adjust Price (optional)</div>
@@ -4069,19 +4084,18 @@
             🏪 Client picked up this item themselves at our store in Munyonyo — no delivery details needed.
           </div>
         </div>
-
-        <button type="button" onclick="cashSaleBackToSearch()" style="background:none; border:none; color:var(--gold-dark); font-size:0.8rem; font-weight:700; cursor:pointer; padding:0; margin-top:10px;">&#8592; Choose a different item</button>
       </div>
 
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeCashSaleModal()">Cancel</button>
-      <button class="btn-gold" id="cs-record-btn" onclick="recordCashSale()" disabled>💾 Record Sale</button>
+      <button class="btn-gold" id="cs-record-btn" onclick="recordCashSale()" style="display:none;">💾 Record Sale</button>
     </div>
   </div>
 </div>
 
 <script>
+  let cashSaleItems = []; // committed items: [{productId, productName, variantIdx, variantName, qty, unitPrice, cost}]
   let cashSaleProduct = null;
   let cashSaleVariantIdx = null;
   let cashSaleQty = 1;
@@ -4116,6 +4130,7 @@
 
   function openCashSaleModal() {
     closeFinanceEntryModal();
+    cashSaleItems = [];
     cashSaleProduct = null;
     cashSaleVariantIdx = null;
     cashSaleQty = 1;
@@ -4139,9 +4154,11 @@
     document.getElementById('cs-free-variant-picker').style.display = 'none';
     document.getElementById('cs-free-toggle-btn').textContent = '+ Add';
     setCashSaleFulfilment('boda');
+    document.getElementById('cs-items-summary').style.display = 'none';
     document.getElementById('cs-step-search').style.display = '';
     document.getElementById('cs-step-selected').style.display = 'none';
-    document.getElementById('cs-record-btn').disabled = true;
+    document.getElementById('cs-step-checkout').style.display = 'none';
+    document.getElementById('cs-record-btn').style.display = 'none';
     document.getElementById('cash-sale-modal').classList.add('open');
   }
 
@@ -4154,7 +4171,76 @@
     cashSaleVariantIdx = null;
     document.getElementById('cs-step-search').style.display = '';
     document.getElementById('cs-step-selected').style.display = 'none';
-    document.getElementById('cs-record-btn').disabled = true;
+  }
+
+  function renderCsItemsSummary() {
+    const box = document.getElementById('cs-items-summary');
+    const list = document.getElementById('cs-items-list');
+    const totalEl = document.getElementById('cs-items-total');
+    if (cashSaleItems.length === 0) { box.style.display = 'none'; return; }
+    box.style.display = 'block';
+    list.innerHTML = cashSaleItems.map((item, idx) => `
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #d5ecc7; font-size:0.83rem; color:#1b5e20;">
+        <span style="font-weight:600;">${item.productName} - ${item.variantName} &times;${item.qty}</span>
+        <span style="display:flex; align-items:center; gap:8px;">
+          <span style="font-weight:700;">${fmt(item.unitPrice * item.qty)}</span>
+          <button type="button" onclick="csRemoveItem(${idx})" style="background:none; border:none; color:var(--red); cursor:pointer; font-size:0.9rem; padding:0 2px;" title="Remove">✕</button>
+        </span>
+      </div>
+    `).join('');
+    const total = cashSaleItems.reduce((s,item) => s + item.unitPrice * item.qty, 0);
+    totalEl.textContent = 'Subtotal: ' + fmt(total);
+  }
+
+  function csRemoveItem(idx) {
+    cashSaleItems.splice(idx, 1);
+    renderCsItemsSummary();
+  }
+
+  function csAddItemToSale() {
+    if (!cashSaleProduct || cashSaleVariantIdx === null) { alert('Please choose an item and variant.'); return; }
+    const p = cashSaleProduct;
+    const v = p.variants[cashSaleVariantIdx];
+    const stock = parseInt(v.stock) || 0;
+
+    // Account for quantity of this same product+variant already sitting in the cart
+    const existing = cashSaleItems.find(item => item.productId === p.id && item.variantIdx === cashSaleVariantIdx);
+    const alreadyInCart = existing ? existing.qty : 0;
+    if (alreadyInCart + cashSaleQty > stock) {
+      alert('Only ' + stock + ' in stock for this variant (' + alreadyInCart + ' already added to this sale).');
+      return;
+    }
+
+    if (existing) {
+      existing.qty += cashSaleQty;
+    } else {
+      cashSaleItems.push({
+        productId: p.id, productName: p.name, variantIdx: cashSaleVariantIdx,
+        variantName: v.name + (v.color ? ' (' + v.color + ')' : ''),
+        qty: cashSaleQty, unitPrice: csEffectivePrice(v), cost: parseInt(v.buy) || 0
+      });
+    }
+    renderCsItemsSummary();
+    cashSaleBackToSearch();
+    document.getElementById('cs-search').value = '';
+    document.getElementById('cs-search-results').innerHTML = '';
+    document.getElementById('cs-search').focus();
+  }
+
+  function csGoToCheckout() {
+    if (cashSaleItems.length === 0) { alert('Please add at least one item to the sale first.'); return; }
+    document.getElementById('cs-step-search').style.display = 'none';
+    document.getElementById('cs-step-selected').style.display = 'none';
+    document.getElementById('cs-step-checkout').style.display = '';
+    document.getElementById('cs-record-btn').style.display = 'inline-block';
+    cashSaleAmountPaidManual = false;
+    updateCashSaleTotal();
+  }
+
+  function csBackToItems() {
+    document.getElementById('cs-step-checkout').style.display = 'none';
+    document.getElementById('cs-record-btn').style.display = 'none';
+    document.getElementById('cs-step-search').style.display = '';
   }
 
   function searchCashSaleProducts(query) {
@@ -4216,7 +4302,7 @@
     document.getElementById('cs-step-search').style.display = 'none';
     document.getElementById('cs-step-selected').style.display = '';
     document.getElementById('cs-qty').textContent = '1';
-    updateCashSaleTotal();
+    updateCsItemPreview();
   }
 
   function selectCashSaleVariant(idx) {
@@ -4227,8 +4313,7 @@
     document.querySelectorAll('#cs-variant-btns .cs-variant-btn').forEach((el,i) => {
       el.classList.toggle('selected', i === idx);
     });
-    document.getElementById('cs-record-btn').disabled = false;
-    updateCashSaleTotal();
+    updateCsItemPreview();
   }
 
   function changeCashSaleQty(delta) {
@@ -4240,29 +4325,35 @@
     if (newQty > maxStock) { alert('Only ' + maxStock + ' in stock for this variant.'); newQty = maxStock; }
     cashSaleQty = newQty;
     document.getElementById('cs-qty').textContent = cashSaleQty;
-    updateCashSaleTotal();
+    updateCsItemPreview();
+  }
+
+  function updateCsItemPreview() {
+    if (cashSaleVariantIdx === null || !cashSaleProduct) {
+      document.getElementById('cs-total').textContent = '';
+      return;
+    }
+    const v = cashSaleProduct.variants[cashSaleVariantIdx];
+    const unitPrice = csEffectivePrice(v);
+    document.getElementById('cs-total').textContent = 'Subtotal: ' + fmt(unitPrice * cashSaleQty);
   }
 
   function csComputeTotals() {
-    if (cashSaleVariantIdx === null || !cashSaleProduct) return null;
-    const v = cashSaleProduct.variants[cashSaleVariantIdx];
-    const unitPrice = csEffectivePrice(v);
-    const subtotal = unitPrice * cashSaleQty;
+    if (cashSaleItems.length === 0) return null;
+    const subtotal = cashSaleItems.reduce((s, item) => s + item.unitPrice * item.qty, 0);
     const discount = parseInt(document.getElementById('cs-discount').value) || 0;
     const otherFees = parseInt(document.getElementById('cs-other-fees').value) || 0;
     const finalTotal = Math.max(0, subtotal - discount + otherFees);
-    return { unitPrice, subtotal, discount, otherFees, finalTotal };
+    return { subtotal, discount, otherFees, finalTotal };
   }
 
   function updateCashSaleTotal() {
     const t = csComputeTotals();
     if (!t) {
-      document.getElementById('cs-total').textContent = '';
       document.getElementById('cs-final-total').textContent = '';
       document.getElementById('cs-balance').textContent = '';
       return;
     }
-    document.getElementById('cs-total').textContent = 'Subtotal: ' + fmt(t.subtotal);
     document.getElementById('cs-final-total').textContent = fmt(t.finalTotal);
 
     // Auto-fill amount paid to match the final total, unless the admin has typed a custom value
@@ -4378,35 +4469,36 @@
   }
 
   function recordCashSale() {
-    if (!cashSaleProduct || cashSaleVariantIdx === null) { alert('Please choose an item and variant.'); return; }
-    const p = cashSaleProduct;
-    const v = p.variants[cashSaleVariantIdx];
-    const stock = parseInt(v.stock) || 0;
-    if (cashSaleQty > stock) { alert('Not enough stock. Only ' + stock + ' available.'); return; }
+    if (cashSaleItems.length === 0) { alert('Please add at least one item to the sale.'); return; }
 
-    // Validate free item stock, accounting for overlap with the main paid item if it's the same product+variant
+    // Merge paid items + optional free item into one deduction plan, keyed by product+variant,
+    // so the same variant appearing in multiple roles only touches Firestore once.
+    const deductionMap = {};
+    function addDeduction(productId, variantIdx, qty, isFree) {
+      const key = productId + '|' + variantIdx;
+      if (!deductionMap[key]) deductionMap[key] = { productId, variantIdx, paidQty: 0, freeQty: 0 };
+      if (isFree) deductionMap[key].freeQty += qty; else deductionMap[key].paidQty += qty;
+    }
+    cashSaleItems.forEach(item => addDeduction(item.productId, item.variantIdx, item.qty, false));
     const freeItem = cashSaleFreeItem;
-    if (freeItem) {
-      const sameProduct = freeItem.productId === p.id;
-      const sameVariant = sameProduct && freeItem.variantIdx === cashSaleVariantIdx;
-      if (sameVariant) {
-        if (cashSaleQty + freeItem.qty > stock) {
-          alert('Not enough stock for paid + free quantity combined. Only ' + stock + ' available.');
-          return;
-        }
-      } else {
-        const freeProduct = products.find(x => x.id === freeItem.productId);
-        const freeVariant = freeProduct && freeProduct.variants[freeItem.variantIdx];
-        const freeStock = freeVariant ? (parseInt(freeVariant.stock) || 0) : 0;
-        if (freeItem.qty > freeStock) {
-          alert('Not enough stock for the free item. Only ' + freeStock + ' available.');
-          return;
-        }
+    if (freeItem) addDeduction(freeItem.productId, freeItem.variantIdx, freeItem.qty, true);
+
+    // Validate current live stock covers everything before touching anything
+    for (const key in deductionMap) {
+      const d = deductionMap[key];
+      const p = products.find(x => x.id === d.productId);
+      if (!p) { alert('A product in this sale no longer exists. Please start over.'); return; }
+      const v = p.variants[d.variantIdx];
+      if (!v) { alert('A variant in this sale no longer exists. Please start over.'); return; }
+      const totalNeeded = d.paidQty + d.freeQty;
+      const available = parseInt(v.stock) || 0;
+      if (totalNeeded > available) {
+        alert('Not enough stock for ' + p.name + ' - ' + v.name + '. Only ' + available + ' available, but ' + totalNeeded + ' needed.');
+        return;
       }
     }
 
     const t = csComputeTotals();
-    const cost = parseInt(v.buy) || 0;
     const customerName = document.getElementById('cs-customer-name').value.trim() || 'Walk-in Customer';
     const customerPhone = document.getElementById('cs-customer-phone').value.trim();
     const bodaName = document.getElementById('cs-boda-name').value.trim();
@@ -4430,86 +4522,72 @@
     recordBtn.disabled = true;
     recordBtn.textContent = 'Saving...';
 
-    const saveOps = [];
-    const cartItems = [{ id: p.id, name: p.name + ' - ' + v.name + (v.color ? ' (' + v.color + ')' : ''), qty: cashSaleQty, price: Math.round(t.finalTotal / cashSaleQty), lineTotal: t.finalTotal, cost: cost }];
+    // Distribute any discount/fee adjustment proportionally across items so each line's
+    // total still adds up exactly to the final total (last item absorbs rounding).
+    let runningTotal = 0;
+    const cartItems = cashSaleItems.map((item, idx) => {
+      const rawLineTotal = item.unitPrice * item.qty;
+      let adjustedLineTotal = t.subtotal > 0 ? Math.round(rawLineTotal * (t.finalTotal / t.subtotal)) : 0;
+      if (idx === cashSaleItems.length - 1) adjustedLineTotal = t.finalTotal - runningTotal;
+      runningTotal += adjustedLineTotal;
+      return {
+        id: item.productId,
+        name: item.productName + ' - ' + item.variantName,
+        qty: item.qty,
+        price: item.qty > 0 ? Math.round(adjustedLineTotal / item.qty) : 0,
+        lineTotal: adjustedLineTotal,
+        cost: item.cost
+      };
+    });
 
     if (freeItem) {
-      const sameProduct = freeItem.productId === p.id;
-      const sameVariant = sameProduct && freeItem.variantIdx === cashSaleVariantIdx;
-
-      if (sameVariant) {
-        // 1. Deduct combined stock from the single shared variant
-        const updatedVariants = p.variants.map((vv, i) => i === cashSaleVariantIdx ? { ...vv, stock: stock - cashSaleQty - freeItem.qty } : vv);
-        saveOps.push(fbSaveProduct({ ...p, variants: updatedVariants }));
-        saveOps.push(fbLogAdjustment({
-          productId: p.id, productName: p.name, variantName: v.name + (v.color ? ' - ' + v.color : ''),
-          changeType: 'remove', qty: cashSaleQty + freeItem.qty, before: stock, after: stock - cashSaleQty - freeItem.qty,
-          reason: 'Cash Sale (in-person) + Free gift', recordedBy: 'Admin', timestamp: new Date().toISOString()
-        }));
-      } else if (sameProduct) {
-        // 2. Same product, different variant — deduct both variants in one product save
-        const updatedVariants = p.variants.map((vv, i) => {
-          if (i === cashSaleVariantIdx) return { ...vv, stock: stock - cashSaleQty };
-          if (i === freeItem.variantIdx) return { ...vv, stock: (parseInt(vv.stock)||0) - freeItem.qty };
-          return vv;
-        });
-        saveOps.push(fbSaveProduct({ ...p, variants: updatedVariants }));
-        saveOps.push(fbLogAdjustment({
-          productId: p.id, productName: p.name, variantName: v.name + (v.color ? ' - ' + v.color : ''),
-          changeType: 'remove', qty: cashSaleQty, before: stock, after: stock - cashSaleQty,
-          reason: 'Cash Sale (in-person)', recordedBy: 'Admin', timestamp: new Date().toISOString()
-        }));
-        saveOps.push(fbLogAdjustment({
-          productId: p.id, productName: p.name, variantName: freeItem.variantName,
-          changeType: 'remove', qty: freeItem.qty, before: parseInt(p.variants[freeItem.variantIdx].stock)||0,
-          after: (parseInt(p.variants[freeItem.variantIdx].stock)||0) - freeItem.qty,
-          reason: 'Free gift to customer', recordedBy: 'Admin', timestamp: new Date().toISOString()
-        }));
-      } else {
-        // 3. Different product entirely — two separate product saves
-        const updatedVariants = p.variants.map((vv, i) => i === cashSaleVariantIdx ? { ...vv, stock: stock - cashSaleQty } : vv);
-        saveOps.push(fbSaveProduct({ ...p, variants: updatedVariants }));
-        saveOps.push(fbLogAdjustment({
-          productId: p.id, productName: p.name, variantName: v.name + (v.color ? ' - ' + v.color : ''),
-          changeType: 'remove', qty: cashSaleQty, before: stock, after: stock - cashSaleQty,
-          reason: 'Cash Sale (in-person)', recordedBy: 'Admin', timestamp: new Date().toISOString()
-        }));
-
-        const freeProduct = products.find(x => x.id === freeItem.productId);
-        if (freeProduct) {
-          const freeVariant = freeProduct.variants[freeItem.variantIdx];
-          const freeStockBefore = parseInt(freeVariant.stock) || 0;
-          const updatedFreeVariants = freeProduct.variants.map((vv, i) => i === freeItem.variantIdx ? { ...vv, stock: freeStockBefore - freeItem.qty } : vv);
-          saveOps.push(fbSaveProduct({ ...freeProduct, variants: updatedFreeVariants }));
-          saveOps.push(fbLogAdjustment({
-            productId: freeProduct.id, productName: freeProduct.name, variantName: freeItem.variantName,
-            changeType: 'remove', qty: freeItem.qty, before: freeStockBefore, after: freeStockBefore - freeItem.qty,
-            reason: 'Free gift to customer', recordedBy: 'Admin', timestamp: new Date().toISOString()
-          }));
-        }
-      }
-
       cartItems.push({
         id: freeItem.productId, name: freeItem.productName + ' - ' + freeItem.variantName,
         qty: freeItem.qty, price: 0, lineTotal: 0, cost: freeItem.cost, isFree: true
       });
-    } else {
-      const updatedVariants = p.variants.map((vv, i) => i === cashSaleVariantIdx ? { ...vv, stock: stock - cashSaleQty } : vv);
-      saveOps.push(fbSaveProduct({ ...p, variants: updatedVariants }));
-      saveOps.push(fbLogAdjustment({
-        productId: p.id, productName: p.name, variantName: v.name + (v.color ? ' - ' + v.color : ''),
-        changeType: 'remove', qty: cashSaleQty, before: stock, after: stock - cashSaleQty,
-        reason: 'Cash Sale (in-person)', recordedBy: 'Admin', timestamp: new Date().toISOString()
-      }));
     }
 
+    const saveOps = [];
+    const productGroups = {};
+    Object.values(deductionMap).forEach(d => {
+      if (!productGroups[d.productId]) productGroups[d.productId] = [];
+      productGroups[d.productId].push(d);
+    });
+
+    Object.keys(productGroups).forEach(productId => {
+      const p = products.find(x => x.id === productId);
+      const deductions = productGroups[productId];
+      const updatedVariants = p.variants.map((vv, i) => {
+        const d = deductions.find(x => x.variantIdx === i);
+        if (!d) return vv;
+        const totalQty = d.paidQty + d.freeQty;
+        return { ...vv, stock: (parseInt(vv.stock)||0) - totalQty };
+      });
+      saveOps.push(fbSaveProduct({ ...p, variants: updatedVariants }));
+      deductions.forEach(d => {
+        const v = p.variants[d.variantIdx];
+        const before = parseInt(v.stock) || 0;
+        const totalQty = d.paidQty + d.freeQty;
+        const after = before - totalQty;
+        let reason = 'Cash Sale (in-person)';
+        if (d.paidQty > 0 && d.freeQty > 0) reason = 'Cash Sale (in-person) + Free gift';
+        else if (d.paidQty === 0 && d.freeQty > 0) reason = 'Free gift to customer';
+        saveOps.push(fbLogAdjustment({
+          productId: p.id, productName: p.name, variantName: v.name + (v.color ? ' - ' + v.color : ''),
+          changeType: 'remove', qty: totalQty, before, after, reason, recordedBy: 'Admin', timestamp: new Date().toISOString()
+        }));
+      });
+    });
+
     // Create closed order record
+    const itemsSummary = cashSaleItems.map(item => item.productName + ' - ' + item.variantName + ' x' + item.qty).join(', ')
+      + (freeItem ? ' + FREE: ' + freeItem.productName + ' - ' + freeItem.variantName + ' x' + freeItem.qty : '');
     const order = {
       customerName: customerName,
       phone: customerPhone,
       deliveryArea: cashSaleFulfilment === 'selfpick' ? 'Self Pick — Munyonyo Store' : 'In-Store / Cash Sale',
       location: 'N/A — recorded in-store',
-      productsWanted: p.name + ' - ' + v.name + (v.color ? ' (' + v.color + ')' : '') + ' x' + cashSaleQty + (freeItem ? ' + FREE: ' + freeItem.productName + ' - ' + freeItem.variantName + ' x' + freeItem.qty : ''),
+      productsWanted: itemsSummary,
       paymentMethod: 'Cash Sale (In-Person)',
       notes: 'Recorded by Admin (main dashboard) as a cash sale.',
       status: 'closed',
