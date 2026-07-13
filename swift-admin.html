@@ -2536,19 +2536,24 @@
 
   async function adjustStockForOrder(order, direction, recordedByName) {
     // direction: -1 to deduct (order fulfilled), +1 to restore (order reopened/undone)
-    if (!window.fbDb || !window.fbFns) return [];
+    if (!window.fbDb || !window.fbFns) return { skipped: [], correctedCartItems: null };
     const { doc, updateDoc, collection, addDoc } = window.fbFns;
     const skipped = [];
+    const correctedCartItems = direction < 0 ? [] : null;
     for (const item of (order.cartItems || [])) {
       const p = products.find(x => x.id === item.id);
-      if (!p) { skipped.push(item.name + ' (product no longer exists)'); continue; }
+      if (!p) { skipped.push(item.name + ' (product no longer exists)'); if (correctedCartItems) correctedCartItems.push(item); continue; }
       const variantIdx = findVariantIndexForCartItem(p, item);
-      if (variantIdx === null) { skipped.push(item.name + ' (variant could not be matched)'); continue; }
+      if (variantIdx === null) { skipped.push(item.name + ' (variant could not be matched)'); if (correctedCartItems) correctedCartItems.push(item); continue; }
       const qty = parseInt(item.qty) || 0;
       const v = p.variants[variantIdx];
       const currentStock = parseInt(v.stock) || 0;
       const newStock = direction < 0 ? Math.max(0, currentStock - qty) : currentStock + qty;
-      const updatedVariants = p.variants.map((vv, i) => i === variantIdx ? { ...vv, stock: newStock } : vv);
+      // Strip buy price out of what gets written back to the public products collection
+      const updatedVariants = p.variants.map((vv, i) => {
+        const { buy, ...rest } = vv;
+        return i === variantIdx ? { ...rest, stock: newStock } : rest;
+      });
       try {
         await updateDoc(doc(window.fbDb, 'products', p.id), { variants: updatedVariants });
         v.stock = newStock; // keep local state in sync immediately
@@ -2561,9 +2566,19 @@
           timestamp: new Date().toISOString(),
           date: new Date().toLocaleDateString('en-UG', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
         });
-      } catch(e) { console.error('Error adjusting stock for order item', item, e); skipped.push(item.name + ' (save failed)'); }
+        console.log('[stock] adjusted', p.name, v.name, currentStock, '→', newStock);
+        // Attach the true cost now that we have authenticated access to it, so the owner's
+        // profit reports are accurate — the customer's browser never knew this value.
+        if (correctedCartItems) {
+          correctedCartItems.push({ ...item, cost: parseInt(v.buy) || 0 });
+        }
+      } catch(e) {
+        console.error('[stock] FAILED to adjust', item.name, '-', e.code || e.message || e);
+        skipped.push(item.name + ' (' + (e.code || 'save failed') + ')');
+        if (correctedCartItems) correctedCartItems.push(item);
+      }
     }
-    return skipped;
+    return { skipped, correctedCartItems };
   }
 
   async function updateOrderStatus(docId, newStatus) {
@@ -2577,17 +2592,22 @@
 
       if (order) {
         if (newStatus === 'closed' && !order.stockDeducted) {
-          const skipped = await adjustStockForOrder(order, -1, 'Admin');
+          const { skipped, correctedCartItems } = await adjustStockForOrder(order, -1, 'Admin');
           updates.stockDeducted = true;
-          if (skipped.length) alert('Order closed, but stock could not be auto-adjusted for: ' + skipped.join(', ') + '. Please check these manually.');
+          if (correctedCartItems) updates.cartItems = correctedCartItems;
+          if (skipped.length) {
+            alert('Order closed. Stock/cost could not be auto-adjusted for: ' + skipped.join(', ') + '. Please check these items manually in Inventory.');
+          }
         } else if (newStatus !== 'closed' && order.stockDeducted) {
           await adjustStockForOrder(order, 1, 'Admin');
           updates.stockDeducted = false;
         }
+      } else {
+        console.error('[order] Could not load order', docId, '— status will update but stock/cost cannot be adjusted.');
       }
 
       await updateDoc(orderRef, updates);
-    } catch(e) { alert('Error updating order. Check your connection.'); console.error(e); }
+    } catch(e) { alert('Error updating order. Check your connection.'); console.error('[order] updateOrderStatus failed:', e); }
   }
 
   async function markOrderBalancePaid(docId) {

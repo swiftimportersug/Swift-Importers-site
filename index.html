@@ -1557,7 +1557,7 @@
       if (existing.qty+pdQty>available){ alert('Only '+available+' pieces available.'); return false; }
       existing.qty += pdQty;
     } else {
-      cart.push({ cartKey:cartKey, id:p.id, name:p.name+(hasVariants?' - '+v.name+(v.color?' ('+v.color+')':''):''), price:effectivePrice(v), cost:parseInt(v.buy)||0, icon:catIcons[p.category]||'', qty:pdQty, variantIdx:pdCurrentVariantIdx, maxStock:available });
+      cart.push({ cartKey:cartKey, id:p.id, name:p.name+(hasVariants?' - '+v.name+(v.color?' ('+v.color+')':''):''), price:effectivePrice(v), cost:0, icon:catIcons[p.category]||'', qty:pdQty, variantIdx:pdCurrentVariantIdx, maxStock:available });
     }
     updateCartCount();
     var btn = document.getElementById('pd-btn-cart');
