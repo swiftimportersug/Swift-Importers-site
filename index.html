@@ -68,8 +68,8 @@
     .cart-btn:hover{box-shadow:0 4px 18px rgba(199,162,72,0.4);transform:translateY(-1px);}
 
     /* TICKER */
-    .ticker{background:var(--black);color:var(--gold-light);font-size:0.72rem;font-weight:600;letter-spacing:0.04em;padding:8px 0;overflow:hidden;white-space:nowrap;border-bottom:1px solid var(--line);}
-    .ticker-inner{display:inline-block;animation:ticker 30s linear infinite;}
+    .ticker{background:var(--black);color:var(--gold-light);font-size:0.72rem;font-weight:800;letter-spacing:0.04em;padding:8px 0;overflow:hidden;white-space:nowrap;border-bottom:1px solid var(--line);}
+    .ticker-inner{display:inline-block;animation:ticker 46s linear infinite;}
     @keyframes ticker{0%{transform:translateX(100vw);}100%{transform:translateX(-100%);}}
 
     /* HERO */
@@ -214,8 +214,8 @@
     .pd-close-btn{background:var(--light);border:none;width:30px;height:30px;border-radius:50%;font-size:0.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;}
     .pd-gallery{width:100%;height:300px;background:var(--light);position:relative;overflow:hidden;touch-action:pan-y;}
     .pd-gallery-track{display:flex;height:100%;transition:transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94);will-change:transform;}
-    .pd-gallery-slide{min-width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:5rem;flex-shrink:0;}
-    .pd-gallery-slide img{width:100%;height:100%;object-fit:contain;object-position:center center;display:block;cursor:zoom-in;background:var(--light);}
+    .pd-gallery-slide{min-width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:5rem;flex-shrink:0;overflow:hidden;padding:14px;box-sizing:border-box;}
+    .pd-gallery-slide img{max-width:100%;max-height:100%;width:auto;height:auto;display:block;cursor:zoom-in;margin:auto;object-fit:contain;}
     .pd-dots{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:6px;}
     .pd-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.5);transition:background 0.2s;}
     .pd-dot.active{background:#fff;}
@@ -252,6 +252,18 @@
       60%{transform:translateX(5px);}
       75%{transform:translateX(-3px);}
       90%{transform:translateX(3px);}
+    }
+    .variant-toast{
+      position:fixed; left:50%; bottom:30px; transform:translateX(-50%) translateY(20px);
+      background:var(--black); color:#fff; font-size:0.85rem; font-weight:700;
+      padding:13px 22px; border-radius:30px; z-index:600;
+      box-shadow:0 8px 24px rgba(0,0,0,0.35);
+      opacity:0; pointer-events:none; transition:opacity 0.25s, transform 0.25s;
+      white-space:nowrap;
+    }
+    .variant-toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+    @media(max-width:600px){
+      .variant-toast{ font-size:0.8rem; padding:12px 18px; white-space:normal; max-width:88vw; text-align:center; }
     }
     .pd-variant-label{font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#444;margin-bottom:8px;transition:color 0.2s;}
     .pd-variant-label.pd-attention-text{color:var(--red);}
@@ -735,6 +747,9 @@
   </div>
 </footer>
 
+<!-- VARIANT SELECTION TOAST -->
+<div class="variant-toast" id="variant-toast">⚠️ Please Select Your Variant</div>
+
 <!-- FULLSCREEN IMAGE VIEWER -->
 <div class="fs-overlay" id="fs-overlay" onclick="fsOverlayClick(event)"
      ontouchstart="fsTouchStart(event)" ontouchmove="fsTouchMove(event)" ontouchend="fsTouchEnd(event)">
@@ -1042,7 +1057,10 @@
       pg.innerHTML = '<div class="storefront-empty">No products yet. Check back soon!</div>';
       return;
     }
-    products.forEach(function(p){ renderCard(p, pg); });
+    var sortedProducts = products.slice().sort(function(a, b){
+      return (b.featured ? 1 : 0) - (a.featured ? 1 : 0);
+    });
+    sortedProducts.forEach(function(p){ renderCard(p, pg); });
     var hotDeals = products.filter(function(p){ return p.hotDeal && p.variants && p.variants.some(function(v){ return parseInt(v.stock)>0; }); });
     if (hotDeals.length === 0) {
       dg.innerHTML = '<div class="storefront-empty">No hot deals right now — check back soon!</div>';
@@ -1115,6 +1133,13 @@
     if (totalStk === 0) { var ob = document.createElement('span'); ob.className='badge-new'; ob.style.background='#888'; ob.textContent='OUT'; imgDiv.appendChild(ob); }
     else if (anyDiscount) {
       var db = document.createElement('span'); db.className='badge-new'; db.style.background='var(--gold-dark)'; db.textContent='SALE'; imgDiv.appendChild(db);
+    }
+    if (p.featured) {
+      var fb = document.createElement('span');
+      fb.className = 'badge-new';
+      fb.style.cssText = 'left:auto;right:10px;background:var(--gold);color:var(--black);';
+      fb.textContent = '⭐ FEATURED';
+      imgDiv.appendChild(fb);
     }
     var soonestExp = anyDiscount ? soonestDiscountExpiry(p.variants) : null;
     if (p.image) {
@@ -1195,7 +1220,7 @@
         slide.className = 'pd-gallery-slide';
         var im = document.createElement('img');
         im.src = img; im.alt = 'Photo '+(i+1);
-        im.style.cssText = 'width:100%;height:100%;object-fit:contain;object-position:center center;cursor:zoom-in;background:var(--light);';
+        im.style.cssText = 'max-width:100%;max-height:100%;width:auto;height:auto;margin:auto;display:block;cursor:zoom-in;';
         im.onclick = function(){ openFullscreen(i); };
         slide.appendChild(im);
         track.appendChild(slide);
@@ -1480,7 +1505,7 @@
         if (firstSlide) {
           var varImg = new Image();
           varImg.src = p.variants[idx].variantImage;
-          varImg.style.cssText = 'width:100%;height:100%;object-fit:contain;object-position:center center;display:block;cursor:zoom-in;background:var(--light);';
+          varImg.style.cssText = 'max-width:100%;max-height:100%;width:auto;height:auto;margin:auto;display:block;cursor:zoom-in;';
           varImg.onerror = function() {};
           firstSlide.style.opacity = '0';
           firstSlide.style.transition = 'opacity 0.2s';
@@ -1550,10 +1575,24 @@
     section.classList.add('pd-attention');
     if (label) label.classList.add('pd-attention-text');
     section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    showVariantToast();
     setTimeout(function(){
       section.classList.remove('pd-attention');
       if (label) label.classList.remove('pd-attention-text');
     }, 1300);
+  }
+
+  var variantToastTimer = null;
+  function showVariantToast() {
+    var toast = document.getElementById('variant-toast');
+    if (!toast) return;
+    clearTimeout(variantToastTimer);
+    toast.classList.remove('show');
+    void toast.offsetWidth; // restart animation on repeated clicks
+    toast.classList.add('show');
+    variantToastTimer = setTimeout(function(){
+      toast.classList.remove('show');
+    }, 3000);
   }
 
   function pdBuyNow() {

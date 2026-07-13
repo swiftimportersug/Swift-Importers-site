@@ -1127,6 +1127,21 @@
         </label>
       </div>
 
+      <!-- FEATURED PRODUCTS TOGGLE -->
+      <div id="f-featured-box" style="background:#fff8e6; border:2px solid var(--gold); border-radius:12px; padding:14px 18px; margin-top:12px; display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer;" onclick="document.getElementById('f-featured').click();">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:1.3rem;">⭐</span>
+          <div>
+            <div style="font-size:0.82rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:var(--gold-dark);">Featured Product</div>
+            <div style="font-size:0.72rem; color:#888; margin-top:2px;">Pin this product near the top of the storefront's "Featured Products" section.</div>
+          </div>
+        </div>
+        <label class="switch" style="position:relative; display:inline-block; width:46px; height:26px; flex-shrink:0;">
+          <input type="checkbox" id="f-featured" style="opacity:0; width:0; height:0;" onchange="updateFeaturedBoxStyle()"/>
+          <span id="f-featured-slider" style="position:absolute; cursor:pointer; inset:0; background:#ccc; border-radius:26px; transition:0.2s;"></span>
+        </label>
+      </div>
+
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
@@ -1147,6 +1162,19 @@
     slider.appendChild(knob);
     box.style.borderColor = on ? 'var(--red)' : '#e0c0c0';
     box.style.background = on ? '#fff3e0' : '#faf9f5';
+  }
+
+  function updateFeaturedBoxStyle() {
+    const on = document.getElementById('f-featured').checked;
+    const slider = document.getElementById('f-featured-slider');
+    const box = document.getElementById('f-featured-box');
+    slider.style.background = on ? 'var(--gold)' : '#ccc';
+    slider.innerHTML = '';
+    const knob = document.createElement('span');
+    knob.style.cssText = 'position:absolute; height:20px; width:20px; left:' + (on ? '23px' : '3px') + '; top:3px; background:#fff; border-radius:50%; transition:0.2s; box-shadow:0 1px 3px rgba(0,0,0,0.3);';
+    slider.appendChild(knob);
+    box.style.borderColor = on ? 'var(--gold)' : '#e0d5a8';
+    box.style.background = on ? '#fff8e6' : '#faf9f5';
   }
 
   // ── CONFIG ──
@@ -2870,7 +2898,7 @@
             <div style="display:flex;align-items:center;gap:10px;">
               ${thumb}
               <div>
-                <strong style="font-size:0.9rem;">${p.name}</strong>${p.hotDeal ? ' <span style="background:var(--red);color:#fff;font-size:0.6rem;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.04em;vertical-align:middle;">🔥 HOT</span>' : ''}${p.variants.some(v => csHasDiscount(v)) ? ' <span style="background:var(--gold);color:var(--black);font-size:0.6rem;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.04em;vertical-align:middle;">🏷️ SALE</span>' : ''}
+                <strong style="font-size:0.9rem;">${p.name}</strong>${p.hotDeal ? ' <span style="background:var(--red);color:#fff;font-size:0.6rem;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.04em;vertical-align:middle;">🔥 HOT</span>' : ''}${p.featured ? ' <span style="background:var(--gold);color:var(--black);font-size:0.6rem;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.04em;vertical-align:middle;">⭐ FEATURED</span>' : ''}${p.variants.some(v => csHasDiscount(v)) ? ' <span style="background:var(--gold-dark);color:#fff;font-size:0.6rem;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.04em;vertical-align:middle;">🏷️ SALE</span>' : ''}
                 ${p.store ? '<br/><span style="font-size:0.68rem;color:var(--gold-dark);font-weight:700;">🏬 '+p.store+'</span>' : ''}
                 ${p.sku ? '<br/><span style="font-size:0.7rem;color:var(--grey);">SKU: '+p.sku+'</span>' : ''}
                 <br/>
@@ -2882,6 +2910,10 @@
                   <button onclick="toggleHotDeal('${p.id}')"
                     style="background:${p.hotDeal ? 'var(--red)' : '#f0efe9'};color:${p.hotDeal ? '#fff' : '#555'};border:none;padding:6px 12px;border-radius:6px;font-size:0.78rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">
                     🔥 ${p.hotDeal ? 'In Hot Deals' : 'Add to Hot Deals'}
+                  </button>
+                  <button onclick="toggleFeatured('${p.id}')"
+                    style="background:${p.featured ? 'var(--gold)' : '#f0efe9'};color:${p.featured ? 'var(--black)' : '#555'};border:none;padding:6px 12px;border-radius:6px;font-size:0.78rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">
+                    ⭐ ${p.featured ? 'Featured' : 'Add to Featured'}
                   </button>
                   <button onclick="deleteProduct('${p.id}')"
                     style="background:#fdecea;color:var(--red);border:none;padding:6px 12px;border-radius:6px;font-size:0.78rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">
@@ -2948,6 +2980,7 @@
           <br/><div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
             <button onclick="openEditModal('${p.id}')" style="background:var(--gold);color:var(--black);border:none;padding:6px 14px;border-radius:6px;font-size:0.78rem;font-weight:800;cursor:pointer;font-family:'Inter',sans-serif;">✏️ Edit</button>
             <button onclick="toggleHotDeal('${p.id}')" style="background:${p.hotDeal ? 'var(--red)' : '#f0efe9'};color:${p.hotDeal ? '#fff' : '#555'};border:none;padding:6px 10px;border-radius:6px;font-size:0.78rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">🔥</button>
+            <button onclick="toggleFeatured('${p.id}')" style="background:${p.featured ? 'var(--gold)' : '#f0efe9'};color:${p.featured ? 'var(--black)' : '#555'};border:none;padding:6px 10px;border-radius:6px;font-size:0.78rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">⭐</button>
             <button onclick="deleteProduct('${p.id}')" style="background:#fdecea;color:var(--red);border:none;padding:6px 12px;border-radius:6px;font-size:0.78rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">🗑️</button>
           </div></div></div></td>
         <td>${p.category}</td><td>${variantTags}</td><td><strong>${stock}</strong></td>
@@ -3054,6 +3087,8 @@
     if (wc) { wc.textContent = '0 words'; wc.style.color = 'var(--grey)'; }
     document.getElementById('f-hotdeal').checked = false;
     updateHotDealBoxStyle();
+    document.getElementById('f-featured').checked = false;
+    updateFeaturedBoxStyle();
     document.getElementById('images-list').innerHTML = '';
     addImageRow();
     document.getElementById('f-video').value = '';
@@ -3087,6 +3122,8 @@
     updateDescWordCount(document.getElementById('f-description'));
     document.getElementById('f-hotdeal').checked = !!p.hotDeal;
     updateHotDealBoxStyle();
+    document.getElementById('f-featured').checked = !!p.featured;
+    updateFeaturedBoxStyle();
     document.getElementById('images-list').innerHTML = '';
     const images = p.images || (p.image ? [p.image] : []);
     if (images.length === 0) { addImageRow(); }
@@ -3316,11 +3353,12 @@
     });
 
     const hotDeal = document.getElementById('f-hotdeal').checked;
+    const featured = document.getElementById('f-featured').checked;
 
     if (editingId) {
       const idx = products.findIndex(p => p.id === editingId);
       if (idx > -1) {
-        products[idx] = { ...products[idx], name, category: cat, store, sku: document.getElementById('f-sku').value.trim(), threshold: parseInt(document.getElementById('f-threshold').value)||threshold, variants, hotDeal };
+        products[idx] = { ...products[idx], name, category: cat, store, sku: document.getElementById('f-sku').value.trim(), threshold: parseInt(document.getElementById('f-threshold').value)||threshold, variants, hotDeal, featured };
       }
     } else {
       products.push({
@@ -3328,7 +3366,7 @@
         name, category: cat, store,
         sku: document.getElementById('f-sku').value.trim(),
         threshold: parseInt(document.getElementById('f-threshold').value)||threshold,
-        variants, hotDeal
+        variants, hotDeal, featured
       });
     }
 
@@ -3338,8 +3376,8 @@
 
     // Save to Firebase
     const productToSave = editingId
-      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku: document.getElementById('f-sku').value.trim(), description: document.getElementById('f-description').value.trim(), images: imageUrls, image: imageUrls[0]||'', video: document.getElementById('f-video').value.trim(), threshold: parseInt(document.getElementById('f-threshold').value)||threshold, variants, hotDeal }
-      : { id: 'p_' + Date.now(), name, category: cat, store, sku: document.getElementById('f-sku').value.trim(), description: document.getElementById('f-description').value.trim(), images: imageUrls, image: imageUrls[0]||'', video: document.getElementById('f-video').value.trim(), threshold: parseInt(document.getElementById('f-threshold').value)||threshold, variants, hotDeal };
+      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku: document.getElementById('f-sku').value.trim(), description: document.getElementById('f-description').value.trim(), images: imageUrls, image: imageUrls[0]||'', video: document.getElementById('f-video').value.trim(), threshold: parseInt(document.getElementById('f-threshold').value)||threshold, variants, hotDeal, featured }
+      : { id: 'p_' + Date.now(), name, category: cat, store, sku: document.getElementById('f-sku').value.trim(), description: document.getElementById('f-description').value.trim(), images: imageUrls, image: imageUrls[0]||'', video: document.getElementById('f-video').value.trim(), threshold: parseInt(document.getElementById('f-threshold').value)||threshold, variants, hotDeal, featured };
 
     fbSaveProduct(productToSave).then(() => {
       closeModal();
@@ -3375,6 +3413,13 @@
       const updated = { ...p, hotDeal: false, hotDealPosition: null };
       fbSaveProduct(updated).catch(err => { alert('Error updating Hot Deals. Check your internet connection.'); console.error(err); });
     }
+  }
+
+  function toggleFeatured(id) {
+    const p = products.find(x => x.id === id);
+    if (!p) return;
+    const updated = { ...p, featured: !p.featured };
+    fbSaveProduct(updated).catch(err => { alert('Error updating Featured Products. Check your internet connection.'); console.error(err); });
   }
 
   function renderHotDealsManager() {
