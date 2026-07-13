@@ -1750,7 +1750,12 @@
       await addDoc(collection(window.fbDb, 'stores'), { name: trimmed, createdAt: new Date().toISOString() });
       if (fromSelectEl) setTimeout(() => { fromSelectEl.value = trimmed; }, 300);
     } catch(e) {
-      alert('Error adding store. Check your internet connection.');
+      if (e && e.code === 'permission-denied') {
+        alert('Adding a new store can only be done by the owner from the main admin panel. Please ask the owner to add "' + trimmed + '" there, then it will show up here too.');
+      } else {
+        alert('Error adding store. Check your internet connection.');
+      }
+      if (fromSelectEl) fromSelectEl.value = '';
       console.error(e);
     }
   }
