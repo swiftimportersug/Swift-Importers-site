@@ -1774,7 +1774,7 @@
         customerName: nameVal, phone: phoneVal, deliveryArea: areaVal,
         exactLocation: (document.getElementById('exact-location') && document.getElementById('exact-location').value) || '',
         products: productsVal, paymentMethod: paymentVal, notes: notesVal,
-        cartItems: cart.map(function(c){ return {id:c.id, name:c.name, qty:c.qty, price:c.price, cost:c.cost||0}; }),
+        cartItems: cart.map(function(c){ return {id:c.id, name:c.name, qty:c.qty, price:c.price, cost:c.cost||0, variantIdx:c.variantIdx}; }),
         status: 'pending', timestamp: new Date().toISOString()
       };
       window.fbFns.addDoc(window.fbFns.collection(window.fbDb,'orders'), order).then(function(){}).catch(function(e){console.error(e);});
