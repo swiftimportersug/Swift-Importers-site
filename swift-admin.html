@@ -1194,14 +1194,53 @@
   // ── FIREBASE HELPERS ──
   async function fbSaveProduct(product) {
     if (!window.fbDb) return;
-    const { doc, setDoc, collection } = window.fbFns;
-    await setDoc(doc(window.fbDb, 'products', product.id), product);
+    const { doc, setDoc } = window.fbFns;
+    const costs = product.variants.map(v => parseInt(v.buy) || 0);
+    const productForFirestore = {
+      ...product,
+      variants: product.variants.map(v => { const { buy, ...rest } = v; return rest; })
+    };
+    await setDoc(doc(window.fbDb, 'products', product.id), productForFirestore);
+    await setDoc(doc(window.fbDb, 'product_costs', product.id), { costs, updatedAt: new Date().toISOString() });
   }
 
   async function fbDeleteProduct(id) {
     if (!window.fbDb) return;
     const { doc, deleteDoc } = window.fbFns;
     await deleteDoc(doc(window.fbDb, 'products', id));
+    try { await deleteDoc(doc(window.fbDb, 'product_costs', id)); } catch(e) { console.error('Error deleting cost record', e); }
+  }
+
+  let productCosts = {}; // { [productId]: [cost0, cost1, ...] } — kept separate from the public products collection
+  let unsubscribeProductCosts = null;
+
+  function mergeCostsIntoProducts() {
+    products.forEach(p => {
+      const costs = productCosts[p.id];
+      p.variants.forEach((v, i) => {
+        if (costs && costs[i] !== undefined) {
+          v.buy = costs[i]; // migrated data — the real source of truth going forward
+        }
+        // else: leave v.buy exactly as it already is (legacy embedded value from before this
+        // update) so nothing appears to reset to zero while a product hasn't been touched yet.
+      });
+    });
+    autoMigrateLegacyCosts();
+  }
+
+  async function autoMigrateLegacyCosts() {
+    if (!window.fbDb || !window.fbFns) return;
+    const { doc, setDoc } = window.fbFns;
+    for (const p of products) {
+      const alreadyMigrated = !!productCosts[p.id];
+      const hasLegacyCost = p.variants.some(v => parseInt(v.buy) > 0);
+      if (!alreadyMigrated && hasLegacyCost) {
+        try {
+          const costs = p.variants.map(v => parseInt(v.buy) || 0);
+          await setDoc(doc(window.fbDb, 'product_costs', p.id), { costs, updatedAt: new Date().toISOString(), migratedAutomatically: true });
+        } catch(e) { console.error('Error auto-migrating cost data for product', p.id, e); }
+      }
+    }
   }
 
   function fbListenProducts() {
@@ -1210,8 +1249,22 @@
     if (unsubscribeProducts) unsubscribeProducts();
     unsubscribeProducts = onSnapshot(collection(window.fbDb, 'products'), (snapshot) => {
       products = snapshot.docs.map(d => d.data());
+      mergeCostsIntoProducts();
       renderAll();
       updateAlertBadge();
+    });
+  }
+
+  function fbListenProductCosts() {
+    if (!window.fbDb) return;
+    const { collection, onSnapshot } = window.fbFns;
+    if (unsubscribeProductCosts) unsubscribeProductCosts();
+    unsubscribeProductCosts = onSnapshot(collection(window.fbDb, 'product_costs'), (snapshot) => {
+      const newCosts = {};
+      snapshot.docs.forEach(d => { newCosts[d.id] = d.data().costs || []; });
+      productCosts = newCosts;
+      mergeCostsIntoProducts();
+      renderAll();
     });
   }
 
@@ -1392,6 +1445,7 @@
 
       // Start Firebase listeners now that user is authenticated
       fbListenProducts();
+      fbListenProductCosts();
       fbListenOrders();
       fbListenFinance();
       fbListenStores();
@@ -4965,14 +5019,21 @@
     const oldBuyPrice = parseInt(p.variants[variantIdx].buy) || 0;
     const newStock = type === 'add' ? currentStock + qty : Math.max(0, currentStock - qty);
 
-    // Update stock (and buy price if a new purchase price was entered) in Firebase
-    const updatedVariants = p.variants.map((v, i) =>
-      i === variantIdx ? { ...v, stock: newStock, buy: newBuyPrice !== null ? newBuyPrice : v.buy } : v
-    );
+    // Update stock in Firebase (buy price now lives in a separate, owner-only collection)
+    const updatedVariants = p.variants.map((v, i) => {
+      const { buy, ...rest } = v;
+      return i === variantIdx ? { ...rest, stock: newStock } : rest;
+    });
 
     try {
-      const { doc, updateDoc, collection, addDoc } = window.fbFns;
+      const { doc, updateDoc, collection, addDoc, setDoc } = window.fbFns;
       await updateDoc(doc(window.fbDb, 'products', productId), { variants: updatedVariants });
+
+      if (newBuyPrice !== null) {
+        const existingCosts = (productCosts[productId] || p.variants.map(v => parseInt(v.buy)||0)).slice();
+        existingCosts[variantIdx] = newBuyPrice;
+        await setDoc(doc(window.fbDb, 'product_costs', productId), { costs: existingCosts, updatedAt: new Date().toISOString() });
+      }
 
       // Save adjustment log
       await addDoc(collection(window.fbDb, 'adjustments'), {

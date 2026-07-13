@@ -1214,14 +1214,42 @@
   // ── FIREBASE HELPERS ──
   async function fbSaveProduct(product) {
     if (!window.fbDb) return;
-    const { doc, setDoc, collection } = window.fbFns;
-    await setDoc(doc(window.fbDb, 'products', product.id), product);
+    const { doc, setDoc } = window.fbFns;
+    // Cost/buy price is intentionally never written from the Employee Panel — only
+    // the owner can set costs (the product_costs collection is owner-write-only).
+    const productForFirestore = {
+      ...product,
+      variants: product.variants.map(v => { const { buy, ...rest } = v; return rest; })
+    };
+    await setDoc(doc(window.fbDb, 'products', product.id), productForFirestore);
   }
 
   async function fbDeleteProduct(id) {
     if (!window.fbDb) return;
     const { doc, deleteDoc } = window.fbFns;
     await deleteDoc(doc(window.fbDb, 'products', id));
+  }
+
+  // productCosts is fetched so sales can still log an accurate cost for the owner's profit
+  // reports, but it is deliberately kept OUT of the `products` array and never rendered
+  // anywhere in this panel's UI.
+  let productCosts = {};
+  let unsubscribeProductCosts = null;
+
+  function fbListenProductCosts() {
+    if (!window.fbDb) return;
+    const { collection, onSnapshot } = window.fbFns;
+    if (unsubscribeProductCosts) unsubscribeProductCosts();
+    unsubscribeProductCosts = onSnapshot(collection(window.fbDb, 'product_costs'), (snapshot) => {
+      const newCosts = {};
+      snapshot.docs.forEach(d => { newCosts[d.id] = d.data().costs || []; });
+      productCosts = newCosts;
+    });
+  }
+
+  function getVariantCost(productId, variantIdx) {
+    const costs = productCosts[productId];
+    return (costs && costs[variantIdx] !== undefined) ? (parseInt(costs[variantIdx]) || 0) : 0;
   }
 
   function fbListenProducts() {
@@ -1346,6 +1374,7 @@
 
       // Start background listeners immediately so the dashboard is instant once PIN is entered
       fbListenProducts();
+      fbListenProductCosts();
       fbListenOrders();
       fbListenFinance();
       fbListenStores();
@@ -2883,13 +2912,7 @@
             onfocus="this.style.borderColor='#E8A020'; this.style.outline='none';"
             onblur="this.style.borderColor='#ddd';"/>
         </div>
-        <div>
-          <div style="font-size:0.68rem;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">Buy Price (UGX) *</div>
-          <input type="number" data-field="buy" value="${data.buy||''}" placeholder="e.g. 250000" min="0"
-            style="width:100%; padding:11px 13px; border:2px solid #ddd; border-radius:8px; font-size:0.9rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box;"
-            onfocus="this.style.borderColor='#E8A020'; this.style.outline='none';"
-            onblur="this.style.borderColor='#ddd';"/>
-        </div>
+        <input type="hidden" data-field="buy" value=""/>
         <div>
           <div style="font-size:0.68rem;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">Sell Price (UGX) *</div>
           <input type="number" data-field="sell" value="${data.sell||''}" placeholder="e.g. 350000" min="0"
@@ -3910,7 +3933,7 @@
       variantIdx: idx,
       variantName: v.name + (v.color ? ' (' + v.color + ')' : ''),
       qty: 1,
-      cost: parseInt(v.buy) || 0
+      cost: getVariantCost(p.id, idx)
     };
     document.getElementById('cs-free-item-picker').style.display = 'none';
     document.getElementById('cs-free-toggle-btn').textContent = '+ Add';
@@ -3966,7 +3989,7 @@
     }
 
     const t = csComputeTotals();
-    const cost = parseInt(v.buy) || 0;
+    const cost = getVariantCost(p.id, cashSaleVariantIdx);
     const customerName = document.getElementById('cs-customer-name').value.trim() || 'Walk-in Customer';
     const customerPhone = document.getElementById('cs-customer-phone').value.trim();
     const bodaName = document.getElementById('cs-boda-name').value.trim();
@@ -4652,13 +4675,13 @@
     const p = products.find(x => x.id === productId);
     if (!p) return;
     const currentStock = parseInt(p.variants[variantIdx].stock) || 0;
-    const oldBuyPrice = parseInt(p.variants[variantIdx].buy) || 0;
     const newStock = type === 'add' ? currentStock + qty : Math.max(0, currentStock - qty);
 
-    // Update stock (and buy price if a new purchase price was entered) in Firebase
-    const updatedVariants = p.variants.map((v, i) =>
-      i === variantIdx ? { ...v, stock: newStock, buy: newBuyPrice !== null ? newBuyPrice : v.buy } : v
-    );
+    // Update stock in Firebase — cost/buy price is never read or written from the Employee Panel
+    const updatedVariants = p.variants.map((v, i) => {
+      const { buy, ...rest } = v;
+      return i === variantIdx ? { ...rest, stock: newStock } : rest;
+    });
 
     try {
       const { doc, updateDoc, collection, addDoc } = window.fbFns;
@@ -4676,7 +4699,7 @@
         after: newStock,
         reason,
         buyPrice: newBuyPrice !== null ? newBuyPrice : null,
-        previousBuyPrice: newBuyPrice !== null ? oldBuyPrice : null,
+        previousBuyPrice: null,
         recordedBy: currentEmployeeName || 'Unknown Employee',
         timestamp: new Date().toISOString(),
         date: new Date().toLocaleDateString('en-UG', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
