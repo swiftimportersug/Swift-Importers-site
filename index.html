@@ -113,6 +113,15 @@
     .section-header{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:36px;}
     .section-title{font-family:var(--serif);font-optical-sizing:auto;font-size:1.9rem;font-weight:600;letter-spacing:-0.01em;color:var(--black);}
     .section-title span{color:var(--gold-dark);font-style:italic;}
+    .hot-fire-icon{display:inline-block;transform-origin:50% 90%;animation:hotFireFlicker 1.1s ease-in-out infinite;filter:drop-shadow(0 0 6px rgba(255,120,0,0.55));}
+    @keyframes hotFireFlicker{
+      0%{transform:scale(1) rotate(-2deg);}
+      20%{transform:scale(1.08,0.95) rotate(2deg);}
+      40%{transform:scale(0.95,1.08) rotate(-3deg);}
+      60%{transform:scale(1.06,0.96) rotate(3deg);}
+      80%{transform:scale(0.97,1.05) rotate(-1deg);}
+      100%{transform:scale(1) rotate(-2deg);}
+    }
     .see-all{font-size:0.76rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--gold-dark);text-decoration:none;border-bottom:1px solid var(--gold);padding-bottom:2px;}
 
     /* CATEGORIES */
@@ -159,7 +168,7 @@
     /* TABLET (600px–1023px) — centered popup, all corners rounded */
     @media(min-width:600px){
       .pd-overlay{align-items:center;justify-content:center;}
-      .pd-modal{border-radius:20px;max-height:88vh;width:92%;max-width:640px;overflow-y:auto;}
+      .pd-modal{border-radius:20px;max-height:88vh;width:94%;max-width:700px;overflow-y:auto;}
       .pd-modal-left .pd-close-bar { border-radius:20px 20px 0 0; }
     }
 
@@ -168,9 +177,9 @@
       .pd-overlay{align-items:center;justify-content:center;}
       .pd-modal{
         border-radius:24px !important;
-        max-height:86vh;
+        max-height:88vh;
         width:94vw;
-        max-width:1060px;
+        max-width:1180px;
         display:grid;
         grid-template-columns:1.35fr 1fr;
         overflow:hidden;
@@ -193,12 +202,12 @@
       .pd-gallery{
         flex:1;
         height:auto !important;
-        min-height:520px;
+        min-height:580px;
         border-radius:0 !important;
       }
       .pd-content{
         overflow-y:auto;
-        max-height:86vh;
+        max-height:88vh;
         border-radius:0 24px 24px 0;
         display:flex;
         flex-direction:column;
@@ -212,7 +221,7 @@
     .pd-close-bar{position:sticky;top:0;z-index:10;background:var(--white);display:flex;align-items:center;justify-content:space-between;padding:12px 16px 8px;border-bottom:1px solid var(--border);border-radius:20px 20px 0 0;}
     .pd-close-bar span{font-size:0.65rem;font-weight:600;color:var(--grey);text-transform:uppercase;letter-spacing:0.08em;}
     .pd-close-btn{background:var(--light);border:none;width:30px;height:30px;border-radius:50%;font-size:0.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;}
-    .pd-gallery{width:100%;height:330px;background:var(--light);position:relative;overflow:hidden;touch-action:pan-y;}
+    .pd-gallery{width:100%;height:390px;background:var(--light);position:relative;overflow:hidden;touch-action:pan-y;}
     .pd-gallery-track{display:flex;height:100%;transition:transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94);will-change:transform;}
     .pd-gallery-slide{min-width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:5rem;flex-shrink:0;overflow:hidden;padding:14px;box-sizing:border-box;}
     .pd-gallery-slide img{max-width:100%;max-height:100%;width:auto;height:auto;display:block;cursor:zoom-in;margin:auto;object-fit:contain;}
@@ -317,6 +326,13 @@
     .pd-related-info{padding:6px 8px;}
     .pd-related-name{font-size:0.7rem;font-weight:700;color:var(--black);margin-bottom:2px;line-height:1.2;}
     .pd-related-price{font-size:0.68rem;font-weight:800;color:var(--gold-dark);font-family:'Inter',sans-serif;}
+    .pd-video-player{border-radius:10px;overflow:hidden;aspect-ratio:16/9;background:#000;margin-top:10px;margin-bottom:14px;position:relative;width:100%;}
+    @media(min-width:600px){
+      .pd-video-player{width:calc(100% + 32px);margin-left:-16px;margin-right:-16px;border-radius:0;}
+    }
+    @media(min-width:1024px){
+      .pd-video-player{width:calc(100% + 48px);margin-left:-24px;margin-right:-24px;border-radius:0;}
+    }
 
     /* PAYMENT */
     .payment-section{background:var(--black);color:var(--white);}
@@ -598,7 +614,7 @@
   <div class="section-header">
     <div>
       <div class="eyebrow">Limited Time</div>
-      <h2 class="section-title">Hot <span>Deals</span></h2>
+      <h2 class="section-title"><span class="hot-fire-icon">&#128293;</span> Hot <span>Deals</span></h2>
     </div>
     <a href="#" class="see-all">See all</a>
   </div>
@@ -838,7 +854,7 @@
         </div>
 
         <!-- VIDEO PLAYER -->
-        <div id="pd-video-player" style="display:none;border-radius:10px;overflow:hidden;aspect-ratio:16/9;background:#000;margin-top:10px;margin-bottom:14px;position:relative;">
+        <div id="pd-video-player" class="pd-video-player" style="display:none;">
           <button onclick="togglePdVideo()" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:0.8rem;z-index:5;display:flex;align-items:center;justify-content:center;">X</button>
           <iframe id="pd-video-iframe" width="100%" height="100%" frameborder="0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -1704,26 +1720,13 @@
     if (!vidId) return;
 
     if (player.style.display === 'none') {
-      // Try nocookie embed first
+      // Load the embedded player. No auto-fallback here: that logic used to
+      // check iframe.contentDocument after a delay, but closing the player
+      // (src reset to '') also fires a load event on about:blank, which is
+      // same-origin and has an empty title — so the "fallback" was firing
+      // on close and incorrectly popping open a new YouTube tab. Removed.
       iframe.src = 'https://www.youtube-nocookie.com/embed/' + vidId + '?autoplay=1&rel=0&modestbranding=1&playsinline=1';
       player.style.display = 'block';
-
-      // If iframe errors (Error 153), fall back to opening YouTube app/browser
-      iframe.onload = function() {
-        // Give it 3 seconds, if it's a config error page open externally
-        setTimeout(function() {
-          try {
-            // Check if iframe loaded something useful - if not, open externally
-            var iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-            if (!iframeDoc || iframeDoc.title === '') {
-              openYouTubeExternal(vidId);
-            }
-          } catch(e) {
-            // Cross-origin block = YouTube loaded = good, do nothing
-          }
-        }, 2000);
-      };
-
       setTimeout(function(){ player.scrollIntoView({behavior:'smooth', block:'nearest'}); }, 100);
     } else {
       iframe.src = '';
