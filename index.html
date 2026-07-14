@@ -265,6 +265,23 @@
     @media(max-width:600px){
       .variant-toast{ font-size:0.8rem; padding:12px 18px; white-space:normal; max-width:88vw; text-align:center; }
     }
+    .back-to-checkout-fab{
+      position:fixed; bottom:26px; right:26px; z-index:499;
+      background:var(--gold); color:var(--black); border:none; border-radius:30px;
+      padding:14px 22px; font-family:'Inter',sans-serif; font-weight:800; font-size:0.85rem;
+      cursor:pointer; box-shadow:0 8px 24px rgba(199,162,72,0.5);
+      opacity:0; pointer-events:none; transform:translateY(20px);
+      transition:opacity 0.25s, transform 0.25s;
+      animation:backToCheckoutPulse 2.2s ease-in-out infinite;
+    }
+    .back-to-checkout-fab.show{ opacity:1; pointer-events:auto; transform:translateY(0); }
+    @keyframes backToCheckoutPulse{
+      0%,100%{ box-shadow:0 8px 24px rgba(199,162,72,0.5), 0 0 0 0 rgba(199,162,72,0.5); }
+      50%{ box-shadow:0 8px 24px rgba(199,162,72,0.5), 0 0 0 9px rgba(199,162,72,0); }
+    }
+    @media(max-width:600px){
+      .back-to-checkout-fab{ bottom:18px; right:18px; padding:13px 18px; font-size:0.8rem; }
+    }
     .pd-variant-label{font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#444;margin-bottom:8px;transition:color 0.2s;}
     .pd-variant-label.pd-attention-text{color:var(--red);}
     .pd-variant-select{width:100%;padding:10px 13px;border:2px solid var(--border);border-radius:8px;font-size:0.85rem;font-family:'Inter',sans-serif;font-weight:600;background:var(--white);color:var(--black);outline:none;cursor:pointer;transition:border-color 0.2s;}
@@ -757,6 +774,11 @@
 <!-- VARIANT SELECTION TOAST -->
 <div class="variant-toast" id="variant-toast">⚠️ Please Select Your Variant</div>
 
+<!-- BACK TO CHECKOUT (shown while browsing to add more items) -->
+<button class="back-to-checkout-fab" id="back-to-checkout-fab" onclick="goBackToCheckout()">
+  🛒 Back to Checkout
+</button>
+
 <!-- FULLSCREEN IMAGE VIEWER -->
 <div class="fs-overlay" id="fs-overlay" onclick="fsOverlayClick(event)"
      ontouchstart="fsTouchStart(event)" ontouchmove="fsTouchMove(event)" ontouchend="fsTouchEnd(event)">
@@ -953,18 +975,6 @@
       <span>Total</span><span id="cart-total-val"></span>
     </div>
     <button class="submit-btn" onclick="closeCart();renderOrderItemsSummary();document.getElementById('order').scrollIntoView({behavior:'smooth'})">Proceed to Order</button>
-  </div>
-</div>
-
-<!-- ADD MORE ITEMS AT CHECKOUT -->
-<div class="modal-overlay" id="add-more-items-modal">
-  <div class="modal" style="max-width:480px;">
-    <button class="modal-close" onclick="closeAddMoreItemsModal()">X</button>
-    <h2>Add More Items</h2>
-    <p style="font-size:0.85rem;color:#666;margin-bottom:12px;">Search for another product to add — everything ships together in one order.</p>
-    <input type="text" id="ami-search" placeholder="Search products..." oninput="searchAmiProducts(this.value)"
-      style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;margin-bottom:12px;box-sizing:border-box;font-family:'Inter',sans-serif;"/>
-    <div id="ami-results" style="max-height:340px;overflow-y:auto;"></div>
   </div>
 </div>
 
@@ -1579,6 +1589,7 @@
       cart.push({ cartKey:cartKey, id:p.id, name:p.name+(hasVariants?' - '+v.name+(v.color?' ('+v.color+')':''):''), price:effectivePrice(v), cost:0, icon:catIcons[p.category]||'', qty:pdQty, variantIdx:pdCurrentVariantIdx, maxStock:available });
     }
     updateCartCount();
+    renderOrderItemsSummary();
     var btn = document.getElementById('pd-btn-cart');
     btn.textContent = 'Added to Cart!'; btn.style.background='#2a9d50';
     setTimeout(function(){ btn.textContent='Add to Cart'; btn.style.background=''; },1400);
@@ -1682,6 +1693,7 @@
     if (manualWrap) manualWrap.style.display = 'block';
     if (addPrompt) addPrompt.style.display = 'block';
     if (hiddenField) hiddenField.value = '';
+    hideBackToCheckoutFab();
   }
 
   function togglePdVideo() {
@@ -1803,111 +1815,31 @@
 
   function closeCart(){ document.getElementById('cart-modal').classList.remove('open'); }
 
-  // ADD MORE ITEMS AT CHECKOUT
-  var amiSelectedProduct = null;
-  var amiSelectedVariantIdx = null;
-  var amiQty = 1;
-
+  // ADD MORE ITEMS AT CHECKOUT — takes the customer to the full catalog (with pictures + search)
+  // instead of a compact list, then offers an easy way back to finish checking out.
   function openAddMoreItemsModal() {
-    amiSelectedProduct = null;
-    amiSelectedVariantIdx = null;
-    amiQty = 1;
-    document.getElementById('ami-search').value = '';
-    document.getElementById('ami-results').innerHTML = '<div style="text-align:center;color:#999;padding:20px;font-size:0.85rem;">Type to search for a product...</div>';
-    document.getElementById('add-more-items-modal').classList.add('open');
-    setTimeout(function(){ document.getElementById('ami-search').focus(); }, 200);
+    closeCart();
+    var pdOverlay = document.getElementById('pd-overlay');
+    if (pdOverlay) pdOverlay.classList.remove('open');
+    document.getElementById('products').scrollIntoView({behavior:'smooth'});
+    var navSearch = document.getElementById('nav-search-input');
+    setTimeout(function(){ if (navSearch) navSearch.focus(); }, 500);
+    showBackToCheckoutFab();
   }
 
-  function closeAddMoreItemsModal() {
-    document.getElementById('add-more-items-modal').classList.remove('open');
+  function showBackToCheckoutFab() {
+    var fab = document.getElementById('back-to-checkout-fab');
+    if (fab) fab.classList.add('show');
   }
 
-  function searchAmiProducts(query) {
-    var q = query.trim().toLowerCase();
-    var box = document.getElementById('ami-results');
-    if (!q) { box.innerHTML = '<div style="text-align:center;color:#999;padding:20px;font-size:0.85rem;">Type to search for a product...</div>'; return; }
-    var matches = products.filter(function(p){ return p.name.toLowerCase().indexOf(q) !== -1; }).slice(0, 8);
-    if (matches.length === 0) { box.innerHTML = '<div style="text-align:center;color:#999;padding:20px;font-size:0.85rem;">No products found.</div>'; return; }
-    box.innerHTML = matches.map(function(p){
-      var totalStk = p.variants.reduce(function(s,v){return s+(parseInt(v.stock)||0);},0);
-      var priceDisplay = fmtPrice(effectivePrice(p.variants[0]));
-      var thumb = p.image ? '<img src="'+p.image+'" style="width:100%;height:100%;object-fit:cover;"/>' : (catIcons[p.category]||'📦');
-      return '<div style="display:flex;align-items:center;gap:10px;padding:10px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="selectAmiProduct(\'' + p.id + '\')">' +
-        '<div style="width:44px;height:44px;background:var(--light);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;overflow:hidden;flex-shrink:0;">' + thumb + '</div>' +
-        '<div style="flex:1;"><div style="font-weight:700;font-size:0.85rem;">' + p.name + '</div><div style="font-size:0.78rem;color:#888;">' + priceDisplay + (totalStk===0?' &middot; Out of stock':'') + '</div></div>' +
-        '</div>';
-    }).join('');
+  function hideBackToCheckoutFab() {
+    var fab = document.getElementById('back-to-checkout-fab');
+    if (fab) fab.classList.remove('show');
   }
 
-  function selectAmiProduct(id) {
-    var p = products.find(function(x){return x.id===id;});
-    if (!p) return;
-    amiSelectedProduct = p;
-    amiSelectedVariantIdx = p.variants.length === 1 ? 0 : null;
-    amiQty = 1;
-    renderAmiVariantPicker();
-  }
-
-  function renderAmiVariantPicker() {
-    var p = amiSelectedProduct;
-    var box = document.getElementById('ami-results');
-    var hasVariants = p.variants.length > 1;
-    var variantHtml = '';
-    if (hasVariants) {
-      variantHtml = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;">' + p.variants.map(function(v,i){
-        var stock = parseInt(v.stock)||0;
-        var active = amiSelectedVariantIdx === i;
-        return '<button onclick="amiSelectVariant(' + i + ')" ' + (stock===0?'disabled':'') + ' style="padding:8px 12px;border-radius:7px;border:2px solid ' + (active?'var(--gold)':'var(--border)') + ';background:' + (active?'#fffbf0':'#fff') + ';font-size:0.78rem;font-weight:700;cursor:' + (stock===0?'not-allowed':'pointer') + ';opacity:' + (stock===0?'0.4':'1') + ';font-family:\'Inter\',sans-serif;">' + v.name + (v.color?' ('+v.color+')':'') + '<br/><span style="font-weight:400;color:#888;">' + fmtPrice(effectivePrice(v)) + '</span></button>';
-      }).join('') + '</div>';
-    }
-    var selectedVariant = amiSelectedVariantIdx !== null ? p.variants[amiSelectedVariantIdx] : null;
-
-    box.innerHTML = '<div style="padding:6px 0;">' +
-      '<button onclick="searchAmiProducts(document.getElementById(\'ami-search\').value)" style="background:none;border:none;color:#888;font-size:0.78rem;cursor:pointer;margin-bottom:10px;">&larr; Back to results</button>' +
-      '<div style="font-weight:800;font-size:0.95rem;">' + p.name + '</div>' +
-      variantHtml +
-      (selectedVariant ? (
-        '<div style="display:flex;align-items:center;gap:12px;margin:14px 0;">' +
-          '<span style="font-size:0.8rem;font-weight:700;">Quantity</span>' +
-          '<button onclick="amiChangeQty(-1)" style="width:32px;height:32px;border-radius:6px;border:1.5px solid var(--border);background:#fff;cursor:pointer;font-weight:700;">-</button>' +
-          '<span id="ami-qty" style="font-weight:800;min-width:20px;text-align:center;">' + amiQty + '</span>' +
-          '<button onclick="amiChangeQty(1)" style="width:32px;height:32px;border-radius:6px;border:1.5px solid var(--border);background:#fff;cursor:pointer;font-weight:700;">+</button>' +
-        '</div>' +
-        '<button onclick="confirmAddAmiItem()" style="width:100%;background:var(--gold);color:var(--black);border:none;padding:12px;border-radius:8px;font-weight:800;font-size:0.85rem;cursor:pointer;">+ Add to Order</button>'
-      ) : '<div style="font-size:0.8rem;color:#888;margin-top:10px;">Choose a variant above.</div>') +
-      '</div>';
-  }
-
-  function amiSelectVariant(idx) {
-    amiSelectedVariantIdx = idx;
-    amiQty = 1;
-    renderAmiVariantPicker();
-  }
-
-  function amiChangeQty(delta) {
-    var p = amiSelectedProduct;
-    var v = p.variants[amiSelectedVariantIdx];
-    var maxStock = parseInt(v.stock)||0;
-    amiQty = Math.max(1, Math.min(maxStock, amiQty + delta));
-    document.getElementById('ami-qty').textContent = amiQty;
-  }
-
-  function confirmAddAmiItem() {
-    var p = amiSelectedProduct;
-    var v = p.variants[amiSelectedVariantIdx];
-    var hasVariants = p.variants.length > 1;
-    var cartKey = p.id + '_' + amiSelectedVariantIdx;
-    var existing = cart.find(function(c){ return c.cartKey === cartKey; });
-    var available = parseInt(v.stock) || 0;
-    if (existing) {
-      if (existing.qty + amiQty > available) { alert('Only ' + available + ' pieces available.'); return; }
-      existing.qty += amiQty;
-    } else {
-      cart.push({ cartKey: cartKey, id: p.id, name: p.name + (hasVariants ? ' - ' + v.name + (v.color ? ' (' + v.color + ')' : '') : ''), price: effectivePrice(v), cost: 0, icon: catIcons[p.category] || '', qty: amiQty, variantIdx: amiSelectedVariantIdx, maxStock: available });
-    }
-    updateCartCount();
-    renderOrderItemsSummary();
-    closeAddMoreItemsModal();
+  function goBackToCheckout() {
+    hideBackToCheckoutFab();
+    document.getElementById('order').scrollIntoView({behavior:'smooth'});
   }
 
   // ORDER
@@ -2088,7 +2020,7 @@
   }
 
   // Close on overlay click
-  ['returns-modal','track-order-modal','payment-guide-modal','delivery-info-modal','how-to-order-modal','cart-modal','success-modal','add-more-items-modal'].forEach(function(id){
+  ['returns-modal','track-order-modal','payment-guide-modal','delivery-info-modal','how-to-order-modal','cart-modal','success-modal'].forEach(function(id){
     var el=document.getElementById(id);
     if(el) el.addEventListener('click',function(e){ if(e.target===this){ if(id==='cart-modal'){closeCart();}else{this.classList.remove('open');} } });
   });
