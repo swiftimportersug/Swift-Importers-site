@@ -797,6 +797,36 @@
   </div>
 </div>
 
+<!-- CHANGE MY CODE MODAL (self-service, employee's own private 4-digit code) -->
+<div class="modal-overlay" id="change-code-modal">
+  <div class="modal-box" style="max-width:400px;">
+    <div class="modal-hdr">
+      <h3>🔑 Change My Code</h3>
+      <button class="modal-close-btn" onclick="closeChangeCodeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:0.85rem; color:#555; margin-bottom:14px; line-height:1.6;">Update the private 4-digit code you use to log in. Only you can do this, and only after confirming your current code.</p>
+      <div class="form-group">
+        <label>Current Code</label>
+        <input type="password" id="cc-current" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="••••" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4);" onkeydown="if(event.key==='Enter') document.getElementById('cc-new').focus();"/>
+      </div>
+      <div class="form-group">
+        <label>New Code</label>
+        <input type="password" id="cc-new" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="••••" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4);" onkeydown="if(event.key==='Enter') document.getElementById('cc-confirm').focus();"/>
+      </div>
+      <div class="form-group">
+        <label>Confirm New Code</label>
+        <input type="password" id="cc-confirm" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="••••" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4);" onkeydown="if(event.key==='Enter') submitChangeCode();"/>
+      </div>
+      <div id="change-code-error" style="display:none; color:var(--red); font-size:0.8rem; font-weight:600; margin-top:-6px; margin-bottom:10px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeChangeCodeModal()">Cancel</button>
+      <button class="btn-gold" id="change-code-submit-btn" onclick="submitChangeCode()">Save New Code</button>
+    </div>
+  </div>
+</div>
+
 <!-- APP -->
 <div class="app" id="app">
 
@@ -849,6 +879,7 @@
       </div>
     </nav>
     <div class="sidebar-footer">
+      <button class="logout-btn" style="background:#222; margin-bottom:8px;" onclick="openChangeCodeModal()">🔑 Change My Code</button>
       <button class="logout-btn" onclick="doLogout()">🚪 Sign Out</button>
     </div>
   </aside>
@@ -1497,6 +1528,7 @@
   let codeEntry = '';
   let currentEmployeeFbDocId = null;
   let currentEmployeePhotoUrl = '';
+  let currentEmployeeCode = null;
 
   function pickEmployee(name, code, fbDocId) {
     if (!code) {
@@ -1556,8 +1588,9 @@
       errEl.style.display = 'none';
       const name = pendingEmployeeName;
       const fbDocId = pendingEmployeeFbDocId;
+      const code = pendingEmployeeCode;
       pendingEmployeeName = null; pendingEmployeeCode = null; pendingEmployeeFbDocId = null; codeEntry = '';
-      selectEmployeeName(name, fbDocId);
+      selectEmployeeName(name, fbDocId, code);
     } else {
       errEl.textContent = '❌ Incorrect code. Try again.';
       errEl.style.display = 'block';
@@ -1575,9 +1608,10 @@
     updateCodeDots();
   }
 
-  function selectEmployeeName(name, fbDocId) {
+  function selectEmployeeName(name, fbDocId, code) {
     currentEmployeeName = name;
     currentEmployeeFbDocId = fbDocId || null;
+    currentEmployeeCode = code || null;
     const emp = staffNames.find(s => s.name === name);
     currentEmployeePhotoUrl = (emp && emp.photoUrl) || '';
     document.getElementById('login-screen').style.display = 'none';
@@ -1620,6 +1654,7 @@
     // signed in quietly in the background so the next PIN entry is instant.
     stopScanner();
     currentEmployeeName = null;
+    currentEmployeeCode = null;
     pendingEmployeeName = null; pendingEmployeeCode = null; codeEntry = '';
     document.getElementById('app').classList.remove('visible');
     document.getElementById('login-screen').style.display = 'flex';
@@ -1685,9 +1720,89 @@
     }
   }
 
+  // ── CHANGE MY CODE (self-service, employee updates their own private 4-digit code) ──
+  function openChangeCodeModal() {
+    document.getElementById('cc-current').value = '';
+    document.getElementById('cc-new').value = '';
+    document.getElementById('cc-confirm').value = '';
+    document.getElementById('change-code-error').style.display = 'none';
+    document.getElementById('change-code-modal').classList.add('open');
+    setTimeout(() => document.getElementById('cc-current').focus(), 150);
+  }
+
+  function closeChangeCodeModal() {
+    document.getElementById('change-code-modal').classList.remove('open');
+  }
+
+  async function submitChangeCode() {
+    const errEl = document.getElementById('change-code-error');
+    const btn = document.getElementById('change-code-submit-btn');
+    const current = document.getElementById('cc-current').value.trim();
+    const fresh = document.getElementById('cc-new').value.trim();
+    const confirm = document.getElementById('cc-confirm').value.trim();
+    const isFourDigits = v => /^[0-9]{4}$/.test(v);
+
+    errEl.style.display = 'none';
+
+    if (!currentEmployeeFbDocId || !currentEmployeeCode) {
+      errEl.textContent = '❌ Could not verify your session. Please sign out and log back in, then try again.';
+      errEl.style.display = 'block';
+      return;
+    }
+    if (current !== currentEmployeeCode) {
+      errEl.textContent = '❌ Your current code is incorrect.';
+      errEl.style.display = 'block';
+      return;
+    }
+    if (!isFourDigits(fresh)) {
+      errEl.textContent = '❌ New code must be exactly 4 digits.';
+      errEl.style.display = 'block';
+      return;
+    }
+    if (fresh !== confirm) {
+      errEl.textContent = '❌ New code and confirmation don\'t match.';
+      errEl.style.display = 'block';
+      return;
+    }
+    if (fresh === current) {
+      errEl.textContent = '❌ New code must be different from your current code.';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    try {
+      const { doc, updateDoc } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'employees', currentEmployeeFbDocId), { code: fresh });
+      currentEmployeeCode = fresh;
+      const emp = staffNames.find(s => s.fbDocId === currentEmployeeFbDocId);
+      if (emp) emp.code = fresh;
+      closeChangeCodeModal();
+      showSuccessToast('✅ Code Updated!');
+    } catch (e) {
+      console.error('Could not update code:', e);
+      if (e && e.code === 'permission-denied') {
+        errEl.textContent = '❌ Permission denied. Ask the owner to update the Firestore security rules to allow this (see setup notes), then try again.';
+      } else {
+        errEl.textContent = '❌ Could not save. Check your internet connection and try again.';
+      }
+      errEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save New Code';
+    }
+  }
+
+  window.openChangeCodeModal = openChangeCodeModal;
+  window.closeChangeCodeModal = closeChangeCodeModal;
+  window.submitChangeCode = submitChangeCode;
+
   document.addEventListener('DOMContentLoaded', function() {
     const mpModal = document.getElementById('master-password-modal');
     if (mpModal) mpModal.addEventListener('click', function(e) { if (e.target === this) closeMasterPasswordModal(); });
+    const ccModal = document.getElementById('change-code-modal');
+    if (ccModal) ccModal.addEventListener('click', function(e) { if (e.target === this) closeChangeCodeModal(); });
   });
 
   window.requireMasterPassword = requireMasterPassword;
