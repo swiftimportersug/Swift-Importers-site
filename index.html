@@ -291,6 +291,35 @@
     @media(max-width:600px){
       .back-to-checkout-fab{ bottom:18px; right:18px; padding:13px 18px; font-size:0.8rem; }
     }
+    .wa-support-fab{
+      position:fixed; bottom:26px; right:26px; z-index:498;
+      display:flex; align-items:center; gap:10px;
+      background:#25D366; color:#fff; text-decoration:none;
+      border-radius:32px; padding:12px 18px 12px 12px;
+      box-shadow:0 8px 22px rgba(37,211,102,0.45);
+      font-family:'Inter',sans-serif; transition:bottom 0.25s, transform 0.2s;
+    }
+    .wa-support-fab:hover{ transform:translateY(-2px); }
+    .wa-support-fab .wa-fab-icon{
+      width:34px; height:34px; border-radius:50%; background:rgba(255,255,255,0.18);
+      display:flex; align-items:center; justify-content:center; font-size:1.15rem; flex-shrink:0;
+      animation:waFabPulseRing 2.4s ease-in-out infinite;
+    }
+    .wa-support-fab .wa-fab-text{ line-height:1.2; text-align:left; }
+    .wa-support-fab .wa-fab-title{ font-size:0.78rem; font-weight:800; }
+    .wa-support-fab .wa-fab-sub{ font-size:0.66rem; font-weight:600; opacity:0.9; }
+    @keyframes waFabPulseRing{
+      0%,100%{ box-shadow:0 0 0 0 rgba(255,255,255,0.35); }
+      50%{ box-shadow:0 0 0 6px rgba(255,255,255,0); }
+    }
+    .wa-support-fab.shift-up{ bottom:88px; }
+    @media(max-width:600px){
+      .wa-support-fab{ bottom:18px; right:18px; padding:10px 14px 10px 10px; }
+      .wa-support-fab .wa-fab-icon{ width:30px; height:30px; font-size:1rem; }
+      .wa-support-fab .wa-fab-title{ font-size:0.72rem; }
+      .wa-support-fab .wa-fab-sub{ font-size:0.62rem; }
+      .wa-support-fab.shift-up{ bottom:76px; }
+    }
     .pd-variant-label{font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#444;margin-bottom:8px;transition:color 0.2s;}
     .pd-variant-label.pd-attention-text{color:var(--red);}
     .pd-variant-select{width:100%;padding:10px 13px;border:2px solid var(--border);border-radius:8px;font-size:0.85rem;font-family:'Inter',sans-serif;font-weight:600;background:var(--white);color:var(--black);outline:none;cursor:pointer;transition:border-color 0.2s;}
@@ -794,6 +823,15 @@
 <button class="back-to-checkout-fab" id="back-to-checkout-fab" onclick="goBackToCheckout()">
   🛒 Back to Checkout
 </button>
+
+<!-- FLOATING WHATSAPP SUPPORT BUTTON (always visible) -->
+<a class="wa-support-fab" id="wa-support-fab" href="https://wa.me/256757675088" target="_blank" rel="noopener">
+  <span class="wa-fab-icon">&#128222;</span>
+  <span class="wa-fab-text">
+    <span class="wa-fab-title">Chat with Us</span>
+    <span class="wa-fab-sub">Support Available 24/7</span>
+  </span>
+</a>
 
 <!-- FULLSCREEN IMAGE VIEWER -->
 <div class="fs-overlay" id="fs-overlay" onclick="fsOverlayClick(event)"
@@ -1833,11 +1871,15 @@
   function showBackToCheckoutFab() {
     var fab = document.getElementById('back-to-checkout-fab');
     if (fab) fab.classList.add('show');
+    var waFab = document.getElementById('wa-support-fab');
+    if (waFab) waFab.classList.add('shift-up');
   }
 
   function hideBackToCheckoutFab() {
     var fab = document.getElementById('back-to-checkout-fab');
     if (fab) fab.classList.remove('show');
+    var waFab = document.getElementById('wa-support-fab');
+    if (waFab) waFab.classList.remove('shift-up');
   }
 
   function goBackToCheckout() {

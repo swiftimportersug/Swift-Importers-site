@@ -857,25 +857,28 @@
       </div>
     </div>
     <nav class="sidebar-nav">
-      <div class="nav-item active" onclick="showPage('dashboard')">
+      <div class="nav-item active" data-page="dashboard" onclick="showPage('dashboard')">
         <span class="nav-icon">📊</span> Dashboard
       </div>
-      <div class="nav-item" onclick="showPage('inventory')">
+      <div class="nav-item" data-page="inventory" onclick="showPage('inventory')">
         <span class="nav-icon">📦</span> Inventory
       </div>
-      <div class="nav-item" onclick="showPage('alerts')">
+      <div class="nav-item" data-page="alerts" onclick="showPage('alerts')">
         <span class="nav-icon">🔔</span> Stock Alerts
         <span id="alert-badge" style="margin-left:auto; background:var(--red); color:#fff; font-size:0.65rem; font-weight:700; padding:2px 7px; border-radius:20px; display:none;"></span>
       </div>
-      <div class="nav-item" onclick="showPage('open-orders')">
+      <div class="nav-item" data-page="open-orders" onclick="showPage('open-orders')">
         <span class="nav-icon">📋</span> Open Orders
         <span id="open-orders-badge" style="margin-left:auto;background:var(--red);color:#fff;font-size:0.65rem;font-weight:700;padding:2px 7px;border-radius:20px;display:none;"></span>
       </div>
-      <div class="nav-item" onclick="showPage('closed-orders')">
+      <div class="nav-item" data-page="closed-orders" onclick="showPage('closed-orders')">
         <span class="nav-icon">✅</span> Closed Orders
       </div>
-      <div class="nav-item" onclick="showPage('scanner')">
+      <div class="nav-item" data-page="scanner" onclick="showPage('scanner')">
         <span class="nav-icon">📷</span> QR Scanner
+      </div>
+      <div class="nav-item" data-page="my-panel" onclick="showPage('my-panel')">
+        <span class="nav-icon">🧾</span> My Panel
       </div>
     </nav>
     <div class="sidebar-footer">
@@ -1022,6 +1025,22 @@
             <div id="manual-result" style="margin-top:12px;"></div>
           </div>
         </div>
+      </div>
+
+      <!-- MY PANEL PAGE (employee's own transactions) -->
+      <div class="page" id="page-my-panel">
+        <div class="section-hdr">
+          <h2>🧾 My Panel</h2>
+          <span style="font-size:0.8rem;color:var(--grey);" id="my-panel-name-label"></span>
+        </div>
+        <div class="period-tabs" id="my-panel-period-tabs">
+          <button class="period-tab active" data-period="today" onclick="setMyPanelPeriod('today')">Today</button>
+          <button class="period-tab" data-period="week" onclick="setMyPanelPeriod('week')">This Week</button>
+          <button class="period-tab" data-period="month" onclick="setMyPanelPeriod('month')">This Month</button>
+          <button class="period-tab" data-period="all" onclick="setMyPanelPeriod('all')">All Time</button>
+        </div>
+        <div class="stats-grid" id="my-panel-stats" style="margin-bottom:20px;"></div>
+        <div id="my-panel-list"></div>
       </div>
 
       <!-- OPEN ORDERS PAGE -->
@@ -1837,11 +1856,11 @@
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('page-' + name).classList.add('active');
     document.querySelectorAll('.nav-item').forEach(n => {
-      if (n.textContent.toLowerCase().includes(name === 'dashboard' ? 'dashboard' : name === 'inventory' ? 'inventory' : name === 'alerts' ? 'alert' : 'scanner')) {
+      if (n.getAttribute('data-page') === name) {
         n.classList.add('active');
       }
     });
-    const titles = { dashboard:'📊 Dashboard', inventory:'📦 Inventory', alerts:'🔔 Stock Alerts', 'open-orders':'📋 Open Orders', 'closed-orders':'✅ Closed Orders', scanner:'📷 QR Scanner' };
+    const titles = { dashboard:'📊 Dashboard', inventory:'📦 Inventory', alerts:'🔔 Stock Alerts', 'open-orders':'📋 Open Orders', 'closed-orders':'✅ Closed Orders', scanner:'📷 QR Scanner', 'my-panel':'🧾 My Panel' };
     document.getElementById('page-title').textContent = titles[name] || name;
     if (name !== 'scanner') stopScanner();
     renderAll();
@@ -1968,6 +1987,7 @@
   let openOrdersPeriod = 'today';
   let closedOrdersPeriod = 'today';
   let stockOverviewPeriod = 'today';
+  let myPanelPeriod = 'today';
 
   function isInPeriod(dateStr, period) {
     if (period === 'all') return true;
@@ -2092,6 +2112,96 @@
         }
       }).join('');
   }
+
+  // ── MY PANEL (employee's own transactions — sales & stock adjustments) ──
+  function setMyPanelPeriod(period) {
+    myPanelPeriod = period;
+    document.querySelectorAll('#my-panel-period-tabs .period-tab').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-period') === period);
+    });
+    renderMyPanel();
+  }
+
+  function orderValue(o) {
+    return (o.pricing && o.pricing.total) || ((o.amountPaid||0) + (o.balanceDue||0));
+  }
+
+  function renderMyPanel() {
+    const nameLabel = document.getElementById('my-panel-name-label');
+    if (nameLabel) nameLabel.textContent = currentEmployeeName ? '👤 ' + currentEmployeeName : '';
+    const statsEl = document.getElementById('my-panel-stats');
+    const listEl = document.getElementById('my-panel-list');
+    if (!statsEl || !listEl) return;
+
+    if (!currentEmployeeName) {
+      statsEl.innerHTML = '';
+      listEl.innerHTML = '<div class="dash-search-empty">Could not identify your session. Please sign out and log back in.</div>';
+      return;
+    }
+
+    const mySales = orders.filter(o => o.recordedBy === currentEmployeeName && isInPeriod(o.timestamp, myPanelPeriod));
+    const myAdjustments = adjustmentsLog.filter(a => a.recordedBy === currentEmployeeName && isInPeriod(a.timestamp, myPanelPeriod));
+    const totalSalesValue = mySales.reduce((s, o) => s + orderValue(o), 0);
+
+    const periodLabels = { today: 'today', week: 'this week', month: 'this month', all: 'all time' };
+
+    statsEl.innerHTML = `
+      <div class="stat-card success">
+        <div class="stat-label">💰 My Sales Value</div>
+        <div class="stat-value" style="font-size:1.1rem;">${fmt(totalSalesValue)}</div>
+        <div class="stat-sub">${periodLabels[myPanelPeriod]}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">🛒 Sales Recorded</div>
+        <div class="stat-value">${mySales.length}</div>
+        <div class="stat-sub">${periodLabels[myPanelPeriod]}</div>
+      </div>
+      <div class="stat-card warning">
+        <div class="stat-label">📦 Stock Adjustments</div>
+        <div class="stat-value">${myAdjustments.length}</div>
+        <div class="stat-sub">${periodLabels[myPanelPeriod]}</div>
+      </div>
+    `;
+
+    const combined = [
+      ...mySales.map(o => ({ type: 'sale', date: o.timestamp, data: o })),
+      ...myAdjustments.map(a => ({ type: 'adjustment', date: a.timestamp, data: a }))
+    ].sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    if (combined.length === 0) {
+      listEl.innerHTML = '<div class="dash-search-empty">No transactions recorded by you ' + periodLabels[myPanelPeriod] + '. Try a different time range above.</div>';
+      return;
+    }
+
+    listEl.innerHTML = combined.map(item => {
+      if (item.type === 'sale') {
+        const o = item.data;
+        const itemNames = (o.cartItems||[]).map(i => i.name + ' x' + i.qty).join(', ') || o.products || '—';
+        return `
+          <div class="dash-tx-row">
+            <div>
+              <div class="dash-tx-desc">🛒 ${itemNames}</div>
+              <div class="dash-tx-meta">${fmtOrderTime(o.timestamp)} &middot; ${o.customerName||'Unknown'} &middot; ${fmt(orderValue(o))}</div>
+            </div>
+            <span class="dash-tx-tag sale">Sale</span>
+          </div>
+        `;
+      } else {
+        const a = item.data;
+        return `
+          <div class="dash-tx-row">
+            <div>
+              <div class="dash-tx-desc">${a.type==='add'?'➕':'➖'} ${a.productName} — ${a.variantName} (${a.qty} pcs)</div>
+              <div class="dash-tx-meta">${a.date || fmtOrderTime(a.timestamp)} &middot; ${a.reason||''}</div>
+            </div>
+            <span class="dash-tx-tag adjustment">Adjustment</span>
+          </div>
+        `;
+      }
+    }).join('');
+  }
+
+  window.setMyPanelPeriod = setMyPanelPeriod;
 
   // ── FINANCE (income/expense tracking) ──
   let financeEntries = [];
@@ -2594,6 +2704,7 @@
     renderProfits();
     renderOpenOrders();
     renderClosedOrders();
+    renderMyPanel();
     updateAlertBadge();
     updateOpenOrdersBadge();
   }
