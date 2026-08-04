@@ -653,6 +653,15 @@
   <!-- SUCCESS TOAST -->
   <div class="success-toast" id="success-toast">✅ Successful!</div>
 
+  <!-- GENERIC APP DIALOG (replaces native alert()/confirm() popups) -->
+  <div class="modal-overlay" id="app-dialog-overlay">
+    <div class="modal-box" style="max-width:380px; text-align:center; padding:26px 24px;">
+      <div id="app-dialog-icon" style="font-size:2.1rem; margin-bottom:10px;">⚠️</div>
+      <div id="app-dialog-message" style="font-size:0.9rem; color:#333; line-height:1.55; margin-bottom:20px; white-space:pre-line;"></div>
+      <div id="app-dialog-buttons" style="display:flex; gap:10px; justify-content:center;"></div>
+    </div>
+  </div>
+
   <!-- FLOATING STALE ORDER ALERT -->
   <div id="stale-order-alert" style="display:none;" onclick="showPage('open-orders')"></div>
 
@@ -1355,14 +1364,14 @@
 
   async function saveEmployeePin() {
     const pin = document.getElementById('employee-pin-input').value.trim();
-    if (!/^\d{4}$/.test(pin)) { alert('Please enter exactly 4 digits.'); return; }
-    if (!window.fbDb || !window.fbFns) { alert('Not connected. Check your internet connection.'); return; }
+    if (!/^\d{4}$/.test(pin)) { showAppAlert('Please enter exactly 4 digits.'); return; }
+    if (!window.fbDb || !window.fbFns) { showAppAlert('Not connected. Check your internet connection.'); return; }
     const { doc, setDoc } = window.fbFns;
     try {
       await setDoc(doc(window.fbDb, 'settings', 'employeePin'), { pin, updatedAt: new Date().toISOString() });
-      alert('✅ Employee PIN saved. Share this PIN with your staff to use the Employee Panel.');
+      showAppAlert('✅ Employee PIN saved. Share this PIN with your staff to use the Employee Panel.');
     } catch(e) {
-      alert('Error saving PIN. Check your internet connection.');
+      showAppAlert('Error saving PIN. Check your internet connection.');
       console.error(e);
     }
   }
@@ -1724,17 +1733,17 @@
     if (!name || !name.trim()) { if (fromSelectEl) fromSelectEl.value = fromSelectEl.getAttribute('data-current') || ''; return; }
     const trimmed = name.trim();
     if (allCategoryNames().some(c => c.toLowerCase() === trimmed.toLowerCase())) {
-      alert('That category already exists.');
+      showAppAlert('That category already exists.');
       if (fromSelectEl) { fromSelectEl.value = trimmed; fromSelectEl.setAttribute('data-current', trimmed); }
       return;
     }
-    if (!window.fbDb || !window.fbFns) { alert('Not connected. Check your internet connection.'); return; }
+    if (!window.fbDb || !window.fbFns) { showAppAlert('Not connected. Check your internet connection.'); return; }
     const { addDoc, collection } = window.fbFns;
     try {
       await addDoc(collection(window.fbDb, 'categories'), { name: trimmed, createdAt: new Date().toISOString() });
       if (fromSelectEl) setTimeout(() => { fromSelectEl.value = trimmed; fromSelectEl.setAttribute('data-current', trimmed); }, 300);
     } catch(e) {
-      alert('Error adding category. Check your internet connection.');
+      showAppAlert('Error adding category. Check your internet connection.');
       console.error(e);
     }
   }
@@ -1777,17 +1786,17 @@
     if (!name || !name.trim()) { if (fromSelectEl) fromSelectEl.value = ''; return; }
     const trimmed = name.trim();
     if (stores.some(s => (s.name||'').toLowerCase() === trimmed.toLowerCase())) {
-      alert('A store with that name already exists.');
+      showAppAlert('A store with that name already exists.');
       if (fromSelectEl) fromSelectEl.value = trimmed;
       return;
     }
-    if (!window.fbDb || !window.fbFns) { alert('Not connected. Check your internet connection.'); return; }
+    if (!window.fbDb || !window.fbFns) { showAppAlert('Not connected. Check your internet connection.'); return; }
     const { addDoc, collection } = window.fbFns;
     try {
       await addDoc(collection(window.fbDb, 'stores'), { name: trimmed, createdAt: new Date().toISOString() });
       if (fromSelectEl) setTimeout(() => { fromSelectEl.value = trimmed; }, 300);
     } catch(e) {
-      alert('Error adding store. Check your internet connection.');
+      showAppAlert('Error adding store. Check your internet connection.');
       console.error(e);
     }
   }
@@ -2034,13 +2043,13 @@
       setTimeout(() => { if (selectEl.value && selectEl.value !== '__add_new__') onEmployeeStoreChange(id, selectEl); else selectEl.value = beforeVal; }, 400);
       return;
     }
-    if (!window.fbDb || !window.fbFns) { alert('Not connected. Check your internet connection.'); return; }
+    if (!window.fbDb || !window.fbFns) { showAppAlert('Not connected. Check your internet connection.'); return; }
     const { doc, updateDoc } = window.fbFns;
     try {
       await updateDoc(doc(window.fbDb, 'employees', id), { store: selectEl.value });
       showSuccessToast('✅ Store Assigned!');
     } catch(e) {
-      alert('Error assigning store. Check your internet connection.');
+      showAppAlert('Error assigning store. Check your internet connection.');
       console.error(e);
     }
   }
@@ -2049,13 +2058,13 @@
     const current = staffNames.find(s => s.fbDocId === id);
     const newUrl = prompt('Paste an image link for ' + name + '\'s profile picture (Google Drive direct link or any direct image URL). Leave blank to remove the current photo:', current && current.photoUrl || '');
     if (newUrl === null) return;
-    if (!window.fbDb || !window.fbFns) { alert('Not connected. Check your internet connection.'); return; }
+    if (!window.fbDb || !window.fbFns) { showAppAlert('Not connected. Check your internet connection.'); return; }
     const { doc, updateDoc } = window.fbFns;
     try {
       await updateDoc(doc(window.fbDb, 'employees', id), { photoUrl: newUrl.trim() });
-      alert('✅ Photo updated for ' + name + '.');
+      showAppAlert('✅ Photo updated for ' + name + '.');
     } catch(e) {
-      alert('Error updating photo. Check your internet connection.');
+      showAppAlert('Error updating photo. Check your internet connection.');
       console.error(e);
     }
   }
@@ -2070,14 +2079,14 @@
   async function editEmployeeCode(id, name) {
     const newCode = prompt('New 4-digit secret code for ' + name + ':');
     if (newCode === null) return;
-    if (!/^\d{4}$/.test(newCode.trim())) { alert('Please enter exactly 4 digits.'); return; }
-    if (!window.fbDb || !window.fbFns) { alert('Not connected. Check your internet connection.'); return; }
+    if (!/^\d{4}$/.test(newCode.trim())) { showAppAlert('Please enter exactly 4 digits.'); return; }
+    if (!window.fbDb || !window.fbFns) { showAppAlert('Not connected. Check your internet connection.'); return; }
     const { doc, updateDoc } = window.fbFns;
     try {
       await updateDoc(doc(window.fbDb, 'employees', id), { code: newCode.trim() });
-      alert('✅ Code updated for ' + name + '.');
+      showAppAlert('✅ Code updated for ' + name + '.');
     } catch(e) {
-      alert('Error updating code. Check your internet connection.');
+      showAppAlert('Error updating code. Check your internet connection.');
       console.error(e);
     }
   }
@@ -2088,34 +2097,35 @@
     const name = nameInput.value.trim();
     const code = codeInput.value.trim();
     if (!name) { nameInput.focus(); return; }
-    if (!/^\d{4}$/.test(code)) { alert('Please set a 4-digit secret code for this staff member.'); codeInput.focus(); return; }
+    if (!/^\d{4}$/.test(code)) { showAppAlert('Please set a 4-digit secret code for this staff member.'); codeInput.focus(); return; }
     if (staffNames.some(s => (s.name||'').toLowerCase() === name.toLowerCase())) {
-      alert('That name is already on the list.');
+      showAppAlert('That name is already on the list.');
       return;
     }
-    if (!window.fbDb || !window.fbFns) { alert('Not connected. Check your internet connection.'); return; }
+    if (!window.fbDb || !window.fbFns) { showAppAlert('Not connected. Check your internet connection.'); return; }
     const { addDoc, collection } = window.fbFns;
     try {
       await addDoc(collection(window.fbDb, 'employees'), { name, code, createdAt: new Date().toISOString() });
       nameInput.value = '';
       codeInput.value = '';
-      alert('✅ ' + name + ' added. Share their 4-digit code with them privately — don\'t let other staff see it.');
+      showAppAlert('✅ ' + name + ' added. Share their 4-digit code with them privately — don\'t let other staff see it.');
     } catch(e) {
-      alert('Error adding staff name. Check your internet connection.');
+      showAppAlert('Error adding staff name. Check your internet connection.');
       console.error(e);
     }
   }
 
   async function removeEmployeeName(id, name) {
-    if (!confirm('Remove "' + name + '" from the staff list? They will no longer be able to select their name in the Employee Panel.')) return;
-    if (!window.fbDb || !window.fbFns) return;
-    const { doc, deleteDoc } = window.fbFns;
-    try {
-      await deleteDoc(doc(window.fbDb, 'employees', id));
-    } catch(e) {
-      alert('Error removing staff name.');
-      console.error(e);
-    }
+    showAppConfirm('Remove "' + name + '" from the staff list? They will no longer be able to select their name in the Employee Panel.', async function(){
+      if (!window.fbDb || !window.fbFns) return;
+      const { doc, deleteDoc } = window.fbFns;
+      try {
+        await deleteDoc(doc(window.fbDb, 'employees', id));
+      } catch(e) {
+        showAppAlert('Error removing staff name.');
+        console.error(e);
+      }
+    }, null, { icon: '🗑️', confirmText: 'Remove' });
   }
 
   // ── ORDERS ──
@@ -2708,7 +2718,7 @@
           updates.stockDeducted = true;
           if (correctedCartItems) updates.cartItems = correctedCartItems;
           if (skipped.length) {
-            alert('Order closed. Stock/cost could not be auto-adjusted for: ' + skipped.join(', ') + '. Please check these items manually in Inventory.');
+            showAppAlert('Order closed. Stock/cost could not be auto-adjusted for: ' + skipped.join(', ') + '. Please check these items manually in Inventory.');
           }
         } else if (newStatus !== 'closed' && order.stockDeducted) {
           await adjustStockForOrder(order, 1, 'Admin');
@@ -2719,19 +2729,20 @@
       }
 
       await updateDoc(orderRef, updates);
-    } catch(e) { alert('Error updating order. Check your connection.'); console.error('[order] updateOrderStatus failed:', e); }
+    } catch(e) { showAppAlert('Error updating order. Check your connection.'); console.error('[order] updateOrderStatus failed:', e); }
   }
 
   async function markOrderBalancePaid(docId) {
     const o = orders.find(x => x.fbDocId === docId);
     if (!o) return;
-    if (!confirm('Mark this order\'s outstanding balance of ' + fmt(o.balanceDue||0) + ' as fully paid?')) return;
-    if (!window.fbDb || !window.fbFns) return;
-    const { doc, updateDoc } = window.fbFns;
-    const fullTotal = (o.pricing && o.pricing.total) || (o.amountPaid||0) + (o.balanceDue||0);
-    try {
-      await updateDoc(doc(window.fbDb, 'orders', docId), { amountPaid: fullTotal, balanceDue: 0, paymentStatus: 'paid' });
-    } catch(e) { alert('Error updating order. Check your connection.'); console.error(e); }
+    showAppConfirm('Mark this order\'s outstanding balance of ' + fmt(o.balanceDue||0) + ' as fully paid?', async function(){
+      if (!window.fbDb || !window.fbFns) return;
+      const { doc, updateDoc } = window.fbFns;
+      const fullTotal = (o.pricing && o.pricing.total) || (o.amountPaid||0) + (o.balanceDue||0);
+      try {
+        await updateDoc(doc(window.fbDb, 'orders', docId), { amountPaid: fullTotal, balanceDue: 0, paymentStatus: 'paid' });
+      } catch(e) { showAppAlert('Error updating order. Check your connection.'); console.error(e); }
+    }, null, { icon: '💰', confirmText: 'Mark as Paid' });
   }
 
   // ── RENDER ALL ──
@@ -2765,6 +2776,46 @@
   function showSuccessToast(message) { showToast(message, 'success'); }
   function showErrorToast(message) { showToast(message, 'error'); }
   function showInfoToast(message) { showToast(message, 'info'); }
+
+  // ── GENERIC APP DIALOG (replaces native alert()/confirm(), which show the
+  // site's URL in the browser's own dialog chrome — these are proper in-page
+  // popups instead, and close cleanly on their own buttons or an outside tap) ──
+  function showAppAlert(message, icon) {
+    var overlay = document.getElementById('app-dialog-overlay');
+    if (!overlay) { window.alert(message); return; }
+    document.getElementById('app-dialog-icon').textContent = icon || '⚠️';
+    document.getElementById('app-dialog-message').textContent = message;
+    var btns = document.getElementById('app-dialog-buttons');
+    btns.innerHTML = '';
+    var okBtn = document.createElement('button');
+    okBtn.className = 'btn-gold';
+    okBtn.style.cssText = 'padding:10px 30px;';
+    okBtn.textContent = 'OK';
+    okBtn.onclick = function(){ overlay.classList.remove('open'); };
+    btns.appendChild(okBtn);
+    overlay.classList.add('open');
+  }
+
+  function showAppConfirm(message, onConfirm, onCancel, opts) {
+    opts = opts || {};
+    var overlay = document.getElementById('app-dialog-overlay');
+    if (!overlay) { if (window.confirm(message)) { if (onConfirm) onConfirm(); } else if (onCancel) onCancel(); return; }
+    document.getElementById('app-dialog-icon').textContent = opts.icon || '❓';
+    document.getElementById('app-dialog-message').textContent = message;
+    var btns = document.getElementById('app-dialog-buttons');
+    btns.innerHTML = '';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn-cancel';
+    cancelBtn.textContent = opts.cancelText || 'Cancel';
+    cancelBtn.onclick = function(){ overlay.classList.remove('open'); if (onCancel) onCancel(); };
+    var confirmBtn = document.createElement('button');
+    confirmBtn.className = 'btn-gold';
+    confirmBtn.textContent = opts.confirmText || 'Confirm';
+    confirmBtn.onclick = function(){ overlay.classList.remove('open'); if (onConfirm) onConfirm(); };
+    btns.appendChild(cancelBtn);
+    btns.appendChild(confirmBtn);
+    overlay.classList.add('open');
+  }
 
   function fmt(n) { return 'UGX ' + parseInt(n).toLocaleString('en-UG'); }
   function totalStock(p) { return p.variants.reduce((s, v) => s + (parseInt(v.stock) || 0), 0); }
@@ -3696,17 +3747,22 @@
     const name = document.getElementById('f-name').value.trim();
     const cat = document.getElementById('f-cat').value;
     const store = document.getElementById('f-store').value;
-    if (!name || !cat || cat === '__add_new__') { alert('Please enter a product name and category.'); return; }
-    if (!store || store === '__add_new__') { alert('Please select which store this product belongs to.'); return; }
+    if (!name || !cat || cat === '__add_new__') { showAppAlert('Please enter a product name and category.'); return; }
+    if (!store || store === '__add_new__') { showAppAlert('Please select which store this product belongs to.'); return; }
 
     const duplicateMatch = products.find(p => p.id !== editingId && p.name.trim().toLowerCase() === name.toLowerCase());
     if (duplicateMatch) {
-      const proceed = confirm('A product named "' + duplicateMatch.name + '" already exists. Create a duplicate anyway?');
-      if (!proceed) return;
+      showAppConfirm('A product named "' + duplicateMatch.name + '" already exists. Create a duplicate anyway?', function(){
+        proceedSaveProduct(name, cat, store);
+      }, null, { icon: '⚠️', confirmText: 'Create Duplicate' });
+      return;
     }
+    proceedSaveProduct(name, cat, store);
+  }
 
+  function proceedSaveProduct(name, cat, store) {
     const rows = document.querySelectorAll('#variants-list .variant-row');
-    if (rows.length === 0) { alert('Please add at least one variant.'); return; }
+    if (rows.length === 0) { showAppAlert('Please add at least one variant.'); return; }
 
     const variants = Array.from(rows).map(row => {
       const expiresRaw = row.querySelector('[data-field="discountExpiresAt"]')?.value || '';
@@ -3776,11 +3832,12 @@
   }
 
   function deleteProduct(id) {
-    if (!confirm('Delete this product? This cannot be undone.')) return;
-    fbDeleteProduct(id).catch(err => {
-      alert('Error deleting product.');
-      console.error(err);
-    });
+    showAppConfirm('Delete this product? This cannot be undone.', function(){
+      fbDeleteProduct(id).catch(err => {
+        showAppAlert('Error deleting product.');
+        console.error(err);
+      });
+    }, null, { icon: '🗑️', confirmText: 'Delete' });
   }
 
   function toggleHotDeal(id) {
@@ -3789,17 +3846,17 @@
     if (!p.hotDeal) {
       const current = products.filter(x => x.hotDeal);
       if (current.length >= 4) {
-        alert('You can only feature up to 4 products in Hot Deals.\n\nOpen the "Hot Deals — Storefront Showcase" panel above the table to swap one out.');
+        showAppAlert('You can only feature up to 4 products in Hot Deals.\n\nOpen the "Hot Deals — Storefront Showcase" panel above the table to swap one out.');
         return;
       }
       const usedPositions = current.map(x => parseInt(x.hotDealPosition)).filter(n => !isNaN(n));
       let nextPos = 1;
       while (usedPositions.includes(nextPos)) nextPos++;
       const updated = { ...p, hotDeal: true, hotDealPosition: nextPos };
-      fbSaveProduct(updated).catch(err => { alert('Error updating Hot Deals. Check your internet connection.'); console.error(err); });
+      fbSaveProduct(updated).catch(err => { showAppAlert('Error updating Hot Deals. Check your internet connection.'); console.error(err); });
     } else {
       const updated = { ...p, hotDeal: false, hotDealPosition: null };
-      fbSaveProduct(updated).catch(err => { alert('Error updating Hot Deals. Check your internet connection.'); console.error(err); });
+      fbSaveProduct(updated).catch(err => { showAppAlert('Error updating Hot Deals. Check your internet connection.'); console.error(err); });
     }
   }
 
@@ -3807,7 +3864,7 @@
     const p = products.find(x => x.id === id);
     if (!p) return;
     const updated = { ...p, featured: !p.featured };
-    fbSaveProduct(updated).catch(err => { alert('Error updating Featured Products. Check your internet connection.'); console.error(err); });
+    fbSaveProduct(updated).catch(err => { showAppAlert('Error updating Featured Products. Check your internet connection.'); console.error(err); });
   }
 
   function renderHotDealsManager() {
@@ -3872,7 +3929,7 @@
     }
 
     Promise.all(saves).catch(err => {
-      alert('Error updating Hot Deals. Check your internet connection.');
+      showAppAlert('Error updating Hot Deals. Check your internet connection.');
       console.error(err);
     });
   }
@@ -3881,7 +3938,7 @@
   function sendWAAlert() {
     const lowItems = products.filter(p => totalStock(p) <= (p.threshold||threshold));
     if (lowItems.length === 0) {
-      alert('✅ All products are well stocked! No alerts to send.');
+      showAppAlert('✅ All products are well stocked! No alerts to send.');
       return;
     }
     let msg = '⚠️ *SWIFT IMPORTERS — Low Stock Alert*\n\n';
@@ -3945,7 +4002,7 @@
       scanInterval = setInterval(() => scanFrame(), 350);
     } catch(e) {
       console.error(e);
-      alert('Camera access denied or unavailable. Please allow camera access in your browser settings to use the scanner.');
+      showAppAlert('Camera access denied or unavailable. Please allow camera access in your browser settings to use the scanner.');
     }
   }
 
@@ -4458,7 +4515,7 @@
   }
 
   function csAddItemToSale() {
-    if (!cashSaleProduct || cashSaleVariantIdx === null) { alert('Please choose an item and variant.'); return; }
+    if (!cashSaleProduct || cashSaleVariantIdx === null) { showAppAlert('Please choose an item and variant.'); return; }
     const p = cashSaleProduct;
     const v = p.variants[cashSaleVariantIdx];
     const stock = parseInt(v.stock) || 0;
@@ -4467,7 +4524,7 @@
     const existing = cashSaleItems.find(item => item.productId === p.id && item.variantIdx === cashSaleVariantIdx);
     const alreadyInCart = existing ? existing.qty : 0;
     if (alreadyInCart + cashSaleQty > stock) {
-      alert('Only ' + stock + ' in stock for this variant (' + alreadyInCart + ' already added to this sale).');
+      showAppAlert('Only ' + stock + ' in stock for this variant (' + alreadyInCart + ' already added to this sale).');
       return;
     }
 
@@ -4488,7 +4545,7 @@
   }
 
   function csGoToCheckout() {
-    if (cashSaleItems.length === 0) { alert('Please add at least one item to the sale first.'); return; }
+    if (cashSaleItems.length === 0) { showAppAlert('Please add at least one item to the sale first.'); return; }
     document.getElementById('cs-step-search').style.display = 'none';
     document.getElementById('cs-step-selected').style.display = 'none';
     document.getElementById('cs-step-checkout').style.display = '';
@@ -4582,7 +4639,7 @@
     const maxStock = parseInt(v.stock) || 0;
     let newQty = cashSaleQty + delta;
     if (newQty < 1) newQty = 1;
-    if (newQty > maxStock) { alert('Only ' + maxStock + ' in stock for this variant.'); newQty = maxStock; }
+    if (newQty > maxStock) { showAppAlert('Only ' + maxStock + ' in stock for this variant.'); newQty = maxStock; }
     cashSaleQty = newQty;
     document.getElementById('cs-qty').textContent = cashSaleQty;
     updateCsItemPreview();
@@ -4729,7 +4786,7 @@
   }
 
   function recordCashSale() {
-    if (cashSaleItems.length === 0) { alert('Please add at least one item to the sale.'); return; }
+    if (cashSaleItems.length === 0) { showAppAlert('Please add at least one item to the sale.'); return; }
 
     // Merge paid items + optional free item into one deduction plan, keyed by product+variant,
     // so the same variant appearing in multiple roles only touches Firestore once.
@@ -4747,13 +4804,13 @@
     for (const key in deductionMap) {
       const d = deductionMap[key];
       const p = products.find(x => x.id === d.productId);
-      if (!p) { alert('A product in this sale no longer exists. Please start over.'); return; }
+      if (!p) { showAppAlert('A product in this sale no longer exists. Please start over.'); return; }
       const v = p.variants[d.variantIdx];
-      if (!v) { alert('A variant in this sale no longer exists. Please start over.'); return; }
+      if (!v) { showAppAlert('A variant in this sale no longer exists. Please start over.'); return; }
       const totalNeeded = d.paidQty + d.freeQty;
       const available = parseInt(v.stock) || 0;
       if (totalNeeded > available) {
-        alert('Not enough stock for ' + p.name + ' - ' + v.name + '. Only ' + available + ' available, but ' + totalNeeded + ' needed.');
+        showAppAlert('Not enough stock for ' + p.name + ' - ' + v.name + '. Only ' + available + ' available, but ' + totalNeeded + ' needed.');
         return;
       }
     }
@@ -4866,11 +4923,11 @@
     Promise.all(saveOps).then(() => {
       closeCashSaleModal();
       showPage('closed-orders');
-      alert(balanceDue > 0
+      showAppAlert(balanceDue > 0
         ? '✅ Cash sale recorded! Balance of ' + fmt(balanceDue) + ' still owed by ' + customerName + '.'
         : '✅ Cash sale recorded! Stock updated and order added to Closed Orders.');
     }).catch(err => {
-      alert('Error recording cash sale: ' + (err && err.message ? err.message : 'Unknown error.'));
+      showAppAlert('Error recording cash sale: ' + (err && err.message ? err.message : 'Unknown error.'));
       console.error(err);
     }).finally(() => {
       recordBtn.disabled = false;
@@ -4904,16 +4961,16 @@
     const amount = parseInt(document.getElementById('fin-amount').value) || 0;
     const date = document.getElementById('fin-date').value;
     const editId = document.getElementById('fin-edit-id').value;
-    if (!description || !amount || !date) { alert('Please fill in description, amount, and date.'); return; }
+    if (!description || !amount || !date) { showAppAlert('Please fill in description, amount, and date.'); return; }
     const entry = { type: financeEntryType, description, amount, date, recordedBy: 'Admin' };
     if (editId) entry.fbDocId = editId;
     fbSaveFinanceEntry(entry).then(() => {
       closeFinanceEntryModal();
     }).catch(err => {
       if (err && (err.code === 'permission-denied' || /permission/i.test(err.message||''))) {
-        alert('Error saving entry: Firestore permission denied.\n\nYour Firestore security rules don\'t yet allow writes to the "finance_entries" collection. Add a rule for it (same pattern as your "adjustments" or "settings" collections) in the Firebase Console, then try again.');
+        showAppAlert('Error saving entry: Firestore permission denied.\n\nYour Firestore security rules don\'t yet allow writes to the "finance_entries" collection. Add a rule for it (same pattern as your "adjustments" or "settings" collections) in the Firebase Console, then try again.');
       } else {
-        alert('Error saving entry: ' + (err && err.message ? err.message : 'Unknown error. Check your internet connection.'));
+        showAppAlert('Error saving entry: ' + (err && err.message ? err.message : 'Unknown error. Check your internet connection.'));
       }
       console.error(err);
     });
@@ -4925,11 +4982,18 @@
   }
 
   function deleteFinanceEntry(id) {
-    if (!confirm('Delete this entry?')) return;
-    fbDeleteFinanceEntry(id).catch(err => { alert('Error deleting entry.'); console.error(err); });
+    showAppConfirm('Delete this entry?', function(){
+      fbDeleteFinanceEntry(id).catch(err => { showAppAlert('Error deleting entry.'); console.error(err); });
+    }, null, { icon: '🗑️', confirmText: 'Delete' });
   }
 
   document.getElementById('finance-entry-modal').addEventListener('click', function(e) { if(e.target===this) closeFinanceEntryModal(); });
+
+  document.getElementById('app-dialog-overlay').addEventListener('click', function(e) {
+    if (e.target === this) {
+      this.classList.remove('open');
+    }
+  });
 </script>
 
 <!-- QUICK SCAN MODAL (opens from Inventory page icon + SKU field scan button) -->
@@ -4980,7 +5044,7 @@
 
         scanInterval = setInterval(() => scanQuickFrame(), 350);
       } catch(e) {
-        alert('Camera access denied or unavailable. Please allow camera access to use the scanner.');
+        showAppAlert('Camera access denied or unavailable. Please allow camera access to use the scanner.');
         closeQuickScanModal();
       }
     } else {
@@ -5245,7 +5309,7 @@
 
   function addImageRow(url = '') {
     const list = document.getElementById('images-list');
-    if (list.children.length >= 10) { alert('Maximum 10 images per product.'); return; }
+    if (list.children.length >= 10) { showAppAlert('Maximum 10 images per product.'); return; }
     const wrap = document.createElement('div');
     wrap.className = 'image-row';
     wrap.draggable = true;
@@ -5554,15 +5618,15 @@
     const buyPriceRaw = document.getElementById('adj-buy-price').value;
     const newBuyPrice = (type === 'add' && buyPriceRaw !== '') ? parseInt(buyPriceRaw) || 0 : null;
 
-    if (!qty || qty < 1) { alert('Please enter a valid quantity.'); return; }
-    if (!reason) { alert('Please select a reason for this adjustment.'); return; }
+    if (!qty || qty < 1) { showAppAlert('Please enter a valid quantity.'); return; }
+    if (!reason) { showAppAlert('Please select a reason for this adjustment.'); return; }
 
     let storeBreakdown = null;
     if (type === 'add' && stores.length > 0) {
       const breakdown = getAdjStoreBreakdown();
       const sum = Object.values(breakdown).reduce((s,v) => s+v, 0);
       if (sum > 0) {
-        if (sum !== qty) { alert('The store breakdown (' + sum + ') must add up to the total quantity (' + qty + ').'); return; }
+        if (sum !== qty) { showAppAlert('The store breakdown (' + sum + ') must add up to the total quantity (' + qty + ').'); return; }
         storeBreakdown = breakdown;
       }
     }
@@ -5626,7 +5690,7 @@
       `;
 
     } catch(err) {
-      alert('Error applying adjustment. Check your connection.');
+      showAppAlert('Error applying adjustment. Check your connection.');
       console.error(err);
     }
   }
