@@ -1151,7 +1151,7 @@
       </div>
       <div class="form-group">
         <label>🏬 Store *</label>
-        <select id="f-store" data-current="" onchange="onStoreSelectChange(this)">
+        <select id="f-store" data-current="" onchange="onStoreSelectChange(this); refreshAllVariantStockModes();">
           <option value="">Select store</option>
         </select>
       </div>
@@ -2018,9 +2018,14 @@
   }
 
   function storeOptionsHtml(selected) {
-    let html = stores.map(s => `<option value="${s.name}" ${selected===s.name?'selected':''}>${s.name}</option>`).join('');
+    let html = `<option value="__all_stores__" ${selected==='__all_stores__'?'selected':''}>🏬 All Stores</option>`;
+    html += stores.map(s => `<option value="${s.name}" ${selected===s.name?'selected':''}>${s.name}</option>`).join('');
     html += `<option value="__add_new__">+ Add New Store...</option>`;
     return html;
+  }
+
+  function storeDisplayLabel(storeValue) {
+    return storeValue === '__all_stores__' ? 'All Stores' : (storeValue || '');
   }
 
   function renderStoreDropdowns() {
@@ -3097,7 +3102,7 @@
 
     const tbody = document.getElementById('inventory-tbody');
     let filtered = products.filter(p => p.name.toLowerCase().includes(filter.toLowerCase()) || p.category.toLowerCase().includes(filter.toLowerCase()));
-    if (storeFilter) filtered = filtered.filter(p => p.store === storeFilter);
+    if (storeFilter) filtered = filtered.filter(p => p.store === storeFilter || p.store === '__all_stores__');
     if (filtered.length === 0) {
       tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:32px; color:var(--grey);">' + (filter || storeFilter ? 'No products match your filters.' : 'No products yet. Click "+ Add Product" to get started.') + '</td></tr>';
       return;
@@ -3124,7 +3129,7 @@
               ${thumb}
               <div>
                 <strong style="font-size:0.9rem;">${p.name}</strong>${p.hotDeal ? ' <span style="background:var(--red);color:#fff;font-size:0.6rem;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.04em;vertical-align:middle;">🔥 HOT</span>' : ''}${p.variants.some(v => csHasDiscount(v)) ? ' <span style="background:var(--gold);color:var(--black);font-size:0.6rem;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.04em;vertical-align:middle;">🏷️ SALE</span>' : ''}
-                ${p.store ? '<br/><span style="font-size:0.68rem;color:var(--gold-dark);font-weight:700;">🏬 '+p.store+'</span>' : ''}
+                ${p.store ? '<br/><span style="font-size:0.68rem;color:var(--gold-dark);font-weight:700;">🏬 '+storeDisplayLabel(p.store)+'</span>' : ''}
                 ${p.sku ? '<br/><span style="font-size:0.7rem;color:var(--grey);">SKU: '+p.sku+'</span>' : ''}
                 <br/>
                 <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
@@ -3298,6 +3303,85 @@
 
   function closeModal() { document.getElementById('product-modal').classList.remove('open'); editingOriginalSnapshot = null; }
 
+  function isAllStoresSelected() {
+    const sel = document.getElementById('f-store');
+    return !!(sel && sel.value === '__all_stores__');
+  }
+
+  function renderVariantStockBlock(data, variantId) {
+    if (isAllStoresSelected() && stores.length > 0) {
+      const breakdown = data.storeStock || {};
+      const total = Object.values(breakdown).reduce((s,v) => s + (parseInt(v)||0), 0);
+      const rows = stores.map(s => `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;">
+          <span style="font-size:0.8rem; font-weight:600; color:#555;">${s.name}</span>
+          <input type="number" min="0" class="variant-store-stock-input" data-store="${s.name}" value="${breakdown[s.name] !== undefined ? breakdown[s.name] : ''}" placeholder="0"
+            oninput="updateVariantStoreBreakdownTotal('${variantId}'); updateTotalStock();"
+            style="width:90px; padding:7px 10px; border:1.5px solid #E8A020; border-radius:6px; font-size:0.85rem; font-family:'Inter',sans-serif; text-align:center; box-sizing:border-box;"/>
+        </div>
+      `).join('');
+      return `
+        <div style="background:#fffbf0; border:2px solid #E8A020; border-radius:8px; padding:12px 14px;" data-variant-stock-block="${variantId}">
+          <div style="font-size:0.72rem; font-weight:800; color:#B87D12; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px;">📦 Quantity in Stock * — split by store</div>
+          <div id="vstorestock_${variantId}">${rows}</div>
+          <input type="hidden" data-field="stock" value="${total}"/>
+          <div id="vstorestock_total_${variantId}" style="font-size:0.76rem; font-weight:700; color:${total>0?'var(--green)':'var(--red)'}; margin-top:2px;">Total: ${total} pieces</div>
+          <div style="font-size:0.68rem; color:#888; margin-top:5px;">Split how many pieces of this variant go to each store — added up across all stores</div>
+        </div>
+      `;
+    }
+    return `
+      <div style="background:#fffbf0; border:2px solid #E8A020; border-radius:8px; padding:12px 14px;" data-variant-stock-block="${variantId}">
+        <div style="font-size:0.72rem; font-weight:800; color:#B87D12; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">📦 Quantity in Stock *</div>
+        <input type="number" data-field="stock" value="${data.stock||''}" placeholder="How many pieces? e.g. 10" min="0"
+          style="width:100%; padding:12px 14px; border:2px solid #E8A020; border-radius:7px; font-size:1.1rem; font-weight:700; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box;"
+          onfocus="this.style.borderColor='#B87D12'; this.style.outline='none'; this.style.background='#fffde7';"
+          onblur="this.style.borderColor='#E8A020'; this.style.background='#fff';"
+          oninput="updateTotalStock()"/>
+        <div style="font-size:0.7rem; color:#888; margin-top:5px;">Enter pieces available for this specific variant</div>
+      </div>
+    `;
+  }
+
+  function updateVariantStoreBreakdownTotal(variantId) {
+    const container = document.getElementById('vstorestock_' + variantId);
+    if (!container) return;
+    let total = 0;
+    container.querySelectorAll('.variant-store-stock-input').forEach(inp => { total += parseInt(inp.value) || 0; });
+    const totalDisplay = document.getElementById('vstorestock_total_' + variantId);
+    if (totalDisplay) { totalDisplay.textContent = 'Total: ' + total + ' pieces'; totalDisplay.style.color = total > 0 ? 'var(--green)' : 'var(--red)'; }
+    const block = document.querySelector('[data-variant-stock-block="' + variantId + '"]');
+    if (block) {
+      const hiddenStock = block.querySelector('[data-field="stock"]');
+      if (hiddenStock) hiddenStock.value = total;
+    }
+  }
+
+  function getVariantStoreBreakdown(variantId) {
+    const container = document.getElementById('vstorestock_' + variantId);
+    if (!container) return null;
+    const breakdown = {};
+    container.querySelectorAll('.variant-store-stock-input').forEach(inp => {
+      const v = parseInt(inp.value) || 0;
+      if (v > 0) breakdown[inp.getAttribute('data-store')] = v;
+    });
+    return Object.keys(breakdown).length ? breakdown : null;
+  }
+
+  function refreshAllVariantStockModes() {
+    const rows = document.querySelectorAll('#variants-list .variant-row');
+    rows.forEach(row => {
+      const block = row.querySelector('[data-variant-stock-block]');
+      if (!block) return;
+      const variantId = block.getAttribute('data-variant-stock-block');
+      const currentStockInput = block.querySelector('[data-field="stock"]');
+      const currentTotal = currentStockInput ? (parseInt(currentStockInput.value) || 0) : 0;
+      const existingBreakdown = getVariantStoreBreakdown(variantId);
+      block.outerHTML = renderVariantStockBlock({ stock: currentTotal, storeStock: existingBreakdown || {} }, variantId);
+    });
+    updateTotalStock();
+  }
+
   function addVariantRow(data = {}) {
     const row = document.createElement('div');
     row.className = 'variant-row';
@@ -3388,15 +3472,7 @@
         </div>
       </div>
 
-      <div style="background:#fffbf0; border:2px solid #E8A020; border-radius:8px; padding:12px 14px;">
-        <div style="font-size:0.72rem; font-weight:800; color:#B87D12; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">📦 Quantity in Stock *</div>
-        <input type="number" data-field="stock" value="${data.stock||''}" placeholder="How many pieces? e.g. 10" min="0"
-          style="width:100%; padding:12px 14px; border:2px solid #E8A020; border-radius:7px; font-size:1.1rem; font-weight:700; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box;"
-          onfocus="this.style.borderColor='#B87D12'; this.style.outline='none'; this.style.background='#fffde7';"
-          onblur="this.style.borderColor='#E8A020'; this.style.background='#fff';"
-          oninput="updateTotalStock()"/>
-        <div style="font-size:0.7rem; color:#888; margin-top:5px;">Enter pieces available for this specific variant</div>
-      </div>
+      ${renderVariantStockBlock(data, variantId)}
     `;
     document.getElementById('variants-list').appendChild(row);
     updateTotalStock();
@@ -3494,7 +3570,8 @@
         name: v.name || '', color: v.color || '',
         buy: parseInt(v.buy) || 0, sell: parseInt(v.sell) || 0,
         discountPrice: parseInt(v.discountPrice) || 0, discountExpiresAt: v.discountExpiresAt || '',
-        stock: parseInt(v.stock) || 0, variantImage: v.variantImage || ''
+        stock: parseInt(v.stock) || 0, variantImage: v.variantImage || '',
+        storeStock: v.storeStock || {}
       }))
     });
   }
@@ -3516,7 +3593,10 @@
         const d = new Date(expiresRaw);
         if (!isNaN(d.getTime())) discountExpiresAt = d.toISOString();
       }
-      return {
+      const stockBlock = row.querySelector('[data-variant-stock-block]');
+      const variantId = stockBlock ? stockBlock.getAttribute('data-variant-stock-block') : null;
+      const storeStock = variantId ? getVariantStoreBreakdown(variantId) : null;
+      return Object.assign({
         name: row.querySelector('[data-field="name"]').value.trim() || 'Standard',
         color: row.querySelector('[data-field="color"]').value.trim(),
         buy: parseInt(row.querySelector('[data-field="buy"]').value) || 0,
@@ -3525,7 +3605,7 @@
         discountExpiresAt: discountExpiresAt,
         stock: parseInt(row.querySelector('[data-field="stock"]').value) || 0,
         variantImage: row.querySelector('[data-field="variantImage"]')?.value.trim() || '',
-      };
+      }, storeStock ? { storeStock } : { storeStock: {} });
     });
 
     const hotDeal = document.getElementById('f-hotdeal').checked;

@@ -140,6 +140,40 @@
     .product-img{background:var(--light);height:220px;display:flex;align-items:center;justify-content:center;font-size:3.5rem;position:relative;overflow:hidden;}
     .product-img img{width:100%;height:100%;object-fit:cover;}
     .badge-new{position:absolute;top:10px;left:10px;background:var(--red);color:#fff;font-size:0.6rem;font-weight:700;padding:3px 9px;border-radius:20px;letter-spacing:0.08em;text-transform:uppercase;}
+    .gift-strip{
+      display:flex; align-items:center; gap:6px; margin-top:6px; padding:5px 9px;
+      background:linear-gradient(90deg,#fff3e0,#fff8e6); border:1px solid var(--gold);
+      border-radius:20px; font-size:0.62rem; font-weight:800; color:var(--gold-dark);
+      animation:giftStripGlow 2.2s ease-in-out infinite;
+    }
+    .gift-strip .gift-strip-icon{ animation:giftIconWiggle 1.8s ease-in-out infinite; display:inline-block; }
+    @keyframes giftStripGlow{
+      0%,100%{ box-shadow:0 0 0 0 rgba(199,162,72,0.35); }
+      50%{ box-shadow:0 0 0 5px rgba(199,162,72,0); }
+    }
+    @keyframes giftIconWiggle{
+      0%,100%{ transform:rotate(0deg); }
+      25%{ transform:rotate(-12deg); }
+      75%{ transform:rotate(12deg); }
+    }
+    .pd-gift-box{
+      display:flex; align-items:center; gap:12px; margin:14px 0; padding:12px 14px;
+      background:linear-gradient(135deg,#fff8e6,#fff3e0); border:1.5px solid var(--gold);
+      border-radius:12px; position:relative; overflow:hidden;
+      animation:pdGiftGlow 2.4s ease-in-out infinite;
+    }
+    @keyframes pdGiftGlow{
+      0%,100%{ box-shadow:0 0 0 0 rgba(199,162,72,0.3); }
+      50%{ box-shadow:0 0 14px 2px rgba(199,162,72,0.35); }
+    }
+    .pd-gift-thumb{
+      width:48px; height:48px; border-radius:9px; overflow:hidden; flex-shrink:0;
+      background:#fff; border:1.5px solid var(--gold); display:flex; align-items:center; justify-content:center; font-size:1.4rem;
+    }
+    .pd-gift-thumb img{ width:100%; height:100%; object-fit:cover; }
+    .pd-gift-icon{ font-size:1.15rem; animation:giftIconWiggle 1.8s ease-in-out infinite; display:inline-block; flex-shrink:0; }
+    .pd-gift-label{ font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:var(--gold-dark); }
+    .pd-gift-name{ font-size:0.86rem; font-weight:700; color:var(--black); margin-top:1px; }
     .countdown-badge{display:inline-block;background:var(--black);color:var(--gold-light);font-size:0.62rem;font-weight:800;padding:3px 9px;border-radius:20px;letter-spacing:0.02em;font-family:'Inter',sans-serif;white-space:nowrap;}
     .countdown-badge.countdown-ended{background:#555;color:#ccc;}
     .product-img .countdown-badge{position:absolute;bottom:10px;left:10px;}
@@ -918,6 +952,9 @@
         <div id="pd-discount-countdown" style="display:none; margin-top:6px;"></div>
         <div class="pd-stock-status" id="pd-stock-status"></div>
 
+        <!-- FREE GIFT WITH PURCHASE -->
+        <div id="pd-gift-box" style="display:none;"></div>
+
         <!-- VIDEO BELOW PRICE -->
         <div id="pd-video-section" style="display:none; margin-top:10px; margin-bottom:4px;">
           <div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--grey);margin-bottom:5px;">&#127916; Product Video</div>
@@ -1283,12 +1320,14 @@
       iconEl.innerHTML = icon;
       imgDiv.appendChild(iconEl);
     }
+    var giftProduct = p.freeGiftProductId ? products.find(function(gp){ return gp.id === p.freeGiftProductId; }) : null;
     div.appendChild(imgDiv);
     div.innerHTML += '<div class="product-card-info">'+
         '<div class="product-card-name">'+p.name+'</div>'+
         '<div class="product-card-price">'+priceDisplay+(anyDiscount?' <span style="color:var(--grey);font-weight:600;font-size:0.75em;text-decoration:line-through;">'+fmtPrice(cheapestDiscounted.sell)+'</span>':'')+'</div>'+
         (soonestExp !== null ? '<div style="margin-top:4px;"><span class="countdown-badge" data-expiry="'+soonestExp+'" style="font-size:0.6rem;">'+formatCountdown(soonestExp - Date.now())+'</span></div>' : '')+
         (minP!==maxP?'<div class="product-card-price-range">Multiple variants</div>':'')+
+        (giftProduct ? '<div class="gift-strip"><span class="gift-strip-icon">🎁</span><span>FREE: '+giftProduct.name+'</span></div>' : '')+
         '<div class="product-card-stock '+stockCls+'">'+stockLabel+'</div>'+
         '<div class="tap-hint">Tap to view &amp; buy</div>'+
       '</div>';
@@ -1313,6 +1352,28 @@
     document.getElementById('pd-breadcrumb').textContent = p.category;
     document.getElementById('pd-category').textContent = p.category;
     document.getElementById('pd-name').textContent = p.name;
+
+    // Free gift with purchase
+    var pdGiftBox = document.getElementById('pd-gift-box');
+    var giftProductPd = p.freeGiftProductId ? products.find(function(gp){ return gp.id === p.freeGiftProductId; }) : null;
+    if (giftProductPd) {
+      var giftThumbSrc = giftProductPd.image || (giftProductPd.images && giftProductPd.images[0]) || '';
+      var giftThumbHtml = giftThumbSrc
+        ? '<img src="'+giftThumbSrc+'" alt="" onerror="this.parentElement.innerHTML=\'&#127873;\'"/>'
+        : '&#127873;';
+      pdGiftBox.innerHTML =
+        '<div class="pd-gift-box">' +
+          '<div class="pd-gift-thumb">'+giftThumbHtml+'</div>' +
+          '<div>' +
+            '<div class="pd-gift-label"><span class="pd-gift-icon">🎁</span> Free Gift With This Purchase</div>' +
+            '<div class="pd-gift-name">'+giftProductPd.name+'</div>' +
+          '</div>' +
+        '</div>';
+      pdGiftBox.style.display = 'block';
+    } else {
+      pdGiftBox.style.display = 'none';
+      pdGiftBox.innerHTML = '';
+    }
 
     // Description with 2-line clamp + Show more/less
     var descSection = document.getElementById('pd-description-section');
