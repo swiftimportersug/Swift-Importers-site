@@ -410,19 +410,19 @@
     .pd-related{margin-top:16px;}
     .pd-related-title{font-size:0.7rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#444;margin-bottom:8px;}
     .pd-related-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;}
-    .pd-related-card{min-width:110px;background:var(--light);border-radius:10px;overflow:hidden;cursor:pointer;flex-shrink:0;border:1px solid var(--border);transition:transform 0.15s;}
+    .pd-related-card{min-width:100px; width:100px; background:var(--light);border-radius:14px;overflow:hidden;cursor:pointer;flex-shrink:0;border:1px solid var(--border);transition:transform 0.15s;}
     .pd-related-card:hover{transform:translateY(-2px);}
-    .pd-related-img{width:100%;height:64px;background:#f0efe9;display:flex;align-items:center;justify-content:center;font-size:1.6rem;overflow:hidden;padding:6px;box-sizing:border-box;}
-    .pd-related-img img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;}
+    .pd-related-img{width:100%;aspect-ratio:1/1;background:#f0efe9;display:flex;align-items:center;justify-content:center;font-size:1.6rem;overflow:hidden;padding:10px;box-sizing:border-box;}
+    .pd-related-img img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;border-radius:8px;}
     .pd-related-info{padding:6px 8px;}
     .pd-related-name{font-size:0.7rem;font-weight:700;color:var(--black);margin-bottom:2px;line-height:1.2;}
     .pd-related-price{font-size:0.68rem;font-weight:800;color:var(--gold-dark);font-family:'Inter',sans-serif;}
     .pd-video-player{border-radius:10px;overflow:hidden;aspect-ratio:16/9;background:#000;margin-top:10px;margin-bottom:14px;position:relative;width:100%;}
     @media(min-width:600px){
-      .pd-video-player{width:calc(100% + 32px);margin-left:-16px;margin-right:-16px;border-radius:0;}
+      .pd-video-player{width:calc(100% + 32px);margin-left:-16px;margin-right:-16px;border-radius:0;min-height:260px;}
     }
     @media(min-width:1024px){
-      .pd-video-player{width:calc(100% + 48px);margin-left:-24px;margin-right:-24px;border-radius:0;}
+      .pd-video-player{width:calc(100% + 48px);margin-left:-24px;margin-right:-24px;border-radius:0;min-height:330px;}
     }
 
     /* PAYMENT */
@@ -1444,7 +1444,7 @@
     if (giftProductPd) {
       var giftThumbSrc = giftProductPd.image || (giftProductPd.images && giftProductPd.images[0]) || '';
       var giftThumbHtml = giftThumbSrc
-        ? '<img src="'+giftThumbSrc+'" alt="" onerror="this.parentElement.innerHTML=\'&#127873;\'"/>'
+        ? '<img src="'+giftThumbSrc+'" alt="" style="cursor:zoom-in;" onclick="event.stopPropagation();openSingleImageFullscreen(this.src);" onerror="this.parentElement.innerHTML=\'&#127873;\'"/>'
         : '&#127873;';
       pdGiftBox.innerHTML =
         '<div class="pd-gift-box">' +
@@ -1647,15 +1647,36 @@
     }
   }
   var fsIndex = 0;
+  var fsImages = [];
   var fsTouchStartX = 0;
   var fsTouchMoved = false;
   var fsHistoryPushed = false;
 
   function openFullscreen(idx){
+    fsImages = pdImages;
     fsIndex = idx || 0;
     var img = document.getElementById('fs-img');
     img.style.transition = 'none';
-    img.src = pdImages[fsIndex];
+    img.src = fsImages[fsIndex];
+    img.style.opacity = '1';
+    updateFsMeta();
+    document.getElementById('fs-overlay').classList.add('open');
+    history.pushState({ fsOverlay: true }, '');
+    fsHistoryPushed = true;
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){ img.style.transition = ''; });
+    });
+  }
+
+  // For standalone single-photo previews (e.g. the free-gift thumbnail) that aren't
+  // part of the main product gallery — reuses the same fullscreen viewer.
+  function openSingleImageFullscreen(url){
+    if (!url) return;
+    fsImages = [url];
+    fsIndex = 0;
+    var img = document.getElementById('fs-img');
+    img.style.transition = 'none';
+    img.src = url;
     img.style.opacity = '1';
     updateFsMeta();
     document.getElementById('fs-overlay').classList.add('open');
@@ -1667,18 +1688,18 @@
   }
 
   function updateFsMeta(){
-    if (!pdImages || pdImages.length === 0) return;
-    var multi = pdImages.length > 1;
+    if (!fsImages || fsImages.length === 0) return;
+    var multi = fsImages.length > 1;
     document.getElementById('fs-arrow-left').classList.toggle('fs-hidden', !multi);
     document.getElementById('fs-arrow-right').classList.toggle('fs-hidden', !multi);
     var counter = document.getElementById('fs-counter');
-    counter.textContent = multi ? (fsIndex + 1) + ' / ' + pdImages.length : '';
+    counter.textContent = multi ? (fsIndex + 1) + ' / ' + fsImages.length : '';
     counter.classList.toggle('fs-visible', multi);
   }
 
   function fsNav(dir, evt){
     if (evt) evt.stopPropagation();
-    if (!pdImages || pdImages.length <= 1) return;
+    if (!fsImages || fsImages.length <= 1) return;
     var img = document.getElementById('fs-img');
     var prevImg = document.getElementById('fs-img-prev');
     // Snapshot the current photo into the ghost layer, sitting on top, then fade it out —
@@ -1687,8 +1708,8 @@
     prevImg.src = img.src;
     prevImg.style.transition = 'none';
     prevImg.style.opacity = '1';
-    fsIndex = (fsIndex + dir + pdImages.length) % pdImages.length;
-    img.src = pdImages[fsIndex];
+    fsIndex = (fsIndex + dir + fsImages.length) % fsImages.length;
+    img.src = fsImages[fsIndex];
     updateFsMeta();
     requestAnimationFrame(function(){
       requestAnimationFrame(function(){
@@ -1869,6 +1890,11 @@
   function changePdQty(delta) {
     var p = pdCurrentProduct;
     if (!p) return;
+    var hasVariants = p.variants.length > 1;
+    if (hasVariants && (pdCurrentVariantIdx === null || pdCurrentVariantIdx === undefined)) {
+      highlightVariantSelector();
+      return;
+    }
     var v = p.variants[pdCurrentVariantIdx];
     var maxStock = parseInt(v && v.stock)||1;
     pdQty = Math.max(1, Math.min(pdQty+delta, maxStock));
@@ -2039,20 +2065,6 @@
 
   // Qty + auto-opens variant if not selected
   function changePdQtyPlus() {
-    var p = pdCurrentProduct;
-    if (!p) return;
-    var hasVariants = p.variants.length > 1;
-    var sel = document.getElementById('pd-variant-select');
-    if (hasVariants && (!sel.value || sel.value === '')) {
-      // Flash variant selector and scroll to it
-      var varSec = document.getElementById('pd-variant-section');
-      varSec.scrollIntoView({behavior:'smooth', block:'nearest'});
-      sel.style.borderColor = 'var(--red)';
-      sel.style.boxShadow = '0 0 0 3px rgba(214,59,47,0.2)';
-      sel.focus();
-      setTimeout(function(){ sel.style.borderColor=''; sel.style.boxShadow=''; }, 2000);
-      return;
-    }
     changePdQty(1);
   }
 
