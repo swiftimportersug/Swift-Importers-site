@@ -918,7 +918,8 @@
      ontouchstart="fsTouchStart(event)" ontouchmove="fsTouchMove(event)" ontouchend="fsTouchEnd(event)">
   <button class="fs-close" onclick="event.stopPropagation(); closeFullscreen();">&times;</button>
   <button class="fs-arrow fs-arrow-left" id="fs-arrow-left" onclick="fsNav(-1, event)">&#8249;</button>
-  <img id="fs-img" src="" alt="Full image"/>
+  <img id="fs-img-prev" src="" alt="" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); max-width:100%; max-height:100%; object-fit:contain; opacity:0; pointer-events:none; z-index:2;"/>
+  <img id="fs-img" src="" alt="Full image" style="position:relative; z-index:1;"/>
   <button class="fs-arrow fs-arrow-right" id="fs-arrow-right" onclick="fsNav(1, event)">&#8250;</button>
   <div class="fs-counter" id="fs-counter"></div>
 </div>
@@ -1369,6 +1370,14 @@
   }
 
   window.addEventListener('popstate', function(){
+    var fsOverlay = document.getElementById('fs-overlay');
+    if (fsOverlay && fsOverlay.classList.contains('open')) {
+      // Fullscreen photo view is the topmost layer — one Back press closes only this,
+      // revealing the product detail popup underneath (still open).
+      fsOverlay.classList.remove('open');
+      fsHistoryPushed = false;
+      return;
+    }
     var overlay = document.getElementById('pd-overlay');
     if (overlay && overlay.classList.contains('open')) {
       overlay.classList.remove('open');
@@ -1572,6 +1581,7 @@
   var fsIndex = 0;
   var fsTouchStartX = 0;
   var fsTouchMoved = false;
+  var fsHistoryPushed = false;
 
   function openFullscreen(idx){
     fsIndex = idx || 0;
@@ -1581,6 +1591,8 @@
     img.style.opacity = '1';
     updateFsMeta();
     document.getElementById('fs-overlay').classList.add('open');
+    history.pushState({ fsOverlay: true }, '');
+    fsHistoryPushed = true;
     requestAnimationFrame(function(){
       requestAnimationFrame(function(){ img.style.transition = ''; });
     });
@@ -1599,18 +1611,31 @@
   function fsNav(dir, evt){
     if (evt) evt.stopPropagation();
     if (!pdImages || pdImages.length <= 1) return;
-    fsIndex = (fsIndex + dir + pdImages.length) % pdImages.length;
     var img = document.getElementById('fs-img');
-    img.style.opacity = '0';
-    setTimeout(function(){
-      img.src = pdImages[fsIndex];
-      updateFsMeta();
-      requestAnimationFrame(function(){ img.style.opacity = '1'; });
-    }, 180);
+    var prevImg = document.getElementById('fs-img-prev');
+    // Snapshot the current photo into the ghost layer, sitting on top, then fade it out —
+    // meanwhile the real image swaps to the new photo underneath. Since the ghost always
+    // covers the black background during the crossfade, there's never a dark flash.
+    prevImg.src = img.src;
+    prevImg.style.transition = 'none';
+    prevImg.style.opacity = '1';
+    fsIndex = (fsIndex + dir + pdImages.length) % pdImages.length;
+    img.src = pdImages[fsIndex];
+    updateFsMeta();
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        prevImg.style.transition = 'opacity 0.28s ease';
+        prevImg.style.opacity = '0';
+      });
+    });
   }
 
   function closeFullscreen(){
     document.getElementById('fs-overlay').classList.remove('open');
+    if (fsHistoryPushed) {
+      fsHistoryPushed = false;
+      history.back();
+    }
   }
 
   function fsTouchStart(e){
