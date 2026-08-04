@@ -125,13 +125,13 @@
     .see-all{font-size:0.76rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--gold-dark);text-decoration:none;border-bottom:1px solid var(--gold);padding-bottom:2px;}
 
     /* CATEGORIES */
-    .cats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;}
-    .cat-card{background:var(--black);border:1px solid #232320;border-radius:8px;padding:14px 8px;text-align:center;cursor:pointer;transition:transform 0.2s,border-color 0.2s;text-decoration:none;}
+    .cats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;}
+    .cat-card{background:var(--black);border:1px solid #232320;border-radius:8px;padding:10px 6px;text-align:center;cursor:pointer;transition:transform 0.2s,border-color 0.2s;text-decoration:none;}
     .cat-card:hover{transform:translateY(-3px);border-color:var(--gold);}
     .cat-card.highlighted{background:linear-gradient(160deg,var(--gold-light),var(--gold));border:1px solid var(--gold);transform:translateY(-4px);box-shadow:0 10px 28px rgba(199,162,72,0.35);}
     .cat-card.highlighted .cat-name{color:var(--black);}
-    .cat-card .cat-icon{font-size:1.15rem;margin-bottom:6px;}
-    .cat-card .cat-name{color:var(--white);font-size:0.68rem;font-weight:600;letter-spacing:0.02em;}
+    .cat-card .cat-icon{font-size:0.95rem;margin-bottom:4px;}
+    .cat-card .cat-name{color:var(--white);font-size:0.62rem;font-weight:600;letter-spacing:0.02em;}
 
     /* MINIMAL PRODUCT CARD */
     .products-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:18px;}
@@ -293,32 +293,60 @@
     }
     .wa-support-fab{
       position:fixed; bottom:26px; right:26px; z-index:498;
-      display:flex; align-items:center; gap:9px;
-      background:rgba(37,211,102,0.82); color:#fff; text-decoration:none;
-      border-radius:32px; padding:11px 16px 11px 11px;
-      box-shadow:0 8px 22px rgba(37,211,102,0.35);
+      display:flex; align-items:center; gap:7px;
+      background:rgba(37,211,102,0.68); color:#fff; text-decoration:none;
+      border-radius:30px; padding:9px 14px 9px 9px;
+      box-shadow:0 6px 18px rgba(37,211,102,0.28);
       font-family:'Inter',sans-serif; transition:bottom 0.25s, transform 0.2s, background 0.2s;
-      backdrop-filter:blur(2px);
+      backdrop-filter:blur(2px); border:none; cursor:pointer;
     }
-    .wa-support-fab:hover{ transform:translateY(-2px); background:rgba(37,211,102,0.95); }
+    .wa-support-fab:hover{ transform:translateY(-2px); background:rgba(37,211,102,0.85); }
     .wa-support-fab .wa-fab-icon{
-      width:30px; height:30px; border-radius:50%; background:rgba(255,255,255,0.2);
+      width:26px; height:26px; border-radius:50%; background:rgba(255,255,255,0.2);
       display:flex; align-items:center; justify-content:center; flex-shrink:0;
       animation:waFabPulseRing 2.4s ease-in-out infinite;
     }
-    .wa-support-fab .wa-fab-icon svg{ width:17px; height:17px; }
-    .wa-support-fab .wa-fab-title{ font-size:0.8rem; font-weight:800; white-space:nowrap; }
+    .wa-support-fab .wa-fab-icon svg{ width:14px; height:14px; }
+    .wa-support-fab .wa-fab-title{ font-size:0.76rem; font-weight:800; white-space:nowrap; }
     @keyframes waFabPulseRing{
       0%,100%{ box-shadow:0 0 0 0 rgba(255,255,255,0.35); }
       50%{ box-shadow:0 0 0 6px rgba(255,255,255,0); }
     }
     .wa-support-fab.shift-up{ bottom:88px; }
     @media(max-width:600px){
-      .wa-support-fab{ bottom:18px; right:18px; padding:9px 14px 9px 9px; }
-      .wa-support-fab .wa-fab-icon{ width:27px; height:27px; }
-      .wa-support-fab .wa-fab-icon svg{ width:15px; height:15px; }
-      .wa-support-fab .wa-fab-title{ font-size:0.74rem; }
-      .wa-support-fab.shift-up{ bottom:76px; }
+      .wa-support-fab{ bottom:16px; right:16px; padding:7px 11px 7px 7px; gap:6px; }
+      .wa-support-fab .wa-fab-icon{ width:22px; height:22px; }
+      .wa-support-fab .wa-fab-icon svg{ width:12px; height:12px; }
+      .wa-support-fab .wa-fab-title{ font-size:0.68rem; }
+      .wa-support-fab.shift-up{ bottom:74px; }
+    }
+    .wa-popup{
+      position:fixed; bottom:82px; right:26px; z-index:499;
+      width:270px; max-width:calc(100vw - 32px);
+      background:#fff; border-radius:16px; overflow:hidden;
+      box-shadow:0 16px 40px rgba(0,0,0,0.22);
+      opacity:0; transform:translateY(12px) scale(0.97); pointer-events:none;
+      transition:opacity 0.2s, transform 0.2s;
+    }
+    .wa-popup.open{ opacity:1; transform:translateY(0) scale(1); pointer-events:auto; }
+    .wa-popup-hdr{ background:#25D366; color:#fff; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .wa-popup-hdr-title{ font-size:0.86rem; font-weight:800; }
+    .wa-popup-hdr-sub{ font-size:0.68rem; opacity:0.9; margin-top:2px; }
+    .wa-popup-close{ background:rgba(255,255,255,0.2); border:none; color:#fff; width:22px; height:22px; border-radius:50%; cursor:pointer; font-size:0.75rem; flex-shrink:0; }
+    .wa-popup-body{ padding:14px 16px 16px; }
+    .wa-popup-msg{ font-size:0.78rem; color:#444; line-height:1.5; margin-bottom:12px; }
+    .wa-popup-btn{
+      display:flex; align-items:center; justify-content:center; gap:8px;
+      background:#25D366; color:#fff; text-decoration:none;
+      padding:10px 14px; border-radius:10px; font-size:0.82rem; font-weight:800;
+      transition:background 0.2s;
+    }
+    .wa-popup-btn:hover{ background:#1fb959; }
+    .wa-popup-btn svg{ width:16px; height:16px; }
+    .wa-popup.shift-up{ bottom:144px; }
+    @media(max-width:600px){
+      .wa-popup{ bottom:70px; right:16px; }
+      .wa-popup.shift-up{ bottom:128px; }
     }
     .pd-variant-label{font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#444;margin-bottom:8px;transition:color 0.2s;}
     .pd-variant-label.pd-attention-text{color:var(--red);}
@@ -465,10 +493,10 @@
       .trust-item{white-space:nowrap;flex-shrink:0;padding:14px 16px;}
       section{padding:40px 4vw;}
       .section-header{flex-direction:column;align-items:flex-start;gap:8px;}
-      .cats-grid{grid-template-columns:repeat(4,1fr);gap:6px;}
-      .cat-card{padding:10px 4px;}
-      .cat-card .cat-icon{font-size:1rem;margin-bottom:4px;}
-      .cat-card .cat-name{font-size:0.6rem;}
+      .cats-grid{grid-template-columns:repeat(4,1fr);gap:5px;}
+      .cat-card{padding:7px 3px;}
+      .cat-card .cat-icon{font-size:0.85rem;margin-bottom:3px;}
+      .cat-card .cat-name{font-size:0.54rem;}
       .products-grid{grid-template-columns:repeat(2,1fr);gap:10px;}
       .product-img{height:170px;}
       .payment-grid{grid-template-columns:repeat(2,1fr);gap:12px;}
@@ -825,12 +853,31 @@
 </button>
 
 <!-- FLOATING WHATSAPP SUPPORT BUTTON (always visible) -->
-<a class="wa-support-fab" id="wa-support-fab" href="https://wa.me/256757675088" target="_blank" rel="noopener">
+<button class="wa-support-fab" id="wa-support-fab" onclick="toggleWaPopup()" type="button">
   <span class="wa-fab-icon">
     <svg viewBox="0 0 32 32" fill="#fff" xmlns="http://www.w3.org/2000/svg"><path d="M16.004 3C9.376 3 3.997 8.373 3.997 14.994c0 2.61.85 5.027 2.29 6.99L4.99 28.99l7.203-2.242c1.858.99 3.98 1.552 6.239 1.552h.005c6.628 0 12.007-5.373 12.007-11.994C30.444 8.685 25.065 3.312 16.436 3.002L16.004 3zm5.68 17.08c-.288.812-1.44 1.53-1.98 1.615-.507.08-1.146.114-1.85-.116-.427-.14-.977-.325-1.68-.637-2.958-1.276-4.888-4.24-5.036-4.437-.147-.198-1.207-1.606-1.207-3.064 0-1.458.766-2.174 1.037-2.472.27-.297.59-.372.786-.372.196 0 .393.002.564.01.181.008.424-.069.663.505.245.588.833 2.03.906 2.177.074.148.123.32.025.518-.099.198-.148.32-.294.494-.147.173-.31.386-.443.519-.147.148-.301.309-.13.605.172.297.766 1.264 1.645 2.048 1.13 1.007 2.083 1.32 2.38 1.468.297.148.47.124.643-.074.172-.198.74-.864.938-1.161.198-.297.396-.247.668-.148.271.099 1.723.812 2.019.96.297.148.494.222.567.346.074.124.074.72-.213 1.531z"/></svg>
   </span>
-  <span class="wa-fab-title">Chat 24/7</span>
-</a>
+  <span class="wa-fab-title">Chat</span>
+</button>
+
+<!-- WHATSAPP MINI POPUP (opens in-page, no new tab until the person actually chooses to chat) -->
+<div class="wa-popup" id="wa-popup">
+  <div class="wa-popup-hdr">
+    <div>
+      <div class="wa-popup-hdr-title">💬 Swift Importers</div>
+      <div class="wa-popup-hdr-sub">Support Available 24/7</div>
+    </div>
+    <button class="wa-popup-close" onclick="toggleWaPopup(false)" type="button">✕</button>
+  </div>
+  <div class="wa-popup-body">
+    <div class="wa-popup-msg">Got a question about a product or your order? Message us on WhatsApp and we'll reply right away.</div>
+    <a class="wa-popup-btn" href="https://wa.me/256757675088" target="_blank" rel="noopener">
+      <svg viewBox="0 0 32 32" fill="#fff" xmlns="http://www.w3.org/2000/svg"><path d="M16.004 3C9.376 3 3.997 8.373 3.997 14.994c0 2.61.85 5.027 2.29 6.99L4.99 28.99l7.203-2.242c1.858.99 3.98 1.552 6.239 1.552h.005c6.628 0 12.007-5.373 12.007-11.994C30.444 8.685 25.065 3.312 16.436 3.002L16.004 3zm5.68 17.08c-.288.812-1.44 1.53-1.98 1.615-.507.08-1.146.114-1.85-.116-.427-.14-.977-.325-1.68-.637-2.958-1.276-4.888-4.24-5.036-4.437-.147-.198-1.207-1.606-1.207-3.064 0-1.458.766-2.174 1.037-2.472.27-.297.59-.372.786-.372.196 0 .393.002.564.01.181.008.424-.069.663.505.245.588.833 2.03.906 2.177.074.148.123.32.025.518-.099.198-.148.32-.294.494-.147.173-.31.386-.443.519-.147.148-.301.309-.13.605.172.297.766 1.264 1.645 2.048 1.13 1.007 2.083 1.32 2.38 1.468.297.148.47.124.643-.074.172-.198.74-.864.938-1.161.198-.297.396-.247.668-.148.271.099 1.723.812 2.019.96.297.148.494.222.567.346.074.124.074.72-.213 1.531z"/></svg>
+      Start WhatsApp Chat
+    </a>
+  </div>
+</div>
+
 
 <!-- FULLSCREEN IMAGE VIEWER -->
 <div class="fs-overlay" id="fs-overlay" onclick="fsOverlayClick(event)"
@@ -1872,6 +1919,8 @@
     if (fab) fab.classList.add('show');
     var waFab = document.getElementById('wa-support-fab');
     if (waFab) waFab.classList.add('shift-up');
+    var waPopup = document.getElementById('wa-popup');
+    if (waPopup) waPopup.classList.add('shift-up');
   }
 
   function hideBackToCheckoutFab() {
@@ -1879,7 +1928,23 @@
     if (fab) fab.classList.remove('show');
     var waFab = document.getElementById('wa-support-fab');
     if (waFab) waFab.classList.remove('shift-up');
+    var waPopup = document.getElementById('wa-popup');
+    if (waPopup) waPopup.classList.remove('shift-up');
   }
+
+  function toggleWaPopup(forceState) {
+    var popup = document.getElementById('wa-popup');
+    if (!popup) return;
+    var shouldOpen = typeof forceState === 'boolean' ? forceState : !popup.classList.contains('open');
+    popup.classList.toggle('open', shouldOpen);
+  }
+  document.addEventListener('click', function(e) {
+    var popup = document.getElementById('wa-popup');
+    var btn = document.getElementById('wa-support-fab');
+    if (!popup || !popup.classList.contains('open')) return;
+    if (popup.contains(e.target) || (btn && btn.contains(e.target))) return;
+    popup.classList.remove('open');
+  });
 
   function goBackToCheckout() {
     hideBackToCheckoutFab();

@@ -1214,6 +1214,7 @@
   let scannerStream = null;
   let scanInterval = null;
   let editingId = null;
+  let editingOriginalSnapshot = null;
   let unsubscribeProducts = null;
 
   const catIcons = {
@@ -2691,16 +2692,23 @@
 
   // ── HELPERS ──
   let successToastTimer = null;
-  function showSuccessToast(message) {
+  function showToast(message, type) {
     const toast = document.getElementById('success-toast');
     if (!toast) return;
     toast.textContent = message || '✅ Successful!';
+    if (type === 'error') { toast.style.background = '#c0392b'; toast.style.boxShadow = '0 10px 28px rgba(192,57,43,0.4)'; }
+    else if (type === 'info') { toast.style.background = '#444'; toast.style.boxShadow = '0 10px 28px rgba(0,0,0,0.3)'; }
+    else { toast.style.background = '#2a9d50'; toast.style.boxShadow = '0 10px 28px rgba(42,157,80,0.4)'; }
     clearTimeout(successToastTimer);
     toast.classList.remove('show');
     void toast.offsetWidth; // restart animation if triggered repeatedly
     toast.classList.add('show');
-    successToastTimer = setTimeout(() => { toast.classList.remove('show'); }, 2000);
+    successToastTimer = setTimeout(() => { toast.classList.remove('show'); }, 2500);
   }
+
+  function showSuccessToast(message) { showToast(message, 'success'); }
+  function showErrorToast(message) { showToast(message, 'error'); }
+  function showInfoToast(message) { showToast(message, 'info'); }
 
   function fmt(n) { return 'UGX ' + parseInt(n).toLocaleString('en-UG'); }
   function totalStock(p) { return p.variants.reduce((s, v) => s + (parseInt(v.stock) || 0), 0); }
@@ -3272,6 +3280,7 @@
   // ── ADD / EDIT MODAL ──
   function openAddModal() {
     editingId = null;
+    editingOriginalSnapshot = null;
     document.getElementById('modal-title').textContent = '+ Add New Product';
     document.getElementById('edit-id').value = '';
     document.getElementById('f-name').value = '';
@@ -3308,6 +3317,7 @@
     const p = products.find(x => x.id === id);
     if (!p) return;
     editingId = id;
+    editingOriginalSnapshot = JSON.parse(JSON.stringify(p));
     document.getElementById('modal-title').textContent = '✏️ Edit Product';
     document.getElementById('edit-id').value = id;
     document.getElementById('f-name').value = p.name;
@@ -3339,7 +3349,7 @@
     document.getElementById('product-modal').classList.add('open');
   }
 
-  function closeModal() { document.getElementById('product-modal').classList.remove('open'); }
+  function closeModal() { document.getElementById('product-modal').classList.remove('open'); editingOriginalSnapshot = null; }
 
   function addVariantRow(data = {}) {
     const row = document.createElement('div');
@@ -3526,6 +3536,29 @@
     }
   }
 
+  function productSignature(p) {
+    if (!p) return '';
+    return JSON.stringify({
+      name: p.name || '',
+      category: p.category || '',
+      store: p.store || '',
+      sku: p.sku || '',
+      description: p.description || '',
+      images: p.images || [],
+      image: p.image || '',
+      video: p.video || '',
+      threshold: parseInt(p.threshold) || 0,
+      hotDeal: !!p.hotDeal,
+      featured: !!p.featured,
+      variants: (p.variants || []).map(v => ({
+        name: v.name || '', color: v.color || '',
+        buy: parseInt(v.buy) || 0, sell: parseInt(v.sell) || 0,
+        discountPrice: parseInt(v.discountPrice) || 0, discountExpiresAt: v.discountExpiresAt || '',
+        stock: parseInt(v.stock) || 0, variantImage: v.variantImage || ''
+      }))
+    });
+  }
+
   function saveProduct() {
     const name = document.getElementById('f-name').value.trim();
     const cat = document.getElementById('f-cat').value;
@@ -3557,35 +3590,43 @@
 
     const hotDeal = document.getElementById('f-hotdeal').checked;
     const featured = document.getElementById('f-featured').checked;
+    const sku = document.getElementById('f-sku').value.trim();
+    const description = document.getElementById('f-description').value.trim();
+    const threshold_ = parseInt(document.getElementById('f-threshold').value) || threshold;
+    const video = document.getElementById('f-video').value.trim();
+    const imageUrls = Array.from(document.querySelectorAll('#images-list .img-url-input'))
+      .map(i => i.value.trim()).filter(Boolean);
+
+    // Build the full candidate product object (used for both change-detection and saving)
+    const candidateProduct = editingId
+      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured }
+      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured };
+
+    // If editing an existing product and nothing actually changed, skip the save entirely
+    if (editingId && editingOriginalSnapshot && productSignature(editingOriginalSnapshot) === productSignature(candidateProduct)) {
+      showInfoToast('ℹ️ No Changes Made');
+      closeModal();
+      return;
+    }
 
     if (editingId) {
       const idx = products.findIndex(p => p.id === editingId);
       if (idx > -1) {
-        products[idx] = { ...products[idx], name, category: cat, store, sku: document.getElementById('f-sku').value.trim(), threshold: parseInt(document.getElementById('f-threshold').value)||threshold, variants, hotDeal, featured };
+        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, featured };
       }
     } else {
       products.push({
-        id: 'p_' + Date.now(),
-        name, category: cat, store,
-        sku: document.getElementById('f-sku').value.trim(),
-        threshold: parseInt(document.getElementById('f-threshold').value)||threshold,
+        id: candidateProduct.id,
+        name, category: cat, store, sku,
+        threshold: threshold_,
         variants, hotDeal, featured
       });
     }
 
-    // Collect images
-    const imageUrls = Array.from(document.querySelectorAll('#images-list .img-url-input'))
-      .map(i => i.value.trim()).filter(Boolean);
-
-    // Save to Firebase
-    const productToSave = editingId
-      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku: document.getElementById('f-sku').value.trim(), description: document.getElementById('f-description').value.trim(), images: imageUrls, image: imageUrls[0]||'', video: document.getElementById('f-video').value.trim(), threshold: parseInt(document.getElementById('f-threshold').value)||threshold, variants, hotDeal, featured }
-      : { id: 'p_' + Date.now(), name, category: cat, store, sku: document.getElementById('f-sku').value.trim(), description: document.getElementById('f-description').value.trim(), images: imageUrls, image: imageUrls[0]||'', video: document.getElementById('f-video').value.trim(), threshold: parseInt(document.getElementById('f-threshold').value)||threshold, variants, hotDeal, featured };
-
-    fbSaveProduct(productToSave).then(() => {
+    fbSaveProduct(candidateProduct).then(() => {
       closeModal();
     }).catch(err => {
-      alert('Error saving product. Check your internet connection.');
+      showErrorToast('❌ Error saving product. Check your internet connection.');
       console.error(err);
     });
   }
