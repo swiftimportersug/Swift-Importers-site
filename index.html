@@ -855,7 +855,7 @@
     <div class="footer-col">
       <h4>Help</h4>
       <ul>
-        <li><a href="#" onclick="event.preventDefault();document.getElementById('how-to-order-modal').classList.add('open');triggerHtoModal()">How to Order</a></li>
+        <li><a href="#" onclick="event.preventDefault();openOverlayEl(document.getElementById('how-to-order-modal'));triggerHtoModal()">How to Order</a></li>
         <li><a href="#" onclick="event.preventDefault();openDeliveryModal()">Delivery Info</a></li>
         <li><a href="#" onclick="event.preventDefault();openReturnsModal()">Returns Policy</a></li>
         <li><a href="#" onclick="event.preventDefault();openPaymentModal()">Payment Guide</a></li>
@@ -1028,7 +1028,7 @@
   <div class="modal hto-modal">
     <div class="hto-close-bar">
       <span>How to Order</span>
-      <button onclick="document.getElementById('how-to-order-modal').classList.remove('open')">X</button>
+      <button onclick="closeOverlayEl(document.getElementById('how-to-order-modal'))">X</button>
     </div>
     <div class="hto-body" id="hto-body">
       <div class="hto-header"><div class="hto-icon">&#128717;</div><h2>Order with Ease</h2><p>At <strong>Swift Importers Uganda</strong>, we make ordering fast, simple, and convenient. No account needed.</p></div>
@@ -1043,7 +1043,7 @@
 <!-- RETURNS MODAL -->
 <div class="modal-overlay" id="returns-modal">
   <div class="modal hto-modal">
-    <div class="hto-close-bar"><span>Return &amp; Refund Policy</span><button onclick="document.getElementById('returns-modal').classList.remove('open')">X</button></div>
+    <div class="hto-close-bar"><span>Return &amp; Refund Policy</span><button onclick="closeOverlayEl(document.getElementById('returns-modal'))">X</button></div>
     <div class="hto-body">
       <div class="hto-header"><div class="hto-icon">&#128737;&#65039;</div><h2>Return &amp; Refund Policy</h2><p>Thank you for shopping with <strong>Swift Importers Uganda</strong>. Please read carefully before completing your purchase.</p></div>
       <div class="hto-option" id="ret-opt-1"><div class="hto-num">1</div><div class="hto-content"><div class="hto-title">General Return Conditions</div><p>We offer a <strong>5-day return window</strong> from date of delivery. Item must be unused, in original packaging, with proof of purchase.</p></div></div>
@@ -1060,7 +1060,7 @@
 <!-- TRACK ORDER MODAL -->
 <div class="modal-overlay" id="track-order-modal">
   <div class="modal hto-modal">
-    <div class="hto-close-bar"><span>Track Your Order</span><button onclick="document.getElementById('track-order-modal').classList.remove('open')">X</button></div>
+    <div class="hto-close-bar"><span>Track Your Order</span><button onclick="closeOverlayEl(document.getElementById('track-order-modal'))">X</button></div>
     <div class="hto-body">
       <div class="hto-header"><div class="hto-icon">&#128225;</div><h2>Order Tracking</h2><p>We are committed to keeping you informed every step of the way.</p></div>
       <div class="hto-option" id="track-opt-1"><div class="hto-num">&#128679;</div><div class="hto-content"><div class="hto-title">Live Tracking - Coming Soon</div><p>Our team is working hard to build a <strong>real-time order tracking feature</strong> that will allow you to follow the movement of your package step by step. This feature will be available soon.</p></div></div>
@@ -1076,7 +1076,7 @@
 <!-- PAYMENT GUIDE MODAL -->
 <div class="modal-overlay" id="payment-guide-modal">
   <div class="modal hto-modal">
-    <div class="hto-close-bar"><span>Payment Guide</span><button onclick="document.getElementById('payment-guide-modal').classList.remove('open')">X</button></div>
+    <div class="hto-close-bar"><span>Payment Guide</span><button onclick="closeOverlayEl(document.getElementById('payment-guide-modal'))">X</button></div>
     <div class="hto-body">
       <div class="hto-header"><div class="hto-icon">&#128176;</div><h2>Simple &amp; Flexible Payments</h2><p>At <strong>Swift Importers Uganda</strong>, we have made payments as easy and flexible as possible.</p></div>
       <div class="hto-option" id="pay-opt-1"><div class="hto-num">1</div><div class="hto-content"><div class="hto-title">Mobile Money - Kampala Residents</div><p>Pay via <strong>MTN Mobile Money</strong> or <strong>Airtel Money</strong> to any of our provided numbers. Send us a <strong>screenshot</strong> on WhatsApp and we process your order immediately. You can pay before or on delivery.</p></div></div>
@@ -1090,14 +1090,14 @@
 <!-- DELIVERY INFO MODAL -->
 <div class="modal-overlay" id="delivery-info-modal">
   <div class="modal hto-modal">
-    <div class="hto-close-bar"><span>Delivery Information</span><button onclick="document.getElementById('delivery-info-modal').classList.remove('open')">X</button></div>
+    <div class="hto-close-bar"><span>Delivery Information</span><button onclick="closeOverlayEl(document.getElementById('delivery-info-modal'))">X</button></div>
     <div class="hto-body" id="delivery-body">
       <div class="hto-header"><div class="hto-icon">&#128661;</div><h2>We Come to You</h2><p>At <strong>Swift Importers Uganda</strong>, we deliver right to your doorstep.</p></div>
       <div class="hto-option" id="del-opt-1"><div class="hto-num">&#128205;</div><div class="hto-content"><div class="hto-title">Pin Your Exact Location</div><p>When placing your order, you can drop a <strong>Google Maps pin</strong> in the order form to share your exact delivery location. This helps our rider find you quickly and accurately.</p></div></div>
       <div class="hto-option" id="del-opt-2"><div class="hto-num">&#127960;&#65039;</div><div class="hto-content"><div class="hto-title">Kampala &amp; Suburbs Coverage</div><p>We deliver across <strong>Kampala and its major suburbs</strong>, including Munyonyo, Buziga, Bweyogerere, Ntinda, Ggaba, Makindye, Makerere, and many more.</p></div></div>
       <div class="hto-option" id="del-opt-3"><div class="hto-num">&#128172;</div><div class="hto-content"><div class="hto-title">Add Detailed Directions</div><p>Include clear landmark-based directions in your order notes. For example: "Behind Shell Kireka, second gray gate on the left" or "Makerere, Ham Towers near the main gate."</p></div></div>
       <div class="hto-option" id="del-opt-4"><div class="hto-num">&#9201;&#65039;</div><div class="hto-content"><div class="hto-title">Delivery Times</div><p>Same-day delivery for orders placed before <strong>6:00 PM</strong> within Kampala. You can expect your items within <strong>20-40 minutes</strong> after order confirmation for most Kampala suburbs. For Jinja - same day via taxi. For Lira City - bus parcel, next morning pickup. Fees UGX 5,000-20,000.</p></div></div>
-      <div class="hto-footer-btn" id="del-footer-btn"><a href="#order" onclick="document.getElementById('delivery-info-modal').classList.remove('open');setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'})},200)" class="btn-primary" style="display:block;text-align:center;margin-top:8px;text-decoration:none;">Place Your Order Now</a></div>
+      <div class="hto-footer-btn" id="del-footer-btn"><a href="#order" onclick="closeOverlayEl(document.getElementById('delivery-info-modal'));setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'})},200)" class="btn-primary" style="display:block;text-align:center;margin-top:8px;text-decoration:none;">Place Your Order Now</a></div>
     </div>
   </div>
 </div>
@@ -1129,7 +1129,7 @@
     </div>
     <a href="https://wa.me/256757675088" target="_blank" class="btn-primary" style="display:inline-block;text-decoration:none;margin-top:4px;">Chat on WhatsApp</a>
     <br/><br/>
-    <button onclick="document.getElementById('success-modal').classList.remove('open')" style="background:none;border:none;color:var(--grey);font-size:0.85rem;cursor:pointer;">Close</button>
+    <button onclick="closeOverlayEl(document.getElementById('success-modal'))" style="background:none;border:none;color:var(--grey);font-size:0.85rem;cursor:pointer;">Close</button>
   </div>
 </div>
 
@@ -1335,6 +1335,43 @@
     container.appendChild(div);
   }
 
+  // ── UNIFIED OVERLAY / BACK-BUTTON HANDLING ──
+  // Every dismissible modal on the storefront (Help section popups, cart, order-success,
+  // etc.) should push a browser history entry when it opens and close via requestCloseOverlay()
+  // instead of touching classList directly. That way the device/browser Back button always
+  // closes just the topmost open overlay and returns to the page underneath — it should never
+  // navigate away from the storefront. New modals added in the future should follow this same
+  // openOverlayEl()/closeOverlayEl() pattern so they get this behavior automatically.
+  var overlayStack = [];
+
+  function openOverlayEl(el) {
+    if (!el) return;
+    var alreadyOpen = el.classList.contains('open');
+    el.classList.add('open');
+    if (alreadyOpen) return; // e.g. cart contents refreshing while already open — don't push again
+    var closeFn = function(){ el.classList.remove('open'); };
+    el._overlayClose = closeFn;
+    history.pushState({ overlayDepth: overlayStack.length + 1 }, '');
+    overlayStack.push(closeFn);
+  }
+
+  function closeOverlayEl(el) {
+    if (!el) return;
+    var closeFn = el._overlayClose;
+    if (!closeFn) { el.classList.remove('open'); return; } // not tracked — just close visually
+    var idx = overlayStack.lastIndexOf(closeFn);
+    if (idx === -1) { el.classList.remove('open'); return; }
+    overlayStack.splice(idx, 1);
+    el._overlayClose = null;
+    el.classList.remove('open');
+    history.back();
+  }
+
+  window.addEventListener('popstate', function(){
+    var closeFn = overlayStack.pop();
+    if (closeFn) closeFn();
+  });
+
   // PRODUCT DETAIL MODAL
   var pdCurrentProduct = null;
   var pdCurrentVariantIdx = 0;
@@ -1453,21 +1490,27 @@
     track.innerHTML = '';
     dots.innerHTML = '';
     if (pdImages.length > 0) {
-      pdImages.forEach(function(img, i) {
+      var buildPdSlide = function(imgSrc, clickIdx, isClone) {
         var slide = document.createElement('div');
-        slide.className = 'pd-gallery-slide';
+        slide.className = 'pd-gallery-slide' + (isClone ? ' pd-gallery-slide-clone' : '');
         var im = document.createElement('img');
-        im.src = img; im.alt = 'Photo '+(i+1);
+        im.src = imgSrc; im.alt = 'Photo ' + (clickIdx + 1);
         im.style.cssText = 'max-width:100%;max-height:100%;width:auto;height:auto;margin:auto;display:block;cursor:zoom-in;';
-        im.onclick = function(){ openFullscreen(i); };
+        im.onclick = function(){ openFullscreen(clickIdx); };
         slide.appendChild(im);
-        track.appendChild(slide);
+        return slide;
+      };
+      var loopable = pdImages.length > 1;
+      if (loopable) track.appendChild(buildPdSlide(pdImages[pdImages.length - 1], pdImages.length - 1, true));
+      pdImages.forEach(function(img, i) {
+        track.appendChild(buildPdSlide(img, i, false));
         var dot = document.createElement('div');
         dot.className = 'pd-dot'+(i===0?' active':'');
         dots.appendChild(dot);
       });
-      arrowL.style.display = pdImages.length>1 ? 'flex' : 'none';
-      arrowR.style.display = pdImages.length>1 ? 'flex' : 'none';
+      if (loopable) track.appendChild(buildPdSlide(pdImages[0], 0, true));
+      arrowL.style.display = loopable ? 'flex' : 'none';
+      arrowR.style.display = loopable ? 'flex' : 'none';
     } else {
       var slide = document.createElement('div');
       slide.className = 'pd-gallery-slide';
@@ -1477,7 +1520,10 @@
       arrowL.style.display = 'none';
       arrowR.style.display = 'none';
     }
-    track.style.transform = 'translateX(0)';
+    track.style.transition = 'none';
+    track.style.transform = 'translateX(-' + (pdImages.length > 1 ? 100 : 0) + '%)';
+    void track.offsetWidth;
+    track.style.transition = '';
     var hasVariants = p.variants.length > 1;
     var variantSection = document.getElementById('pd-variant-section');
     var variantSelect = document.getElementById('pd-variant-select');
@@ -1571,12 +1617,34 @@
 
   function pdSlide(dir) {
     if (!pdImages || pdImages.length <= 1) return;
-    pdSlideIdx = (pdSlideIdx + dir + pdImages.length) % pdImages.length;
+    var n = pdImages.length;
     var track = document.getElementById('pd-gallery-track');
-    if (track) track.style.transform = 'translateX(-' + (pdSlideIdx * 100) + '%)';
+    if (!track) return;
+    var wrappingForward = (pdSlideIdx === n - 1 && dir === 1);
+    var wrappingBackward = (pdSlideIdx === 0 && dir === -1);
+    var newIdx = (pdSlideIdx + dir + n) % n;
+    // Track layout is [clone-of-last, real0, real1, ..., real(n-1), clone-of-first],
+    // so real index i sits at track position i+1.
+    var targetPos = wrappingForward ? (n + 1) : wrappingBackward ? 0 : (newIdx + 1);
+
+    track.style.transition = '';
+    track.style.transform = 'translateX(-' + (targetPos * 100) + '%)';
+    pdSlideIdx = newIdx;
     document.querySelectorAll('.pd-dot').forEach(function(d, i) {
       d.classList.toggle('active', i === pdSlideIdx);
     });
+
+    if (wrappingForward || wrappingBackward) {
+      var realPos = wrappingForward ? 1 : n;
+      var onEnd = function(){
+        track.removeEventListener('transitionend', onEnd);
+        track.style.transition = 'none';
+        track.style.transform = 'translateX(-' + (realPos * 100) + '%)';
+        void track.offsetWidth;
+        track.style.transition = '';
+      };
+      track.addEventListener('transitionend', onEnd);
+    }
   }
   var fsIndex = 0;
   var fsTouchStartX = 0;
@@ -1770,8 +1838,8 @@
     if (p && p.variants[idx] && p.variants[idx].variantImage) {
       var track = document.getElementById('pd-gallery-track');
       if (track) {
-        // Insert variant image as first slide temporarily
-        var firstSlide = track.querySelector('.pd-gallery-slide');
+        // Insert variant image as first slide temporarily (skip the leading loop-clone, if any)
+        var firstSlide = track.querySelector('.pd-gallery-slide:not(.pd-gallery-slide-clone)');
         if (firstSlide) {
           var varImg = new Image();
           varImg.src = p.variants[idx].variantImage;
@@ -1784,8 +1852,15 @@
             firstSlide.appendChild(varImg);
             firstSlide.style.opacity = '1';
           }, 150);
-          // Reset gallery to first slide
-          track.style.transform = 'translateX(0)';
+          // Reset gallery to the first slide
+          pdSlideIdx = 0;
+          track.style.transition = 'none';
+          track.style.transform = 'translateX(-' + (pdImages.length > 1 ? 100 : 0) + '%)';
+          void track.offsetWidth;
+          track.style.transition = '';
+          document.querySelectorAll('.pd-dot').forEach(function(d, i) {
+            d.classList.toggle('active', i === 0);
+          });
         }
       }
     }
@@ -2031,7 +2106,7 @@
       document.getElementById('cart-total-row').style.display='flex';
       document.getElementById('cart-subtitle').textContent=cart.reduce(function(s,c){return s+c.qty;},0)+' item(s) in your cart.';
     }
-    document.getElementById('cart-modal').classList.add('open');
+    openOverlayEl(document.getElementById('cart-modal'));
   }
 
   function removeFromCart(cartKey) {
@@ -2039,7 +2114,7 @@
     updateCartCount(); openCart();
   }
 
-  function closeCart(){ document.getElementById('cart-modal').classList.remove('open'); }
+  function closeCart(){ closeOverlayEl(document.getElementById('cart-modal')); }
 
   // ADD MORE ITEMS AT CHECKOUT — takes the customer to the full catalog (with pictures + search)
   // instead of a compact list, then offers an easy way back to finish checking out.
@@ -2127,7 +2202,7 @@
     if (document.getElementById('order-payment')) document.getElementById('order-payment').value = '';
     if (document.getElementById('order-notes')) document.getElementById('order-notes').value = '';
     if (submitBtn){ submitBtn.textContent='Send Order'; submitBtn.disabled=false; }
-    document.getElementById('success-modal').classList.add('open');
+    openOverlayEl(document.getElementById('success-modal'));
   }
 
   function toggleDescription() {
@@ -2236,13 +2311,13 @@
 
   function openReturnsModal() {
     ['ret-opt-1','ret-opt-2','ret-opt-3','ret-opt-4','ret-opt-5','ret-opt-6','ret-footer-btn'].forEach(function(id){var e=document.getElementById(id);if(e)e.classList.remove('visible');});
-    document.getElementById('returns-modal').classList.add('open');
+    openOverlayEl(document.getElementById('returns-modal'));
     [['ret-opt-1',150],['ret-opt-2',280],['ret-opt-3',410],['ret-opt-4',540],['ret-opt-5',670],['ret-opt-6',800],['ret-footer-btn',930]].forEach(function(pair){setTimeout(function(){var e=document.getElementById(pair[0]);if(e)e.classList.add('visible');},pair[1]);});
   }
 
   function openTrackModal() {
     ['track-opt-1','track-opt-2','track-footer-btn'].forEach(function(id){var e=document.getElementById(id);if(e)e.classList.remove('visible');});
-    document.getElementById('track-order-modal').classList.add('open');
+    openOverlayEl(document.getElementById('track-order-modal'));
     setTimeout(function(){var e=document.getElementById('track-opt-1');if(e)e.classList.add('visible');},200);
     setTimeout(function(){var e=document.getElementById('track-opt-2');if(e)e.classList.add('visible');},380);
     setTimeout(function(){var e=document.getElementById('track-footer-btn');if(e)e.classList.add('visible');},560);
@@ -2250,7 +2325,7 @@
 
   function openPaymentModal() {
     ['pay-opt-1','pay-opt-2','pay-opt-3','pay-footer-btn'].forEach(function(id){var e=document.getElementById(id);if(e)e.classList.remove('visible');});
-    document.getElementById('payment-guide-modal').classList.add('open');
+    openOverlayEl(document.getElementById('payment-guide-modal'));
     setTimeout(function(){var e=document.getElementById('pay-opt-1');if(e)e.classList.add('visible');},200);
     setTimeout(function(){var e=document.getElementById('pay-opt-2');if(e)e.classList.add('visible');},380);
     setTimeout(function(){var e=document.getElementById('pay-opt-3');if(e)e.classList.add('visible');},560);
@@ -2259,7 +2334,7 @@
 
   function openDeliveryModal() {
     ['del-opt-1','del-opt-2','del-opt-3','del-opt-4','del-footer-btn'].forEach(function(id){var e=document.getElementById(id);if(e)e.classList.remove('visible');});
-    document.getElementById('delivery-info-modal').classList.add('open');
+    openOverlayEl(document.getElementById('delivery-info-modal'));
     setTimeout(function(){var e=document.getElementById('del-opt-1');if(e)e.classList.add('visible');},200);
     setTimeout(function(){var e=document.getElementById('del-opt-2');if(e)e.classList.add('visible');},380);
     setTimeout(function(){var e=document.getElementById('del-opt-3');if(e)e.classList.add('visible');},560);
@@ -2270,7 +2345,7 @@
   // Close on overlay click
   ['returns-modal','track-order-modal','payment-guide-modal','delivery-info-modal','how-to-order-modal','cart-modal','success-modal'].forEach(function(id){
     var el=document.getElementById(id);
-    if(el) el.addEventListener('click',function(e){ if(e.target===this){ if(id==='cart-modal'){closeCart();}else{this.classList.remove('open');} } });
+    if(el) el.addEventListener('click',function(e){ if(e.target===this){ if(id==='cart-modal'){closeCart();}else{closeOverlayEl(this);} } });
   });
 
   function closePdModal(e) {
