@@ -326,6 +326,19 @@
       flex-wrap: wrap; gap: 10px;
     }
     .topbar-title { font-family: 'Inter', sans-serif; font-size: 1.1rem; font-weight: 800; }
+    .employee-chip {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--light); border: 1px solid var(--border);
+      border-radius: 30px; padding: 4px 12px 4px 4px;
+    }
+    .employee-chip-avatar {
+      width: 26px; height: 26px; border-radius: 50%; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+      background: #ece6d8; font-size: 0.9rem; flex-shrink: 0;
+    }
+    .employee-chip-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .employee-chip-name { font-size: 0.78rem; font-weight: 700; color: var(--black); }
+    @media(max-width:700px){ .employee-chip-name{ display:none; } }
     .topbar-right { display: flex; align-items: center; gap: 12px; }
     .whatsapp-alert-btn {
       background: #25D366; color: #fff; border: none; padding: 8px 16px;
@@ -878,7 +891,7 @@
         <span class="nav-icon">📷</span> QR Scanner
       </div>
       <div class="nav-item" data-page="my-panel" onclick="showPage('my-panel')">
-        <span class="nav-icon">🧾</span> My Panel
+        <span class="nav-icon" id="mypanel-nav-icon">🧾</span> My Panel
       </div>
     </nav>
     <div class="sidebar-footer">
@@ -895,6 +908,10 @@
         <span class="topbar-title" id="page-title">Dashboard</span>
       </div>
       <div class="topbar-right">
+        <div class="employee-chip" id="employee-chip" style="display:none;">
+          <span class="employee-chip-avatar" id="employee-chip-avatar">👤</span>
+          <span class="employee-chip-name" id="employee-chip-name"></span>
+        </div>
         <span id="fb-status" style="font-size:0.75rem; font-weight:600; color:var(--grey);">⏳ Connecting...</span>
         <button id="notif-btn" class="notif-btn enabled" onclick="toggleNotifications()" title="Enable order sound alerts" style="display:none;">
           🔔 Alerts On
@@ -1030,7 +1047,7 @@
       <!-- MY PANEL PAGE (employee's own transactions) -->
       <div class="page" id="page-my-panel">
         <div class="section-hdr">
-          <h2>🧾 My Panel</h2>
+          <h2><span id="mypanel-header-icon">🧾</span> My Panel</h2>
           <span style="font-size:0.8rem;color:var(--grey);" id="my-panel-name-label"></span>
         </div>
         <div class="period-tabs" id="my-panel-period-tabs">
@@ -1637,10 +1654,36 @@
     document.getElementById('app').classList.add('visible');
     const fbStatusBar = document.getElementById('fb-status');
     if (fbStatusBar) { fbStatusBar.textContent = '🟢 Live — ' + name; fbStatusBar.style.color = 'var(--green)'; }
+    updateEmployeeProfileUI();
     renderAll();
     const notifBtn = document.getElementById('notif-btn');
     if (notifBtn) { notifBtn.textContent = '🔔 Alerts On'; notifBtn.classList.add('enabled'); }
     initNotifications();
+  }
+
+  // ── EMPLOYEE PROFILE PHOTO (topbar chip, My Panel icon) ──
+  function applyEmployeePhoto(el, sizePx, fallbackHTML) {
+    if (!el) return;
+    if (currentEmployeePhotoUrl) {
+      el.innerHTML = '<img src="' + currentEmployeePhotoUrl + '" style="width:' + sizePx + 'px;height:' + sizePx + 'px;border-radius:50%;object-fit:cover;display:block;" onerror="this.parentElement.innerHTML=\'' + fallbackHTML.replace(/'/g,"\\'") + '\';"/>';
+    } else {
+      el.innerHTML = fallbackHTML;
+    }
+  }
+
+  function updateEmployeeProfileUI() {
+    const chip = document.getElementById('employee-chip');
+    const chipAvatar = document.getElementById('employee-chip-avatar');
+    const chipName = document.getElementById('employee-chip-name');
+    if (currentEmployeeName) {
+      if (chip) chip.style.display = 'flex';
+      if (chipName) chipName.textContent = currentEmployeeName;
+      applyEmployeePhoto(chipAvatar, 26, '👤');
+    } else {
+      if (chip) chip.style.display = 'none';
+    }
+    applyEmployeePhoto(document.getElementById('mypanel-nav-icon'), 20, '🧾');
+    applyEmployeePhoto(document.getElementById('mypanel-header-icon'), 24, '🧾');
   }
 
   window.selectEmployeeName = selectEmployeeName;
@@ -1674,6 +1717,7 @@
     stopScanner();
     currentEmployeeName = null;
     currentEmployeeCode = null;
+    currentEmployeePhotoUrl = '';
     pendingEmployeeName = null; pendingEmployeeCode = null; codeEntry = '';
     document.getElementById('app').classList.remove('visible');
     document.getElementById('login-screen').style.display = 'flex';
@@ -1684,6 +1728,7 @@
     updateCodeDots();
     document.getElementById('login-error').style.display = 'none';
     document.getElementById('code-error').style.display = 'none';
+    updateEmployeeProfileUI();
   }
 
   // Make functions globally accessible from HTML onclick attributes
