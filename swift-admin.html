@@ -1947,11 +1947,16 @@
         : `<span style="font-size:1.4rem;">👤</span>`;
       return `
       <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--light); border:1px solid var(--border); border-radius:10px; padding:10px 14px; flex-wrap:wrap;">
-        <div style="display:flex; align-items:center; gap:10px;">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
           ${avatar}
           <span style="font-weight:700; font-size:0.85rem;">${s.name}</span>
           <span style="font-family:'Inter',sans-serif; font-size:0.8rem; font-weight:700; letter-spacing:0.15em; color:var(--gold-dark); background:#fff; border:1px solid var(--gold); border-radius:6px; padding:3px 9px;" id="code-display-${s.fbDocId}" data-code="${s.code||''}">••••</span>
           <button onclick="toggleCodeVisibility('${s.fbDocId}')" style="background:none; border:none; cursor:pointer; font-size:0.85rem; padding:2px;" title="Show/hide code">👁️</button>
+          <span style="font-size:0.7rem; color:#888; font-weight:600;">🏬</span>
+          <select onchange="onEmployeeStoreChange('${s.fbDocId}', this)" style="font-size:0.76rem; font-weight:700; padding:4px 8px; border:1.5px solid var(--border); border-radius:6px; font-family:'Inter',sans-serif; background:#fff; color:#444;">
+            <option value="">Unassigned</option>
+            ${storeOptionsHtml(s.store || '')}
+          </select>
         </div>
         <div style="display:flex; gap:6px; flex-wrap:wrap;">
           <button onclick="editEmployeePhoto('${s.fbDocId}','${s.name.replace(/'/g,"\\'")}')" style="background:#fff; border:1.5px solid var(--border); color:#555; cursor:pointer; font-size:0.72rem; font-weight:700; padding:5px 10px; border-radius:6px;">🖼️ Edit Photo</button>
@@ -1961,6 +1966,26 @@
       </div>
     `;
     }).join('');
+  }
+
+  async function onEmployeeStoreChange(id, selectEl) {
+    if (selectEl.value === '__add_new__') {
+      const beforeVal = staffNames.find(s => s.fbDocId === id)?.store || '';
+      await addNewStore(selectEl);
+      // If a new store was added, selectEl.value is set to it after a short delay by addNewStore;
+      // wait for that, then save it as this employee's store.
+      setTimeout(() => { if (selectEl.value && selectEl.value !== '__add_new__') onEmployeeStoreChange(id, selectEl); else selectEl.value = beforeVal; }, 400);
+      return;
+    }
+    if (!window.fbDb || !window.fbFns) { alert('Not connected. Check your internet connection.'); return; }
+    const { doc, updateDoc } = window.fbFns;
+    try {
+      await updateDoc(doc(window.fbDb, 'employees', id), { store: selectEl.value });
+      showSuccessToast('✅ Store Assigned!');
+    } catch(e) {
+      alert('Error assigning store. Check your internet connection.');
+      console.error(e);
+    }
   }
 
   async function editEmployeePhoto(id, name) {
@@ -2147,7 +2172,7 @@
             <div class="dash-tx-row">
               <div>
                 <div class="dash-tx-desc">🛒 ${itemNames}</div>
-                <div class="dash-tx-meta">${fmtOrderTime(o.timestamp)} &middot; ${o.customerName||'Unknown'} &middot; ${o.recordedBy ? (o.recordedByRole==='admin'?'⚙️ Admin':'👤 '+o.recordedBy) : 'Online order'}</div>
+                <div class="dash-tx-meta">${fmtOrderTime(o.timestamp)} &middot; ${o.customerName||'Unknown'} &middot; ${o.recordedBy ? (o.recordedByRole==='admin'?'⚙️ Admin':'👤 '+o.recordedBy) : 'Online order'}${o.store ? ' &middot; 🏬 '+o.store : ''}</div>
               </div>
               <span class="dash-tx-tag sale">Sale</span>
             </div>
@@ -2158,7 +2183,7 @@
             <div class="dash-tx-row">
               <div>
                 <div class="dash-tx-desc">${a.type==='add'?'➕':'➖'} ${a.productName} — ${a.variantName} (${a.qty} pcs)</div>
-                <div class="dash-tx-meta">${a.date || fmtOrderTime(a.timestamp)} &middot; ${a.reason||''} &middot; ${a.recordedBy ? (a.recordedBy==='Admin'?'⚙️ Admin':'👤 '+a.recordedBy) : ''}</div>
+                <div class="dash-tx-meta">${a.date || fmtOrderTime(a.timestamp)} &middot; ${a.reason||''} &middot; ${a.recordedBy ? (a.recordedBy==='Admin'?'⚙️ Admin':'👤 '+a.recordedBy) : ''}${a.store ? ' &middot; 🏬 '+a.store : ''}</div>
               </div>
               <span class="dash-tx-tag adjustment">Adjustment</span>
             </div>
@@ -2466,7 +2491,7 @@
         </div>
         <div class="order-card-items">${o.products || (o.cartItems ? o.cartItems.map(i => i.name + ' x' + i.qty + (i.isFree ? '  🎁 FREE' : '')).join('\n') : '—')}</div>
         <div class="order-card-meta">
-          ${o.recordedBy ? `<div style="width:100%; margin-bottom:6px;"><span style="display:inline-flex; align-items:center; gap:5px; background:${o.recordedByRole === 'admin' ? '#eef2ff' : '#fff8e6'}; color:${o.recordedByRole === 'admin' ? '#3b3ba0' : 'var(--gold-dark)'}; border:1px solid ${o.recordedByRole === 'admin' ? '#c7cbf7' : 'var(--gold)'}; font-size:0.7rem; font-weight:800; padding:3px 10px; border-radius:20px;">${o.recordedByRole === 'admin' ? '⚙️' : '👤'} Recorded by: ${o.recordedBy}</span></div>` : ''}
+          ${o.recordedBy ? `<div style="width:100%; margin-bottom:6px; display:flex; gap:6px; flex-wrap:wrap;"><span style="display:inline-flex; align-items:center; gap:5px; background:${o.recordedByRole === 'admin' ? '#eef2ff' : '#fff8e6'}; color:${o.recordedByRole === 'admin' ? '#3b3ba0' : 'var(--gold-dark)'}; border:1px solid ${o.recordedByRole === 'admin' ? '#c7cbf7' : 'var(--gold)'}; font-size:0.7rem; font-weight:800; padding:3px 10px; border-radius:20px;">${o.recordedByRole === 'admin' ? '⚙️' : '👤'} Recorded by: ${o.recordedBy}</span>${o.store ? `<span style="display:inline-flex; align-items:center; gap:5px; background:var(--light); color:#444; border:1px solid var(--border); font-size:0.7rem; font-weight:800; padding:3px 10px; border-radius:20px;">🏬 ${o.store}</span>` : ''}</div>` : ''}
           <span>📍 ${o.deliveryArea || '—'}</span>
           <span>💳 ${o.paymentMethod || '—'}</span>
           ${o.exactLocation ? '<div style="margin-top:4px;">' + buildLocationLink(o.exactLocation) + '</div>' : ''}
@@ -4903,7 +4928,13 @@
         </div>
         <div class="form-group">
           <label>Quantity *</label>
-          <input type="number" id="adj-qty" min="1" placeholder="e.g. 10" oninput="updateAdjPreview()" style="font-size:1.1rem; font-weight:700;"/>
+          <input type="number" id="adj-qty" min="1" placeholder="e.g. 10" oninput="updateAdjPreview(); renderAdjStoreBreakdown();" style="font-size:1.1rem; font-weight:700;"/>
+        </div>
+        <div class="form-group" id="adj-store-breakdown-wrap" style="display:none; background:var(--light); border:1.5px solid var(--border); border-radius:8px; padding:12px 14px;">
+          <label style="text-transform:none; letter-spacing:0; font-size:0.8rem; color:#555;">🏬 Which store(s) is this stock going to?</label>
+          <div style="font-size:0.7rem; color:#888; margin-bottom:10px;">Split the quantity above across your stores. This is for tracking only — total stock stays combined in one place.</div>
+          <div id="adj-store-breakdown-rows"></div>
+          <div id="adj-store-breakdown-total" style="font-size:0.78rem; font-weight:700; margin-top:6px;"></div>
         </div>
         <div class="form-group" id="adj-price-wrap" style="background:#fff3e0; border:1.5px solid var(--gold); border-radius:8px; padding:12px 14px;">
           <label style="text-transform:none; letter-spacing:0; font-size:0.8rem; color:#555;">💰 Price Paid for This Batch (optional)</label>
@@ -5160,6 +5191,8 @@
     document.getElementById('adj-custom-reason').value = '';
     document.getElementById('custom-reason-wrap').style.display = 'none';
     document.getElementById('adj-preview').style.display = 'none';
+    document.getElementById('adj-store-breakdown-rows').innerHTML = '';
+    document.getElementById('adj-store-breakdown-total').textContent = '';
     document.querySelector('input[name="adj-type"][value="add"]').checked = true;
     toggleAdjPriceField();
 
@@ -5185,6 +5218,53 @@
   function toggleAdjPriceField() {
     const type = document.querySelector('input[name="adj-type"]:checked')?.value;
     document.getElementById('adj-price-wrap').style.display = type === 'add' ? '' : 'none';
+    document.getElementById('adj-store-breakdown-wrap').style.display = type === 'add' && stores.length > 0 ? '' : 'none';
+    if (type === 'add') renderAdjStoreBreakdown();
+  }
+
+  function renderAdjStoreBreakdown() {
+    const wrap = document.getElementById('adj-store-breakdown-wrap');
+    if (!wrap || wrap.style.display === 'none') return;
+    const rowsEl = document.getElementById('adj-store-breakdown-rows');
+    const totalEl = document.getElementById('adj-store-breakdown-total');
+    const qty = parseInt(document.getElementById('adj-qty').value) || 0;
+
+    // Preserve any values already typed for stores that still exist
+    const existing = {};
+    rowsEl.querySelectorAll('input[data-store]').forEach(inp => { existing[inp.getAttribute('data-store')] = inp.value; });
+
+    rowsEl.innerHTML = stores.map(s => `
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;">
+        <span style="font-size:0.82rem; font-weight:600;">${s.name}</span>
+        <input type="number" min="0" data-store="${s.name}" value="${existing[s.name] !== undefined ? existing[s.name] : ''}" placeholder="0"
+          oninput="updateAdjStoreBreakdownTotal()" style="width:90px; padding:6px 9px; border:1.5px solid var(--border); border-radius:6px; font-size:0.85rem; font-family:'Inter',sans-serif; text-align:center;"/>
+      </div>
+    `).join('');
+
+    updateAdjStoreBreakdownTotal();
+  }
+
+  function updateAdjStoreBreakdownTotal() {
+    const rowsEl = document.getElementById('adj-store-breakdown-rows');
+    const totalEl = document.getElementById('adj-store-breakdown-total');
+    if (!rowsEl || !totalEl) return;
+    const qty = parseInt(document.getElementById('adj-qty').value) || 0;
+    let sum = 0;
+    rowsEl.querySelectorAll('input[data-store]').forEach(inp => { sum += parseInt(inp.value) || 0; });
+    const ok = qty > 0 && sum === qty;
+    totalEl.textContent = 'Assigned: ' + sum + ' of ' + qty + ' pieces' + (qty > 0 && sum !== qty ? ' — must match the quantity above' : (qty > 0 ? ' ✅' : ''));
+    totalEl.style.color = qty > 0 && sum !== qty ? 'var(--red)' : 'var(--green)';
+  }
+
+  function getAdjStoreBreakdown() {
+    const rowsEl = document.getElementById('adj-store-breakdown-rows');
+    if (!rowsEl) return {};
+    const breakdown = {};
+    rowsEl.querySelectorAll('input[data-store]').forEach(inp => {
+      const v = parseInt(inp.value) || 0;
+      if (v > 0) breakdown[inp.getAttribute('data-store')] = v;
+    });
+    return breakdown;
   }
 
   function toggleCustomReason(val) {
@@ -5223,6 +5303,16 @@
     if (!qty || qty < 1) { alert('Please enter a valid quantity.'); return; }
     if (!reason) { alert('Please select a reason for this adjustment.'); return; }
 
+    let storeBreakdown = null;
+    if (type === 'add' && stores.length > 0) {
+      const breakdown = getAdjStoreBreakdown();
+      const sum = Object.values(breakdown).reduce((s,v) => s+v, 0);
+      if (sum > 0) {
+        if (sum !== qty) { alert('The store breakdown (' + sum + ') must add up to the total quantity (' + qty + ').'); return; }
+        storeBreakdown = breakdown;
+      }
+    }
+
     const p = products.find(x => x.id === productId);
     if (!p) return;
     const currentStock = parseInt(p.variants[variantIdx].stock) || 0;
@@ -5258,6 +5348,7 @@
         reason,
         buyPrice: newBuyPrice !== null ? newBuyPrice : null,
         previousBuyPrice: newBuyPrice !== null ? oldBuyPrice : null,
+        storeBreakdown: storeBreakdown,
         recordedBy: 'Admin',
         timestamp: new Date().toISOString(),
         date: new Date().toLocaleDateString('en-UG', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
@@ -5312,7 +5403,8 @@
               <span style="font-weight:700; margin-left:8px; color:${l.type==='add'?'var(--green)':'var(--red)'};">${l.before}→${l.after}</span>
             </div>
             ${l.buyPrice ? `<div style="margin-top:4px; font-size:0.72rem; color:var(--gold-dark); font-weight:700;">💰 Bought at UGX ${l.buyPrice.toLocaleString('en-UG')}/unit${l.previousBuyPrice && l.previousBuyPrice !== l.buyPrice ? ' (was UGX ' + l.previousBuyPrice.toLocaleString('en-UG') + ')' : ''}</div>` : ''}
-            ${l.recordedBy ? `<div style="margin-top:4px; font-size:0.7rem; color:${l.recordedBy==='Admin'?'#3b3ba0':'#8a6d1f'}; font-weight:700;">${l.recordedBy==='Admin'?'⚙️':'👤'} ${l.recordedBy}</div>` : ''}
+            ${l.storeBreakdown ? `<div style="margin-top:4px; font-size:0.7rem; color:#555;">🏬 ${Object.entries(l.storeBreakdown).map(([store,qty]) => store + ': ' + qty).join(' &middot; ')}</div>` : ''}
+            ${l.recordedBy ? `<div style="margin-top:4px; font-size:0.7rem; color:${l.recordedBy==='Admin'?'#3b3ba0':'#8a6d1f'}; font-weight:700;">${l.recordedBy==='Admin'?'⚙️':'👤'} ${l.recordedBy}${l.store ? ' &middot; 🏬 '+l.store : ''}</div>` : ''}
           </div>
         `).join('')}
       `;

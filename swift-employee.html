@@ -339,6 +339,19 @@
     .employee-chip-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .employee-chip-name { font-size: 0.78rem; font-weight: 700; color: var(--black); }
     @media(max-width:700px){ .employee-chip-name{ display:none; } }
+    .mypanel-profile-card{
+      display:flex; align-items:center; gap:16px; margin-bottom:20px;
+    }
+    .mypanel-profile-avatar{
+      width:64px; height:64px; border-radius:50%; overflow:hidden;
+      display:flex; align-items:center; justify-content:center;
+      background:#ece6d8; font-size:1.8rem; flex-shrink:0;
+      border:3px solid var(--gold); box-shadow:0 4px 14px rgba(0,0,0,0.12);
+    }
+    .mypanel-profile-avatar img{ width:100%; height:100%; object-fit:cover; display:block; }
+    @media(max-width:600px){
+      .mypanel-profile-avatar{ width:52px; height:52px; font-size:1.5rem; border-width:2px; }
+    }
     .topbar-right { display: flex; align-items: center; gap: 12px; }
     .whatsapp-alert-btn {
       background: #25D366; color: #fff; border: none; padding: 8px 16px;
@@ -1046,9 +1059,12 @@
 
       <!-- MY PANEL PAGE (employee's own transactions) -->
       <div class="page" id="page-my-panel">
-        <div class="section-hdr">
-          <h2><span id="mypanel-header-icon">🧾</span> My Panel</h2>
-          <span style="font-size:0.8rem;color:var(--grey);" id="my-panel-name-label"></span>
+        <div class="mypanel-profile-card">
+          <span id="mypanel-header-icon" class="mypanel-profile-avatar">🧾</span>
+          <div>
+            <h2 style="margin:0;">🧾 My Panel</h2>
+            <span style="font-size:0.85rem;color:var(--grey);" id="my-panel-name-label"></span>
+          </div>
         </div>
         <div class="period-tabs" id="my-panel-period-tabs">
           <button class="period-tab active" data-period="today" onclick="setMyPanelPeriod('today')">Today</button>
@@ -1461,7 +1477,7 @@
       // Fetch the staff name list so we can ask "who's using the panel?"
       try {
         const snap = await getDocs(collection(window.fbDb, 'employees'));
-        staffNames = snap.docs.map(d => ({ fbDocId: d.id, name: d.data().name, code: d.data().code || '', photoUrl: d.data().photoUrl || '' })).filter(s => s.name).sort((a,b) => a.name.localeCompare(b.name));
+        staffNames = snap.docs.map(d => ({ fbDocId: d.id, name: d.data().name, code: d.data().code || '', photoUrl: d.data().photoUrl || '', store: d.data().store || '' })).filter(s => s.name).sort((a,b) => a.name.localeCompare(b.name));
       } catch(e) { console.error('Could not load staff names', e); staffNames = []; }
 
       employeeSignedIn = true;
@@ -1565,6 +1581,7 @@
   let currentEmployeeFbDocId = null;
   let currentEmployeePhotoUrl = '';
   let currentEmployeeCode = null;
+  let currentEmployeeStore = '';
 
   function pickEmployee(name, code, fbDocId) {
     if (!code) {
@@ -1650,6 +1667,7 @@
     currentEmployeeCode = code || null;
     const emp = staffNames.find(s => s.name === name);
     currentEmployeePhotoUrl = (emp && emp.photoUrl) || '';
+    currentEmployeeStore = (emp && emp.store) || '';
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app').classList.add('visible');
     const fbStatusBar = document.getElementById('fb-status');
@@ -1683,7 +1701,7 @@
       if (chip) chip.style.display = 'none';
     }
     applyEmployeePhoto(document.getElementById('mypanel-nav-icon'), 20, '🧾');
-    applyEmployeePhoto(document.getElementById('mypanel-header-icon'), 24, '🧾');
+    applyEmployeePhoto(document.getElementById('mypanel-header-icon'), 64, '🧾');
   }
 
   window.selectEmployeeName = selectEmployeeName;
@@ -1718,6 +1736,7 @@
     currentEmployeeName = null;
     currentEmployeeCode = null;
     currentEmployeePhotoUrl = '';
+    currentEmployeeStore = '';
     pendingEmployeeName = null; pendingEmployeeCode = null; codeEntry = '';
     document.getElementById('app').classList.remove('visible');
     document.getElementById('login-screen').style.display = 'flex';
@@ -2558,7 +2577,7 @@
         </div>
         <div class="order-card-items">${o.products || (o.cartItems ? o.cartItems.map(i => i.name + ' x' + i.qty + (i.isFree ? '  🎁 FREE' : '')).join('\n') : '—')}</div>
         <div class="order-card-meta">
-          ${o.recordedBy ? `<div style="width:100%; margin-bottom:6px;"><span style="display:inline-flex; align-items:center; gap:5px; background:${o.recordedByRole === 'admin' ? '#eef2ff' : '#fff8e6'}; color:${o.recordedByRole === 'admin' ? '#3b3ba0' : 'var(--gold-dark)'}; border:1px solid ${o.recordedByRole === 'admin' ? '#c7cbf7' : 'var(--gold)'}; font-size:0.7rem; font-weight:800; padding:3px 10px; border-radius:20px;">${o.recordedByRole === 'admin' ? '⚙️' : '👤'} Recorded by: ${o.recordedBy}</span></div>` : ''}
+          ${o.recordedBy ? `<div style="width:100%; margin-bottom:6px; display:flex; gap:6px; flex-wrap:wrap;"><span style="display:inline-flex; align-items:center; gap:5px; background:${o.recordedByRole === 'admin' ? '#eef2ff' : '#fff8e6'}; color:${o.recordedByRole === 'admin' ? '#3b3ba0' : 'var(--gold-dark)'}; border:1px solid ${o.recordedByRole === 'admin' ? '#c7cbf7' : 'var(--gold)'}; font-size:0.7rem; font-weight:800; padding:3px 10px; border-radius:20px;">${o.recordedByRole === 'admin' ? '⚙️' : '👤'} Recorded by: ${o.recordedBy}</span>${o.store ? `<span style="display:inline-flex; align-items:center; gap:5px; background:var(--light); color:#444; border:1px solid var(--border); font-size:0.7rem; font-weight:800; padding:3px 10px; border-radius:20px;">🏬 ${o.store}</span>` : ''}</div>` : ''}
           <span>📍 ${o.deliveryArea || '—'}</span>
           <span>💳 ${o.paymentMethod || '—'}</span>
           ${o.exactLocation ? '<div style="margin-top:4px;">' + buildLocationLink(o.exactLocation) + '</div>' : ''}
@@ -2681,6 +2700,7 @@
           before: currentStock, after: newStock,
           reason: direction < 0 ? 'Online order fulfilled' : 'Online order reopened — stock restored',
           recordedBy: recordedByName,
+          store: currentEmployeeStore || '',
           timestamp: new Date().toISOString(),
           date: new Date().toLocaleDateString('en-UG', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
         });
@@ -4551,7 +4571,7 @@
         saveOps.push(fbLogAdjustment({
           productId: p.id, productName: p.name, variantName: v.name + (v.color ? ' - ' + v.color : ''),
           changeType: 'remove', qty: totalQty, before, after, reason,
-          recordedBy: currentEmployeeName || 'Unknown Employee', timestamp: new Date().toISOString()
+          recordedBy: currentEmployeeName || 'Unknown Employee', store: currentEmployeeStore || '', timestamp: new Date().toISOString()
         }));
       });
     });
@@ -4576,7 +4596,8 @@
       balanceDue: balanceDue,
       paymentStatus: paymentStatus,
       recordedBy: currentEmployeeName || 'Unknown Employee',
-      recordedByRole: 'employee'
+      recordedByRole: 'employee',
+      store: currentEmployeeStore || ''
     };
     saveOps.push(fbCreateOrder(order));
 
@@ -5173,6 +5194,7 @@
         buyPrice: newBuyPrice !== null ? newBuyPrice : null,
         previousBuyPrice: null,
         recordedBy: currentEmployeeName || 'Unknown Employee',
+        store: currentEmployeeStore || '',
         timestamp: new Date().toISOString(),
         date: new Date().toLocaleDateString('en-UG', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
       });
