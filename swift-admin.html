@@ -1272,7 +1272,14 @@
       variants: product.variants.map(v => { const { buy, ...rest } = v; return rest; })
     };
     await setDoc(doc(window.fbDb, 'products', product.id), productForFirestore);
-    await setDoc(doc(window.fbDb, 'product_costs', product.id), { costs, updatedAt: new Date().toISOString() });
+    // The cost record is a secondary, owner-only record. If this write fails for any
+    // reason (transient network blip, etc.), the product itself has already saved
+    // successfully — so we log this instead of surfacing a false "save failed" error.
+    try {
+      await setDoc(doc(window.fbDb, 'product_costs', product.id), { costs, updatedAt: new Date().toISOString() });
+    } catch (costErr) {
+      console.error('Product saved, but its cost record failed to save:', costErr);
+    }
   }
 
   async function fbDeleteProduct(id) {
@@ -2751,7 +2758,7 @@
     toast.classList.remove('show');
     void toast.offsetWidth; // restart animation if triggered repeatedly
     toast.classList.add('show');
-    successToastTimer = setTimeout(() => { toast.classList.remove('show'); }, 2500);
+    successToastTimer = setTimeout(() => { toast.classList.remove('show'); }, 3000);
   }
 
   function showSuccessToast(message) { showToast(message, 'success'); }
@@ -3691,6 +3698,12 @@
     if (!name || !cat || cat === '__add_new__') { alert('Please enter a product name and category.'); return; }
     if (!store || store === '__add_new__') { alert('Please select which store this product belongs to.'); return; }
 
+    const duplicateMatch = products.find(p => p.id !== editingId && p.name.trim().toLowerCase() === name.toLowerCase());
+    if (duplicateMatch) {
+      const proceed = confirm('A product named "' + duplicateMatch.name + '" already exists. Create a duplicate anyway?');
+      if (!proceed) return;
+    }
+
     const rows = document.querySelectorAll('#variants-list .variant-row');
     if (rows.length === 0) { alert('Please add at least one variant.'); return; }
 
@@ -3753,6 +3766,7 @@
     }
 
     fbSaveProduct(candidateProduct).then(() => {
+      showSuccessToast(editingId ? '✅ Successfully Updated' : '✅ Successfully Created');
       closeModal();
     }).catch(err => {
       showErrorToast('❌ Error saving product. Check your internet connection.');

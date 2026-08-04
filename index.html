@@ -931,7 +931,7 @@
     <div class="pd-modal-left" id="pd-modal-left">
       <div class="pd-close-bar">
         <span id="pd-breadcrumb">Product Details</span>
-        <button class="pd-close-btn" onclick="document.getElementById('pd-overlay').classList.remove('open'); document.getElementById('pd-video-iframe').src=''; document.getElementById('pd-video-player').style.display='none';">✕</button>
+        <button class="pd-close-btn" onclick="closePdOverlay();">✕</button>
       </div>
       <div class="pd-gallery" id="pd-gallery">
         <div class="pd-gallery-track" id="pd-gallery-track"></div>
@@ -1341,10 +1341,35 @@
   var pdSlideIdx = 0;
   var pdImages = [];
   var pdTouchX = 0;
+  var pdHistoryPushed = false;
+
+  // Closes the product popup and, if we pushed a history entry when opening it,
+  // pops that entry too — so browser Back always closes the popup (never leaves the page)
+  // and a Back press right after manually closing it doesn't land on a stray entry.
+  function closePdOverlay() {
+    document.getElementById('pd-overlay').classList.remove('open');
+    document.getElementById('pd-video-iframe').src = '';
+    document.getElementById('pd-video-player').style.display = 'none';
+    if (pdHistoryPushed) {
+      pdHistoryPushed = false;
+      history.back();
+    }
+  }
+
+  window.addEventListener('popstate', function(){
+    var overlay = document.getElementById('pd-overlay');
+    if (overlay && overlay.classList.contains('open')) {
+      overlay.classList.remove('open');
+      document.getElementById('pd-video-iframe').src = '';
+      document.getElementById('pd-video-player').style.display = 'none';
+    }
+    pdHistoryPushed = false;
+  });
 
   function openProductDetail(productId) {
     var p = products.find(function(x){ return x.id===productId; });
     if (!p) return;
+    var pdWasAlreadyOpen = document.getElementById('pd-overlay').classList.contains('open');
     pdCurrentProduct = p;
     pdCurrentVariantIdx = null;
     pdQty = 1;
@@ -1515,6 +1540,10 @@
     renderRelated(p);
     document.getElementById('pd-overlay').classList.add('open');
     document.getElementById('pd-modal').scrollTop = 0;
+    if (!pdWasAlreadyOpen) {
+      history.pushState({ pdOverlay: true }, '');
+      pdHistoryPushed = true;
+    }
   }
 
   function pdSlide(dir) {
@@ -1791,9 +1820,7 @@
     renderOrderItemsSummary();
     // Close modal and scroll to form
     setTimeout(function(){
-      document.getElementById('pd-overlay').classList.remove('open');
-      document.getElementById('pd-video-iframe').src = '';
-      document.getElementById('pd-video-player').style.display = 'none';
+      closePdOverlay();
       document.getElementById('order').scrollIntoView({behavior:'smooth'});
       // Focus first empty field
       var nameField = document.getElementById('order-name');
@@ -1968,7 +1995,7 @@
   function openAddMoreItemsModal() {
     closeCart();
     var pdOverlay = document.getElementById('pd-overlay');
-    if (pdOverlay) pdOverlay.classList.remove('open');
+    if (pdOverlay && pdOverlay.classList.contains('open')) closePdOverlay();
     document.getElementById('products').scrollIntoView({behavior:'smooth'});
     var navSearch = document.getElementById('nav-search-input');
     setTimeout(function(){ if (navSearch) navSearch.focus(); }, 500);
@@ -2197,9 +2224,7 @@
 
   function closePdModal(e) {
     if (e.target===document.getElementById('pd-overlay')) {
-      document.getElementById('pd-overlay').classList.remove('open');
-      document.getElementById('pd-video-iframe').src = '';
-      document.getElementById('pd-video-player').style.display = 'none';
+      closePdOverlay();
     }
   }
 
