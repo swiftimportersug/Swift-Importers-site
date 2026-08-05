@@ -195,47 +195,37 @@
     .storefront-loading{text-align:center;padding:40px;color:var(--grey);font-size:0.9rem;grid-column:1/-1;}
     .storefront-empty{text-align:center;padding:40px;color:var(--grey);font-size:0.9rem;grid-column:1/-1;}
 
-    /* PRODUCT DETAIL MODAL */
-    /* ── PRODUCT DETAIL MODAL ── */
+    /* PRODUCT DETAIL — FULL PAGE (not a popup) */
+    /* ── PRODUCT DETAIL FULL PAGE ── */
 
-    /* MOBILE — slides up from bottom, rounded top corners only */
-    .pd-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:300;align-items:flex-end;justify-content:center;}
-    .pd-overlay.open{display:flex;}
-    .pd-modal{background:var(--white);width:100%;max-width:100%;max-height:92vh;border-radius:20px 20px 0 0;overflow-y:auto;animation:slideUpModal 0.35s cubic-bezier(0.34,1.1,0.64,1);}
+    .pd-overlay{display:none;position:fixed;inset:0;background:var(--white);z-index:300;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+    .pd-overlay.open{display:block;}
+    .pd-modal{background:var(--white);width:100%;min-height:100%;animation:pdPageFadeIn 0.22s ease;}
     .pd-modal-left { width:100%; }
     .pd-content { display:flex; flex-direction:column; }
 
-    /* TABLET (600px–1023px) — centered popup, all corners rounded */
-    @media(min-width:600px){
-      .pd-overlay{align-items:center;justify-content:center;}
-      .pd-modal{border-radius:20px;max-height:88vh;width:94%;max-width:700px;overflow-y:auto;}
-      .pd-modal-left .pd-close-bar { border-radius:20px 20px 0 0; }
-    }
-
-    /* DESKTOP (1024px+) — two-column, large, fully rounded */
     @media(min-width:1024px){
-      .pd-overlay{align-items:center;justify-content:center;}
       .pd-modal{
-        border-radius:24px !important;
-        max-height:88vh;
-        width:94vw;
-        max-width:1180px;
         display:grid;
         grid-template-columns:1.35fr 1fr;
-        overflow:hidden;
+        width:100%;
+        max-width:1400px;
+        margin:0 auto;
+        min-height:100%;
+        align-items:start;
       }
       .pd-modal-left{
         background:var(--black);
-        border-radius:24px 0 0 24px;
         display:flex;
         flex-direction:column;
-        position:relative;
+        position:sticky;
+        top:0;
         overflow:hidden;
+        min-height:100vh;
       }
       .pd-modal-left .pd-close-bar{
         background:rgba(0,0,0,0.6);
         border-bottom:1px solid rgba(255,255,255,0.1);
-        border-radius:24px 0 0 0;
       }
       .pd-modal-left .pd-close-bar span { color:#fff; }
       .pd-modal-left .pd-close-btn { background:rgba(255,255,255,0.15); color:#fff; }
@@ -243,12 +233,8 @@
         flex:1;
         height:auto !important;
         min-height:580px;
-        border-radius:0 !important;
       }
       .pd-content{
-        overflow-y:auto;
-        max-height:88vh;
-        border-radius:0 24px 24px 0;
         display:flex;
         flex-direction:column;
       }
@@ -257,10 +243,10 @@
       .pd-name{ font-size:1.4rem !important; }
       .pd-price{ font-size:1.6rem !important; }
     }
-    @keyframes slideUpModal{from{transform:translateY(60px);opacity:0;}to{transform:translateY(0);opacity:1;}}
-    .pd-close-bar{position:sticky;top:0;z-index:10;background:var(--white);display:flex;align-items:center;justify-content:space-between;padding:12px 16px 8px;border-bottom:1px solid var(--border);border-radius:20px 20px 0 0;}
+    @keyframes pdPageFadeIn{from{opacity:0;}to{opacity:1;}}
+    .pd-close-bar{position:sticky;top:0;z-index:10;background:var(--white);display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);}
     .pd-close-bar span{font-size:0.65rem;font-weight:600;color:var(--grey);text-transform:uppercase;letter-spacing:0.08em;}
-    .pd-close-btn{background:var(--light);border:none;width:30px;height:30px;border-radius:50%;font-size:0.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+    .pd-close-btn{background:var(--light);border:none;padding:0 14px 0 10px;height:34px;border-radius:20px;font-size:0.8rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;color:var(--black);}
     .pd-gallery{width:100%;height:390px;background:var(--light);position:relative;overflow:hidden;touch-action:pan-y;}
     .pd-gallery-track{display:flex;height:100%;transition:transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94);will-change:transform;}
     .pd-gallery-slide{min-width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:5rem;flex-shrink:0;overflow:hidden;padding:14px;box-sizing:border-box;}
@@ -578,7 +564,8 @@
     .hto-footer-btn.visible{opacity:1;transform:translateY(0);}
 
     /* CART MODAL */
-    .cart-items{display:flex;flex-direction:column;gap:12px;margin-bottom:20px;}
+    .cart-items{display:flex;flex-direction:column;gap:12px;margin-bottom:20px;max-height:45vh;overflow-y:auto;padding-right:4px;}
+    #cart-modal .modal{max-height:88vh;overflow-y:auto;display:flex;flex-direction:column;}
     .cart-item{display:flex;align-items:center;gap:12px;padding:12px;background:var(--light);border-radius:8px;}
     .cart-item .ci-icon{font-size:1.8rem;width:44px;height:44px;border-radius:8px;background:#fff;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;}
     .cart-item .ci-info{flex:1;}
@@ -1037,7 +1024,7 @@
     <div class="pd-modal-left" id="pd-modal-left">
       <div class="pd-close-bar">
         <span id="pd-breadcrumb">Product Details</span>
-        <button class="pd-close-btn" onclick="closePdOverlay();">✕</button>
+        <button class="pd-close-btn" onclick="closePdOverlay();"><span style="font-size:1.1rem;line-height:1;">&#8249;</span> Back</button>
       </div>
       <div class="pd-gallery" id="pd-gallery">
         <div class="pd-gallery-track" id="pd-gallery-track"></div>
@@ -2254,18 +2241,24 @@
     syncCartFabVisibility();
   }
 
-  // Single source of truth for the floating cart button's visibility: show it whenever
-  // there are items in the cart AND the cart popup itself isn't already open (to avoid a
-  // redundant "open cart" button floating over the cart that's already open). Called from
-  // every path that can change either of those — including the browser Back button — so it
-  // can never get stuck in the wrong state.
+  // The floating cart button shows whenever the cart has items, except while the cart
+  // popup itself is already open (no point floating a button over its own content).
+  // Backed by a MutationObserver below so this self-corrects no matter which code path
+  // opens/closes the cart modal — it can't get stuck in the wrong state.
   function syncCartFabVisibility() {
     var fab = document.getElementById('floating-cart-fab');
-    if (!fab) return;
     var cartModal = document.getElementById('cart-modal');
+    if (!fab) return;
     var modalOpen = !!(cartModal && cartModal.classList.contains('open'));
     fab.classList.toggle('show', cart.length > 0 && !modalOpen);
   }
+
+  (function(){
+    var cartModalEl = document.getElementById('cart-modal');
+    if (cartModalEl && window.MutationObserver) {
+      new MutationObserver(syncCartFabVisibility).observe(cartModalEl, { attributes: true, attributeFilter: ['class'] });
+    }
+  })();
 
   function showAddToCartToast() {
     var toast = document.getElementById('add-to-cart-toast');
