@@ -361,13 +361,17 @@
       .wa-support-fab.shift-up{ bottom:74px; }
     }
     .floating-cart-fab{
-      position:fixed; top:90px; right:18px; z-index:99;
+      position:fixed; top:90px; right:18px; z-index:600;
       display:none; align-items:center; gap:8px;
       background:linear-gradient(160deg,var(--gold-light),var(--gold)); color:var(--black);
-      border:none; border-radius:30px; padding:11px 18px 11px 12px; cursor:pointer;
+      border:2px solid #fff; border-radius:30px; padding:11px 18px 11px 12px; cursor:pointer;
       box-shadow:0 8px 22px rgba(199,162,72,0.45);
       font-family:'Inter',sans-serif; font-weight:800; font-size:0.85rem;
-      animation:cartFabBounce 2.6s ease-in-out infinite;
+      animation:cartFabBounce 2.6s ease-in-out infinite, cartFabBorderPulse 1.7s ease-in-out infinite;
+    }
+    @keyframes cartFabBorderPulse{
+      0%,100%{ box-shadow:0 8px 22px rgba(199,162,72,0.45), 0 0 0 0 rgba(255,255,255,0.65); }
+      50%{ box-shadow:0 8px 22px rgba(199,162,72,0.45), 0 0 0 6px rgba(255,255,255,0); }
     }
     .floating-cart-fab.show{ display:flex; }
     .floating-cart-fab .cart-fab-icon{ font-size:1.15rem; line-height:1; }
@@ -409,6 +413,27 @@
     }
     @media(max-width:600px){
       .add-to-cart-toast{ font-size:0.78rem; padding:11px 18px; top:16px; }
+    }
+    .order-form-arrow{
+      position:fixed; left:50%; bottom:34px; z-index:601;
+      transform:translateX(-50%) translateY(0);
+      width:56px; height:56px; border-radius:50%;
+      background:linear-gradient(160deg,#3fbf60,#2a9d50);
+      display:none; align-items:center; justify-content:center;
+      box-shadow:0 8px 24px rgba(42,157,80,0.5);
+      opacity:0; pointer-events:none;
+      transition:opacity 0.3s;
+      animation:orderArrowBounce 1.1s ease-in-out infinite;
+    }
+    .order-form-arrow.show{ display:flex; opacity:1; }
+    .order-form-arrow svg{ width:28px; height:28px; }
+    @keyframes orderArrowBounce{
+      0%,100%{ transform:translateX(-50%) translateY(0); }
+      50%{ transform:translateX(-50%) translateY(12px); }
+    }
+    @media(max-width:600px){
+      .order-form-arrow{ width:48px; height:48px; bottom:22px; }
+      .order-form-arrow svg{ width:24px; height:24px; }
     }
     .wa-popup{
       position:fixed; bottom:82px; right:26px; z-index:499;
@@ -961,6 +986,11 @@
 <!-- ADDED TO CART CONFIRMATION TOAST -->
 <div class="add-to-cart-toast" id="add-to-cart-toast"><span class="atc-check">✅</span><span>Added To Cart!</span></div>
 
+<!-- FLOATING "SCROLL DOWN TO ORDER FORM" ARROW (shown briefly after Proceed to Order) -->
+<div class="order-form-arrow" id="order-form-arrow">
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 9L12 17L20 9" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+</div>
+
 <!-- FLOATING WHATSAPP SUPPORT BUTTON (always visible) -->
 <button class="wa-support-fab" id="wa-support-fab" onclick="toggleWaPopup()" type="button">
   <span class="wa-fab-icon">
@@ -1172,7 +1202,7 @@
       <div class="hto-option" id="del-opt-2"><div class="hto-num">&#127960;&#65039;</div><div class="hto-content"><div class="hto-title">Kampala &amp; Suburbs Coverage</div><p>We deliver across <strong>Kampala and its major suburbs</strong>, including Munyonyo, Buziga, Bweyogerere, Ntinda, Ggaba, Makindye, Makerere, and many more.</p></div></div>
       <div class="hto-option" id="del-opt-3"><div class="hto-num">&#128172;</div><div class="hto-content"><div class="hto-title">Add Detailed Directions</div><p>Include clear landmark-based directions in your order notes. For example: "Behind Shell Kireka, second gray gate on the left" or "Makerere, Ham Towers near the main gate."</p></div></div>
       <div class="hto-option" id="del-opt-4"><div class="hto-num">&#9201;&#65039;</div><div class="hto-content"><div class="hto-title">Delivery Times</div><p>Same-day delivery for orders placed before <strong>6:00 PM</strong> within Kampala. You can expect your items within <strong>20-40 minutes</strong> after order confirmation for most Kampala suburbs. For Jinja - same day via taxi. For Lira City - bus parcel, next morning pickup. Fees UGX 5,000-20,000.</p></div></div>
-      <div class="hto-footer-btn" id="del-footer-btn"><a href="#order" onclick="closeOverlayEl(document.getElementById('delivery-info-modal'));setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'})},200)" class="btn-primary" style="display:block;text-align:center;margin-top:8px;text-decoration:none;">Place Your Order Now</a></div>
+      <div class="hto-footer-btn" id="del-footer-btn"><a href="#order" onclick="closeOverlayEl(document.getElementById('delivery-info-modal'));setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();},200)" class="btn-primary" style="display:block;text-align:center;margin-top:8px;text-decoration:none;">Place Your Order Now</a></div>
     </div>
   </div>
 </div>
@@ -1187,7 +1217,7 @@
     <div class="cart-total" id="cart-total-row" style="display:none;">
       <span>Total</span><span id="cart-total-val"></span>
     </div>
-    <button class="submit-btn" onclick="closeCart();renderOrderItemsSummary();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});}, 50);">Proceed to Order</button>
+    <button class="submit-btn" onclick="closeCart();renderOrderItemsSummary();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();}, 50);">Proceed to Order</button>
   </div>
 </div>
 
@@ -2230,6 +2260,34 @@
     showAddToCartToast._timer = setTimeout(function(){ toast.classList.remove('show'); }, 4000);
   }
 
+  function showOrderFormArrow() {
+    var arrow = document.getElementById('order-form-arrow');
+    if (!arrow) return;
+    arrow.classList.add('show');
+    clearTimeout(showOrderFormArrow._timer);
+    showOrderFormArrow._timer = setTimeout(hideOrderFormArrow, 6000);
+  }
+
+  function hideOrderFormArrow() {
+    var arrow = document.getElementById('order-form-arrow');
+    if (arrow) arrow.classList.remove('show');
+    clearTimeout(showOrderFormArrow._timer);
+  }
+
+  // Dismiss the arrow as soon as the person actually reaches/starts using the form,
+  // rather than making them wait out the timeout.
+  ['order-name','order-phone'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('focus', hideOrderFormArrow);
+  });
+  document.addEventListener('scroll', function(){
+    var formEl = document.querySelector('.order-form');
+    var arrow = document.getElementById('order-form-arrow');
+    if (!formEl || !arrow || !arrow.classList.contains('show')) return;
+    var rect = formEl.getBoundingClientRect();
+    if (rect.top < window.innerHeight * 0.5) hideOrderFormArrow();
+  }, { passive: true });
+
   function openCart() {
     var list = document.getElementById('cart-items-list');
     list.innerHTML = '';
@@ -2257,6 +2315,8 @@
       document.getElementById('cart-subtitle').textContent=cart.reduce(function(s,c){return s+c.qty;},0)+' item(s) in your cart.';
     }
     openOverlayEl(document.getElementById('cart-modal'));
+    var fab = document.getElementById('floating-cart-fab');
+    if (fab) fab.style.display = 'none';
   }
 
   function removeFromCart(cartKey) {
@@ -2264,7 +2324,12 @@
     updateCartCount(); openCart();
   }
 
-  function closeCart(){ closeOverlayEl(document.getElementById('cart-modal')); }
+  function closeCart(){
+    closeOverlayEl(document.getElementById('cart-modal'));
+    var fab = document.getElementById('floating-cart-fab');
+    if (fab) fab.style.display = ''; // clear the inline hide so the .show class rule applies again
+    updateCartCount();
+  }
 
   // ADD MORE ITEMS AT CHECKOUT — takes the customer to the full catalog (with pictures + search)
   // instead of a compact list, then offers an easy way back to finish checking out.
