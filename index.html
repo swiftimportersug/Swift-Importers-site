@@ -360,6 +360,56 @@
       .wa-support-fab .wa-fab-title{ font-size:0.68rem; }
       .wa-support-fab.shift-up{ bottom:74px; }
     }
+    .floating-cart-fab{
+      position:fixed; top:90px; right:18px; z-index:99;
+      display:none; align-items:center; gap:8px;
+      background:linear-gradient(160deg,var(--gold-light),var(--gold)); color:var(--black);
+      border:none; border-radius:30px; padding:11px 18px 11px 12px; cursor:pointer;
+      box-shadow:0 8px 22px rgba(199,162,72,0.45);
+      font-family:'Inter',sans-serif; font-weight:800; font-size:0.85rem;
+      animation:cartFabBounce 2.6s ease-in-out infinite;
+    }
+    .floating-cart-fab.show{ display:flex; }
+    .floating-cart-fab .cart-fab-icon{ font-size:1.15rem; line-height:1; }
+    .floating-cart-fab .cart-fab-badge{
+      background:var(--black); color:var(--gold-light); font-size:0.68rem; font-weight:800;
+      min-width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+      padding:0 5px;
+    }
+    @keyframes cartFabBounce{
+      0%,100%{ transform:translateY(0); }
+      50%{ transform:translateY(-4px); }
+    }
+    @media(max-width:600px){
+      .floating-cart-fab{ top:104px; right:12px; padding:9px 14px 9px 10px; font-size:0.78rem; }
+      .floating-cart-fab .cart-fab-icon{ font-size:1rem; }
+    }
+    .add-to-cart-toast{
+      position:fixed; top:24px; left:50%; transform:translateX(-50%) translateY(-16px);
+      background:#2a9d50; color:#fff; font-weight:800; font-size:0.86rem;
+      padding:13px 24px; border-radius:30px; z-index:700;
+      box-shadow:0 10px 26px rgba(42,157,80,0.4);
+      opacity:0; pointer-events:none; display:flex; align-items:center; gap:8px;
+      transition:opacity 0.25s, transform 0.25s;
+    }
+    .add-to-cart-toast.show{
+      opacity:1; transform:translateX(-50%) translateY(0);
+      animation:addToCartPop 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    .add-to-cart-toast .atc-check{ font-size:1rem; animation:atcCheckPop 0.4s ease 0.05s both; }
+    @keyframes addToCartPop{
+      0%{ transform:translateX(-50%) translateY(-16px) scale(0.9); opacity:0; }
+      60%{ transform:translateX(-50%) translateY(2px) scale(1.03); opacity:1; }
+      100%{ transform:translateX(-50%) translateY(0) scale(1); }
+    }
+    @keyframes atcCheckPop{
+      0%{ transform:scale(0); }
+      70%{ transform:scale(1.3); }
+      100%{ transform:scale(1); }
+    }
+    @media(max-width:600px){
+      .add-to-cart-toast{ font-size:0.78rem; padding:11px 18px; top:16px; }
+    }
     .wa-popup{
       position:fixed; bottom:82px; right:26px; z-index:499;
       width:270px; max-width:calc(100vw - 32px);
@@ -901,6 +951,16 @@
   🛒 Back to Checkout
 </button>
 
+<!-- FLOATING CART BUTTON (appears once cart has items, stays until order is submitted) -->
+<button class="floating-cart-fab" id="floating-cart-fab" onclick="openCart()" type="button">
+  <span class="cart-fab-icon">🛒</span>
+  <span>Cart</span>
+  <span class="cart-fab-badge" id="floating-cart-fab-count">0</span>
+</button>
+
+<!-- ADDED TO CART CONFIRMATION TOAST -->
+<div class="add-to-cart-toast" id="add-to-cart-toast"><span class="atc-check">✅</span><span>Added To Cart!</span></div>
+
 <!-- FLOATING WHATSAPP SUPPORT BUTTON (always visible) -->
 <button class="wa-support-fab" id="wa-support-fab" onclick="toggleWaPopup()" type="button">
   <span class="wa-fab-icon">
@@ -1127,7 +1187,7 @@
     <div class="cart-total" id="cart-total-row" style="display:none;">
       <span>Total</span><span id="cart-total-val"></span>
     </div>
-    <button class="submit-btn" onclick="closeCart();renderOrderItemsSummary();document.getElementById('order').scrollIntoView({behavior:'smooth'})">Proceed to Order</button>
+    <button class="submit-btn" onclick="closeCart();renderOrderItemsSummary();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});}, 50);">Proceed to Order</button>
   </div>
 </div>
 
@@ -1357,6 +1417,12 @@
   // closes just the topmost open overlay and returns to the page underneath — it should never
   // navigate away from the storefront. New modals added in the future should follow this same
   // openOverlayEl()/closeOverlayEl() pattern so they get this behavior automatically.
+  // Browser scroll restoration replays the scroll position tied to a history entry when
+  // navigating back/forward. Since we use pushState/back() to manage overlays, that default
+  // behavior was racing against our own scrollIntoView() calls (e.g. "Proceed to Order")
+  // and silently snapping the page back — making the button look like it did nothing.
+  if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }
+
   var overlayStack = [];
 
   function openOverlayEl(el) {
@@ -1988,6 +2054,7 @@
     }
     updateCartCount();
     renderOrderItemsSummary();
+    showAddToCartToast();
     var btn = document.getElementById('pd-btn-cart');
     btn.textContent = 'Added to Cart!'; btn.style.background='#2a9d50';
     setTimeout(function(){ btn.textContent='Add to Cart'; btn.style.background=''; },1400);
@@ -2145,7 +2212,22 @@
 
   // CART
   function updateCartCount() {
-    document.getElementById('cart-count').textContent = cart.reduce(function(s,c){ return s+c.qty; },0);
+    var totalQty = cart.reduce(function(s,c){ return s+c.qty; },0);
+    document.getElementById('cart-count').textContent = totalQty;
+    var fab = document.getElementById('floating-cart-fab');
+    var fabCount = document.getElementById('floating-cart-fab-count');
+    if (fab) fab.classList.toggle('show', cart.length > 0);
+    if (fabCount) fabCount.textContent = totalQty;
+  }
+
+  function showAddToCartToast() {
+    var toast = document.getElementById('add-to-cart-toast');
+    if (!toast) return;
+    clearTimeout(showAddToCartToast._timer);
+    toast.classList.remove('show');
+    void toast.offsetWidth;
+    toast.classList.add('show');
+    showAddToCartToast._timer = setTimeout(function(){ toast.classList.remove('show'); }, 4000);
   }
 
   function openCart() {
