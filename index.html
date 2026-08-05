@@ -239,13 +239,12 @@
          layout, so instead the actions sit as a proper card, sticky to the bottom of the
          details column only (never stretching across the photo column too). */
       .pd-actions{
-        position:sticky !important;
-        left:auto !important; right:auto !important; bottom:0 !important;
-        margin:0 24px 20px !important;
-        padding:16px 18px !important;
-        border:1px solid var(--border) !important;
-        border-radius:14px !important;
-        box-shadow:0 12px 28px rgba(0,0,0,0.12) !important;
+        position:static !important;
+        margin:4px 0 20px !important;
+        padding:0 !important;
+        border:none !important;
+        border-radius:0 !important;
+        box-shadow:none !important;
         gap:10px !important;
       }
       .pd-actions-spacer{ display:none; }
@@ -1101,6 +1100,14 @@
           <div style="color:var(--gold);font-size:0.82rem;margin-bottom:16px;">&#9733;&#9733;&#9733;&#9733;&#9733; <span style="color:var(--grey);font-size:0.72rem;">Verified product</span></div>
         </div>
 
+        <div class="pd-actions">
+          <button class="pd-btn-cart" id="pd-btn-cart" onclick="pdAddToCart()">Add to Cart</button>
+          <button class="pd-btn-buy" id="pd-btn-buy" onclick="pdBuyNow()">Buy Now</button>
+          <button class="pd-btn-wa" id="pd-btn-wa">
+            <svg viewBox="0 0 32 32" fill="#fff" xmlns="http://www.w3.org/2000/svg" style="width:19px;height:19px;"><path d="M16.004 3C9.376 3 3.997 8.373 3.997 14.994c0 2.61.85 5.027 2.29 6.99L4.99 28.99l7.203-2.242c1.858.99 3.98 1.552 6.239 1.552h.005c6.628 0 12.007-5.373 12.007-11.994C30.444 8.685 25.065 3.312 16.436 3.002L16.004 3zm5.68 17.08c-.288.812-1.44 1.53-1.98 1.615-.507.08-1.146.114-1.85-.116-.427-.14-.977-.325-1.68-.637-2.958-1.276-4.888-4.24-5.036-4.437-.147-.198-1.207-1.606-1.207-3.064 0-1.458.766-2.174 1.037-2.472.27-.297.59-.372.786-.372.196 0 .393.002.564.01.181.008.424-.069.663.505.245.588.833 2.03.906 2.177.074.148.123.32.025.518-.099.198-.148.32-.294.494-.147.173-.31.386-.443.519-.147.148-.301.309-.13.605.172.297.766 1.264 1.645 2.048 1.13 1.007 2.083 1.32 2.38 1.468.297.148.47.124.643-.074.172-.198.74-.864.938-1.161.198-.297.396-.247.668-.148.271.099 1.723.812 2.019.96.297.148.494.222.567.346.074.124.074.72-.213 1.531z"/></svg>
+          </button>
+        </div>
+
         <!-- PRODUCT VIDEO -->
         <div id="pd-video-section" style="display:none; margin-top:10px; margin-bottom:4px;">
           <div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--grey);margin-bottom:5px;">&#127916; Product Video</div>
@@ -1140,15 +1147,8 @@
           <div class="pd-related-scroll" id="pd-related-scroll"></div>
         </div>
 
-        <!-- Spacer so content isn't hidden behind the fixed action bar -->
+        <!-- Spacer so content isn't hidden behind the fixed action bar (mobile only) -->
         <div class="pd-actions-spacer"></div>
-      </div>
-      <div class="pd-actions">
-        <button class="pd-btn-cart" id="pd-btn-cart" onclick="pdAddToCart()">Add to Cart</button>
-        <button class="pd-btn-buy" id="pd-btn-buy" onclick="pdBuyNow()">Buy Now</button>
-        <button class="pd-btn-wa" id="pd-btn-wa">
-          <svg viewBox="0 0 32 32" fill="#fff" xmlns="http://www.w3.org/2000/svg" style="width:19px;height:19px;"><path d="M16.004 3C9.376 3 3.997 8.373 3.997 14.994c0 2.61.85 5.027 2.29 6.99L4.99 28.99l7.203-2.242c1.858.99 3.98 1.552 6.239 1.552h.005c6.628 0 12.007-5.373 12.007-11.994C30.444 8.685 25.065 3.312 16.436 3.002L16.004 3zm5.68 17.08c-.288.812-1.44 1.53-1.98 1.615-.507.08-1.146.114-1.85-.116-.427-.14-.977-.325-1.68-.637-2.958-1.276-4.888-4.24-5.036-4.437-.147-.198-1.207-1.606-1.207-3.064 0-1.458.766-2.174 1.037-2.472.27-.297.59-.372.786-.372.196 0 .393.002.564.01.181.008.424-.069.663.505.245.588.833 2.03.906 2.177.074.148.123.32.025.518-.099.198-.148.32-.294.494-.147.173-.31.386-.443.519-.147.148-.301.309-.13.605.172.297.766 1.264 1.645 2.048 1.13 1.007 2.083 1.32 2.38 1.468.297.148.47.124.643-.074.172-.198.74-.864.938-1.161.198-.297.396-.247.668-.148.271.099 1.723.812 2.019.96.297.148.494.222.567.346.074.124.074.72-.213 1.531z"/></svg>
-        </button>
       </div>
     </div>
 
@@ -1505,6 +1505,11 @@
     if (!el) return;
     if (!el.classList.contains('open')) return;
     if (!el._overlayClose) { el.classList.remove('open'); return; } // not tracked — just close visually
+    // Close right away so callers can immediately do follow-up work (like scrolling to the
+    // order form) without waiting on the async history round-trip. The popstate handler
+    // below still fires afterward to keep the browser history stack in sync — calling a
+    // close function twice is harmless, since it's just idempotent class/state cleanup.
+    el._overlayClose();
     history.back();
   }
 
