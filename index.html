@@ -580,7 +580,7 @@
     /* CART MODAL */
     .cart-items{display:flex;flex-direction:column;gap:12px;margin-bottom:20px;}
     .cart-item{display:flex;align-items:center;gap:12px;padding:12px;background:var(--light);border-radius:8px;}
-    .cart-item .ci-icon{font-size:1.8rem;}
+    .cart-item .ci-icon{font-size:1.8rem;width:44px;height:44px;border-radius:8px;background:#fff;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;}
     .cart-item .ci-info{flex:1;}
     .cart-item .ci-name{font-weight:600;font-size:0.88rem;}
     .cart-item .ci-price{font-size:0.8rem;color:var(--grey);}
@@ -1481,6 +1481,7 @@
   window.addEventListener('popstate', function(){
     var closeFn = overlayStack.pop();
     if (closeFn) closeFn();
+    if (typeof syncCartFabVisibility === 'function') syncCartFabVisibility();
   });
 
   // ── GENERIC APP DIALOG (replaces native alert()/confirm(), which show the
@@ -2080,7 +2081,8 @@
       if (existing.qty+pdQty>available){ showAppAlert('Only '+available+' pieces available.'); return false; }
       existing.qty += pdQty;
     } else {
-      cart.push({ cartKey:cartKey, id:p.id, name:p.name+(hasVariants?' - '+v.name+(v.color?' ('+v.color+')':''):''), price:effectivePrice(v), cost:0, icon:catIcons[p.category]||'', qty:pdQty, variantIdx:pdCurrentVariantIdx, maxStock:available });
+      var cartImg = v.variantImage || p.image || (p.images && p.images[0]) || '';
+      cart.push({ cartKey:cartKey, id:p.id, name:p.name+(hasVariants?' - '+v.name+(v.color?' ('+v.color+')':''):''), price:effectivePrice(v), cost:0, icon:catIcons[p.category]||'', img:cartImg, qty:pdQty, variantIdx:pdCurrentVariantIdx, maxStock:available });
     }
     updateCartCount();
     renderOrderItemsSummary();
@@ -2155,9 +2157,12 @@
 
     if (itemsList) {
       itemsList.innerHTML = cart.map(function(c){
+        var thumb = c.img
+          ? '<img src="'+c.img+'" alt="" style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid #a5d6a7;flex-shrink:0;" onerror="this.style.display=\'none\'"/>'
+          : '<span style="width:36px;height:36px;border-radius:6px;background:#e3f2e3;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">'+(c.icon||'📦')+'</span>';
         return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #d5ecc7;font-size:0.83rem;color:#1b5e20;">' +
-          '<span style="font-weight:600;">' + c.name + ' &times;' + c.qty + '</span>' +
-          '<span style="display:flex;align-items:center;gap:8px;"><span style="font-weight:700;">' + fmtPrice(c.price * c.qty) + '</span>' +
+          '<span style="display:flex;align-items:center;gap:8px;min-width:0;">' + thumb + '<span style="font-weight:600;overflow:hidden;text-overflow:ellipsis;">' + c.name + ' &times;' + c.qty + '</span></span>' +
+          '<span style="display:flex;align-items:center;gap:8px;flex-shrink:0;"><span style="font-weight:700;">' + fmtPrice(c.price * c.qty) + '</span>' +
           '<button onclick="removeItemFromCheckout(\'' + c.cartKey + '\')" style="background:none;border:none;color:#c0392b;cursor:pointer;font-size:0.85rem;padding:0 2px;" title="Remove">&times;</button></span>' +
           '</div>';
       }).join('');
@@ -2244,10 +2249,22 @@
   function updateCartCount() {
     var totalQty = cart.reduce(function(s,c){ return s+c.qty; },0);
     document.getElementById('cart-count').textContent = totalQty;
-    var fab = document.getElementById('floating-cart-fab');
     var fabCount = document.getElementById('floating-cart-fab-count');
-    if (fab) fab.classList.toggle('show', cart.length > 0);
     if (fabCount) fabCount.textContent = totalQty;
+    syncCartFabVisibility();
+  }
+
+  // Single source of truth for the floating cart button's visibility: show it whenever
+  // there are items in the cart AND the cart popup itself isn't already open (to avoid a
+  // redundant "open cart" button floating over the cart that's already open). Called from
+  // every path that can change either of those — including the browser Back button — so it
+  // can never get stuck in the wrong state.
+  function syncCartFabVisibility() {
+    var fab = document.getElementById('floating-cart-fab');
+    if (!fab) return;
+    var cartModal = document.getElementById('cart-modal');
+    var modalOpen = !!(cartModal && cartModal.classList.contains('open'));
+    fab.classList.toggle('show', cart.length > 0 && !modalOpen);
   }
 
   function showAddToCartToast() {
@@ -2300,7 +2317,7 @@
         var div = document.createElement('div');
         div.className='cart-item';
         div.setAttribute('data-key', item.cartKey);
-        div.innerHTML='<div class="ci-icon">'+item.icon+'</div><div class="ci-info"><div class="ci-name">'+item.name+'</div><div class="ci-price">'+fmtPrice(item.price)+' x '+item.qty+'</div></div>';
+        div.innerHTML='<div class="ci-icon">'+(item.img?('<img src="'+item.img+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" onerror="this.parentElement.textContent=\''+(item.icon||'📦')+'\';"/>'):(item.icon||'📦'))+'</div><div class="ci-info"><div class="ci-name">'+item.name+'</div><div class="ci-price">'+fmtPrice(item.price)+' x '+item.qty+'</div></div>';
         var removeBtn = document.createElement('button');
         removeBtn.className = 'ci-remove';
         removeBtn.textContent = 'X';
@@ -2315,8 +2332,7 @@
       document.getElementById('cart-subtitle').textContent=cart.reduce(function(s,c){return s+c.qty;},0)+' item(s) in your cart.';
     }
     openOverlayEl(document.getElementById('cart-modal'));
-    var fab = document.getElementById('floating-cart-fab');
-    if (fab) fab.style.display = 'none';
+    syncCartFabVisibility();
   }
 
   function removeFromCart(cartKey) {
@@ -2326,9 +2342,7 @@
 
   function closeCart(){
     closeOverlayEl(document.getElementById('cart-modal'));
-    var fab = document.getElementById('floating-cart-fab');
-    if (fab) fab.style.display = ''; // clear the inline hide so the .show class rule applies again
-    updateCartCount();
+    syncCartFabVisibility();
   }
 
   // ADD MORE ITEMS AT CHECKOUT — takes the customer to the full catalog (with pictures + search)
