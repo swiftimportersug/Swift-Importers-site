@@ -79,7 +79,7 @@
     .hero{background:
         radial-gradient(ellipse 640px 420px at 82% 18%,rgba(199,162,72,0.14),transparent 60%),
         var(--black);
-      padding:72px 5vw 80px;display:grid;grid-template-columns:1.1fr 1fr;gap:48px;align-items:center;min-height:480px;position:relative;}
+      padding:56px 5vw 60px;display:grid;grid-template-columns:1.1fr 1fr;gap:48px;align-items:center;min-height:400px;position:relative;}
     .hero-eyebrow{font-size:0.72rem;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:var(--gold-light);margin-bottom:18px;display:flex;align-items:center;gap:10px;}
     .hero-eyebrow::before{content:'';width:26px;height:1px;background:var(--gold);display:inline-block;}
     .hero-headline{font-family:var(--serif);font-optical-sizing:auto;font-size:clamp(2.5rem,5vw,3.9rem);font-weight:600;color:var(--white);line-height:1.08;letter-spacing:-0.01em;margin-bottom:22px;}
@@ -721,7 +721,6 @@
     <p class="hero-sub">Genuine smartphones, laptops, audio gear, and home electronics delivered across Uganda. Pay with Mobile Money or cash on delivery.</p>
     <div class="hero-ctas">
       <a href="#products" class="btn-primary" onclick="event.preventDefault();document.getElementById('products').scrollIntoView({behavior:'smooth',block:'start'})">Shop Now</a>
-      <a href="https://wa.me/256757675088" target="_blank" class="btn-outline">WhatsApp Us</a>
     </div>
   </div>
   <div class="hero-visual">
@@ -1460,26 +1459,29 @@
 
   var overlayStack = [];
 
-  function openOverlayEl(el) {
+  function openOverlayEl(el, extraCleanup) {
     if (!el) return;
     var alreadyOpen = el.classList.contains('open');
     el.classList.add('open');
     if (alreadyOpen) return; // e.g. cart contents refreshing while already open — don't push again
-    var closeFn = function(){ el.classList.remove('open'); };
+    var closeFn = function(){
+      el.classList.remove('open');
+      if (extraCleanup) extraCleanup();
+    };
     el._overlayClose = closeFn;
     history.pushState({ overlayDepth: overlayStack.length + 1 }, '');
     overlayStack.push(closeFn);
   }
 
+  // Manual close (X button, tap outside, etc.) just asks the browser to go back — the
+  // popstate handler below is the ONLY place that actually pops the stack and runs the
+  // close function. This keeps the stack and the browser's history perfectly in sync no
+  // matter how deep the nesting (e.g. cart opened from within the product page), so closing
+  // one overlay can never accidentally also close whatever's underneath it.
   function closeOverlayEl(el) {
     if (!el) return;
-    var closeFn = el._overlayClose;
-    if (!closeFn) { el.classList.remove('open'); return; } // not tracked — just close visually
-    var idx = overlayStack.lastIndexOf(closeFn);
-    if (idx === -1) { el.classList.remove('open'); return; }
-    overlayStack.splice(idx, 1);
-    el._overlayClose = null;
-    el.classList.remove('open');
+    if (!el.classList.contains('open')) return;
+    if (!el._overlayClose) { el.classList.remove('open'); return; } // not tracked — just close visually
     history.back();
   }
 
@@ -1537,8 +1539,6 @@
   var pdSlideIdx = 0;
   var pdImages = [];
   var pdTouchX = 0;
-  var pdHistoryPushed = false;
-
   // The product popup has its own dedicated "Chat about this item" WhatsApp button,
   // so the general floating support button is redundant (and visually cluttered) while it's open.
   function setWaFabVisible(visible) {
@@ -1550,43 +1550,13 @@
     }
   }
 
-  // Closes the product popup and, if we pushed a history entry when opening it,
-  // pops that entry too — so browser Back always closes the popup (never leaves the page)
-  // and a Back press right after manually closing it doesn't land on a stray entry.
   function closePdOverlay() {
-    document.getElementById('pd-overlay').classList.remove('open');
-    document.getElementById('pd-video-iframe').src = '';
-    document.getElementById('pd-video-player').style.display = 'none';
-    setWaFabVisible(true);
-    if (pdHistoryPushed) {
-      pdHistoryPushed = false;
-      history.back();
-    }
+    closeOverlayEl(document.getElementById('pd-overlay'));
   }
-
-  window.addEventListener('popstate', function(){
-    var fsOverlay = document.getElementById('fs-overlay');
-    if (fsOverlay && fsOverlay.classList.contains('open')) {
-      // Fullscreen photo view is the topmost layer — one Back press closes only this,
-      // revealing the product detail popup underneath (still open).
-      fsOverlay.classList.remove('open');
-      fsHistoryPushed = false;
-      return;
-    }
-    var overlay = document.getElementById('pd-overlay');
-    if (overlay && overlay.classList.contains('open')) {
-      overlay.classList.remove('open');
-      document.getElementById('pd-video-iframe').src = '';
-      document.getElementById('pd-video-player').style.display = 'none';
-      setWaFabVisible(true);
-    }
-    pdHistoryPushed = false;
-  });
 
   function openProductDetail(productId) {
     var p = products.find(function(x){ return x.id===productId; });
     if (!p) return;
-    var pdWasAlreadyOpen = document.getElementById('pd-overlay').classList.contains('open');
     setWaFabVisible(false);
     pdCurrentProduct = p;
     pdCurrentVariantIdx = null;
@@ -1765,12 +1735,13 @@
     }
 
     renderRelated(p);
-    document.getElementById('pd-overlay').classList.add('open');
-    document.getElementById('pd-modal').scrollTop = 0;
-    if (!pdWasAlreadyOpen) {
-      history.pushState({ pdOverlay: true }, '');
-      pdHistoryPushed = true;
-    }
+    var pdOverlayEl = document.getElementById('pd-overlay');
+    openOverlayEl(pdOverlayEl, function(){
+      document.getElementById('pd-video-iframe').src = '';
+      document.getElementById('pd-video-player').style.display = 'none';
+      setWaFabVisible(true);
+    });
+    pdOverlayEl.scrollTop = 0;
   }
 
   function pdSlide(dir) {
@@ -1808,7 +1779,6 @@
   var fsImages = [];
   var fsTouchStartX = 0;
   var fsTouchMoved = false;
-  var fsHistoryPushed = false;
 
   function openFullscreen(idx){
     fsImages = pdImages;
@@ -1818,9 +1788,7 @@
     img.src = fsImages[fsIndex];
     img.style.opacity = '1';
     updateFsMeta();
-    document.getElementById('fs-overlay').classList.add('open');
-    history.pushState({ fsOverlay: true }, '');
-    fsHistoryPushed = true;
+    openOverlayEl(document.getElementById('fs-overlay'));
     requestAnimationFrame(function(){
       requestAnimationFrame(function(){ img.style.transition = ''; });
     });
@@ -1837,9 +1805,7 @@
     img.src = url;
     img.style.opacity = '1';
     updateFsMeta();
-    document.getElementById('fs-overlay').classList.add('open');
-    history.pushState({ fsOverlay: true }, '');
-    fsHistoryPushed = true;
+    openOverlayEl(document.getElementById('fs-overlay'));
     requestAnimationFrame(function(){
       requestAnimationFrame(function(){ img.style.transition = ''; });
     });
@@ -1878,11 +1844,7 @@
   }
 
   function closeFullscreen(){
-    document.getElementById('fs-overlay').classList.remove('open');
-    if (fsHistoryPushed) {
-      fsHistoryPushed = false;
-      history.back();
-    }
+    closeOverlayEl(document.getElementById('fs-overlay'));
   }
 
   function fsTouchStart(e){
