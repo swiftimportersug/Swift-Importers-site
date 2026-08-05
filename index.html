@@ -235,6 +235,22 @@
       .pd-body{ flex:1; padding:24px; }
       .pd-name{ font-size:1.4rem !important; }
       .pd-price{ font-size:1.6rem !important; }
+      /* Desktop: the mobile-style full-width fixed bar looks out of place in a two-column
+         layout, so instead the actions sit as a proper card, sticky to the bottom of the
+         details column only (never stretching across the photo column too). */
+      .pd-actions{
+        position:sticky !important;
+        left:auto !important; right:auto !important; bottom:0 !important;
+        margin:0 24px 20px !important;
+        padding:16px 18px !important;
+        border:1px solid var(--border) !important;
+        border-radius:14px !important;
+        box-shadow:0 12px 28px rgba(0,0,0,0.12) !important;
+        gap:10px !important;
+      }
+      .pd-actions-spacer{ display:none; }
+      .pd-btn-cart,.pd-btn-buy{ padding:14px; font-size:0.86rem; }
+      .pd-btn-wa{ padding:14px 16px; }
     }
     @keyframes pdPageFadeIn{from{opacity:0;}to{opacity:1;}}
     .pd-close-bar{position:fixed;top:0;left:0;right:0;z-index:20;background:var(--black);display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);}
@@ -411,7 +427,7 @@
       transition:opacity 0.3s;
       animation:orderArrowBounce 1.1s ease-in-out infinite;
     }
-    .order-form-arrow.show{ display:flex; opacity:1; }
+    .order-form-arrow.show{ display:flex; opacity:1; pointer-events:auto; }
     .order-form-arrow svg{ width:28px; height:28px; }
     @keyframes orderArrowBounce{
       0%,100%{ transform:translateX(-50%) translateY(0); }
@@ -987,7 +1003,7 @@
 <div class="add-to-cart-toast" id="add-to-cart-toast"><span class="atc-check">✅</span><span>Added To Cart!</span></div>
 
 <!-- FLOATING "SCROLL DOWN TO ORDER FORM" ARROW (shown briefly after Proceed to Order) -->
-<div class="order-form-arrow" id="order-form-arrow">
+<div class="order-form-arrow" id="order-form-arrow" onclick="jumpToOrderForm()" role="button" title="Go to the order form" style="cursor:pointer;">
   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 9L12 17L20 9" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </div>
 
@@ -2134,6 +2150,8 @@
     setTimeout(function(){
       closePdOverlay();
       document.getElementById('order').scrollIntoView({behavior:'smooth'});
+      showOrderFormArrow();
+      armOrderFieldValidation();
       // Focus first empty field
       var nameField = document.getElementById('order-name');
       if (nameField && !nameField.value) { setTimeout(function(){ nameField.focus(); }, 600); }
@@ -2300,12 +2318,23 @@
     validateOrderFieldsVisual();
   }
 
+  function isValidUgandaPhone(value) {
+    if (!value) return false;
+    var digits = value.replace(/[^\d+]/g, '');
+    return /^\+256\d{9}$/.test(digits) || /^256\d{9}$/.test(digits) || /^0\d{9}$/.test(digits);
+  }
+
   function validateOrderFieldsVisual() {
     if (!orderValidationArmed) return;
     ORDER_REQUIRED_FIELD_IDS.forEach(function(id){
       var el = document.getElementById(id);
       if (!el) return;
-      var filled = !!(el.value && el.value.trim() !== '');
+      var filled;
+      if (id === 'order-phone') {
+        filled = isValidUgandaPhone(el.value);
+      } else {
+        filled = !!(el.value && el.value.trim() !== '');
+      }
       el.classList.toggle('field-invalid', !filled);
       el.classList.toggle('field-valid', filled);
     });
@@ -2336,6 +2365,14 @@
     var arrow = document.getElementById('order-form-arrow');
     if (arrow) arrow.classList.remove('show');
     clearTimeout(showOrderFormArrow._timer);
+  }
+
+  function jumpToOrderForm() {
+    var formEl = document.querySelector('.order-form');
+    if (formEl) formEl.scrollIntoView({behavior:'smooth', block:'start'});
+    hideOrderFormArrow();
+    var nameField = document.getElementById('order-name');
+    if (nameField && !nameField.value) { setTimeout(function(){ nameField.focus(); }, 500); }
   }
 
   // Dismiss the arrow as soon as the person actually reaches/starts using the form,
@@ -2455,6 +2492,11 @@
     if (!nameVal || !phoneVal || !areaVal || !productsVal || !paymentVal) {
       armOrderFieldValidation();
       showAppAlert('Please fill in all required fields.');
+      return;
+    }
+    if (!isValidUgandaPhone(phoneVal)) {
+      armOrderFieldValidation();
+      showAppAlert('Please enter a valid Ugandan phone number (e.g. 07XX XXX XXX or +256 7XX XXX XXX).');
       return;
     }
     var submitBtn = document.querySelector('.order-form .submit-btn');
