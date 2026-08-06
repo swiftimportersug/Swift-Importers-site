@@ -746,6 +746,34 @@
           <div class="dash-search-results" id="dash-search-results"></div>
         </div>
 
+        <!-- SITE-WIDE PROMO CODES -->
+        <div style="background:#fff; border:1px solid var(--border); border-radius:12px; margin-bottom:24px; overflow:hidden;">
+          <div onclick="togglePromoSection()" style="padding:16px 20px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            <div style="font-size:0.95rem; font-weight:800; display:flex; align-items:center; gap:8px;">🏷️ Site-Wide Promo Codes</div>
+            <span id="promo-section-arrow" style="font-size:0.9rem; color:#888; transition:transform 0.2s;">▸</span>
+          </div>
+          <div id="promo-section-body" style="display:none; padding:0 20px 20px;">
+            <div style="font-size:0.76rem; color:#888; margin-bottom:14px;">These codes work on ANY product storefront-wide, shown in bright badges on the homepage for clients to copy directly.</div>
+            <div id="global-promo-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;"></div>
+            <div style="background:var(--light); border:1.5px dashed #ccc; border-radius:10px; padding:14px;">
+              <div style="font-size:0.76rem; font-weight:800; color:#555; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px;">+ Add a Code</div>
+              <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+                <input type="text" id="gp-code" placeholder="e.g. WELCOME10" style="flex:1; min-width:140px; padding:10px 12px; border:1.5px solid var(--border); border-radius:7px; font-size:0.85rem; font-family:'Inter',sans-serif; text-transform:uppercase; box-sizing:border-box;"/>
+                <input type="number" id="gp-amount" min="0" placeholder="Amount off (UGX)" style="flex:1; min-width:140px; padding:10px 12px; border:1.5px solid var(--border); border-radius:7px; font-size:0.85rem; font-family:'Inter',sans-serif; box-sizing:border-box;"/>
+              </div>
+              <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+                <button type="button" onclick="setGlobalPromoPreset(1,'hours')" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+1 hour</button>
+                <button type="button" onclick="setGlobalPromoPreset(1,'days')" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+1 day</button>
+                <button type="button" onclick="setGlobalPromoPreset(7,'days')" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+7 days</button>
+                <button type="button" onclick="setGlobalPromoPreset(30,'days')" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+30 days</button>
+                <button type="button" onclick="document.getElementById('gp-expires').value=''" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#888;">✕ No timer</button>
+              </div>
+              <input type="datetime-local" id="gp-expires" style="width:100%; padding:9px 11px; border:1.5px solid var(--border); border-radius:7px; font-size:0.82rem; font-family:'Inter',sans-serif; box-sizing:border-box; margin-bottom:10px;"/>
+              <button class="btn-gold" onclick="addGlobalPromoCode()" style="width:100%;">+ Add Code</button>
+            </div>
+          </div>
+        </div>
+
         <!-- EMPLOYEE NAMES -->
         <div style="background:#fff; border:1px solid var(--border); border-radius:12px; margin-bottom:24px; overflow:hidden;">
           <div onclick="toggleStaffSection()" style="padding:16px 20px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:10px;">
@@ -1228,6 +1256,18 @@
             <input type="number" id="f-promo-amount" min="0" placeholder="e.g. 20000" style="width:100%; padding:11px 13px; border:2px solid #a8dcc0; border-radius:8px; font-size:0.88rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box;"/>
           </div>
         </div>
+        <div style="margin-top:12px; padding-top:12px; border-top:1px solid #a8dcc0;">
+          <div style="font-size:0.72rem; font-weight:800; color:#2a7d52; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">⏰ Promo Timer (optional)</div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+            <button type="button" onclick="setProductPromoCountdownPreset(1,'hours')" style="background:#fff; border:1.5px solid #a8dcc0; border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+1 hour</button>
+            <button type="button" onclick="setProductPromoCountdownPreset(6,'hours')" style="background:#fff; border:1.5px solid #a8dcc0; border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+6 hours</button>
+            <button type="button" onclick="setProductPromoCountdownPreset(1,'days')" style="background:#fff; border:1.5px solid #a8dcc0; border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+1 day</button>
+            <button type="button" onclick="setProductPromoCountdownPreset(7,'days')" style="background:#fff; border:1.5px solid #a8dcc0; border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+7 days</button>
+            <button type="button" onclick="clearProductPromoCountdown()" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#888;">✕ No timer</button>
+          </div>
+          <input type="datetime-local" id="f-promo-expires" style="width:100%; padding:9px 11px; border:1.5px solid #a8dcc0; border-radius:7px; font-size:0.82rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box;"/>
+          <div style="font-size:0.66rem; color:#999; margin-top:4px;">Leave blank for a code with no expiry. If set, the storefront shows a live countdown and the code stops working once time runs out.</div>
+        </div>
       </div>
 
     </div>
@@ -1308,6 +1348,20 @@
 
   function clearFreeGiftCountdown() {
     const input = document.getElementById('f-freegift-expires');
+    if (input) input.value = '';
+  }
+
+  function setProductPromoCountdownPreset(amount, unit) {
+    const input = document.getElementById('f-promo-expires');
+    if (!input) return;
+    const now = new Date();
+    if (unit === 'hours') now.setHours(now.getHours() + amount);
+    else if (unit === 'days') now.setDate(now.getDate() + amount);
+    input.value = toDatetimeLocalValue(now);
+  }
+
+  function clearProductPromoCountdown() {
+    const input = document.getElementById('f-promo-expires');
     if (input) input.value = '';
   }
 
@@ -1594,6 +1648,7 @@
       fbListenEmployees();
       fbListenAdjustmentsLog();
       fbListenCategories();
+      fbListenGlobalPromoCodes();
       loadEmployeePin();
       fbLoadThreshold();
       renderAll();
@@ -2052,6 +2107,102 @@
     const isOpen = body.style.display !== 'none';
     body.style.display = isOpen ? 'none' : 'block';
     arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+  }
+
+  function togglePromoSection() {
+    const body = document.getElementById('promo-section-body');
+    const arrow = document.getElementById('promo-section-arrow');
+    const isOpen = body.style.display !== 'none';
+    body.style.display = isOpen ? 'none' : 'block';
+    arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+  }
+
+  // ── SITE-WIDE PROMO CODES (work on any product, shown on the storefront homepage) ──
+  let globalPromoCodes = [];
+  let unsubscribeGlobalPromos = null;
+
+  function fbListenGlobalPromoCodes() {
+    if (!window.fbDb) return;
+    const { collection, onSnapshot } = window.fbFns;
+    if (unsubscribeGlobalPromos) unsubscribeGlobalPromos();
+    unsubscribeGlobalPromos = onSnapshot(collection(window.fbDb, 'promo_codes'), (snapshot) => {
+      globalPromoCodes = snapshot.docs.map(d => ({ fbDocId: d.id, ...d.data() })).sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+      renderGlobalPromoList();
+    }, (err) => console.error('[promo] listen failed:', err));
+  }
+
+  function setGlobalPromoPreset(amount, unit) {
+    const input = document.getElementById('gp-expires');
+    if (!input) return;
+    const now = new Date();
+    if (unit === 'hours') now.setHours(now.getHours() + amount);
+    else if (unit === 'days') now.setDate(now.getDate() + amount);
+    const pad = n => String(n).padStart(2, '0');
+    input.value = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + 'T' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+  }
+
+  async function addGlobalPromoCode() {
+    const codeInput = document.getElementById('gp-code');
+    const amountInput = document.getElementById('gp-amount');
+    const expiresInput = document.getElementById('gp-expires');
+    const code = codeInput.value.trim().toUpperCase();
+    const amount = parseInt(amountInput.value) || 0;
+    if (!code) { showAppAlert('Please enter a promo code.'); return; }
+    if (!amount || amount <= 0) { showAppAlert('Please enter how much this code takes off (UGX).'); return; }
+    if (globalPromoCodes.some(g => g.code === code)) { showAppAlert('That code already exists.'); return; }
+    let expiresAt = '';
+    if (expiresInput.value) {
+      const d = new Date(expiresInput.value);
+      if (!isNaN(d.getTime())) expiresAt = d.toISOString();
+    }
+    if (!window.fbDb || !window.fbFns) { showAppAlert('Not connected. Check your internet connection.'); return; }
+    const { collection, addDoc } = window.fbFns;
+    try {
+      await addDoc(collection(window.fbDb, 'promo_codes'), { code, discountAmount: amount, expiresAt, createdAt: new Date().toISOString() });
+      codeInput.value = ''; amountInput.value = ''; expiresInput.value = '';
+      showSuccessToast('✅ Promo Code Added!');
+    } catch(e) {
+      showAppAlert('Error adding promo code. Check your internet connection.');
+      console.error(e);
+    }
+  }
+
+  function deleteGlobalPromoCode(id, code) {
+    showAppConfirm('Remove promo code "' + code + '"? It will stop working on the storefront immediately.', async function(){
+      if (!window.fbDb || !window.fbFns) return;
+      const { doc, deleteDoc } = window.fbFns;
+      try {
+        await deleteDoc(doc(window.fbDb, 'promo_codes', id));
+      } catch(e) {
+        showAppAlert('Error removing promo code.');
+        console.error(e);
+      }
+    }, null, { icon: '🗑️', confirmText: 'Remove' });
+  }
+
+  function renderGlobalPromoList() {
+    const wrap = document.getElementById('global-promo-list');
+    if (!wrap) return;
+    if (globalPromoCodes.length === 0) {
+      wrap.innerHTML = '<div style="font-size:0.8rem; color:#999; padding:8px 0;">No site-wide promo codes yet.</div>';
+      return;
+    }
+    wrap.innerHTML = globalPromoCodes.map(g => {
+      const expired = g.expiresAt && new Date(g.expiresAt).getTime() <= Date.now();
+      const expiryLabel = g.expiresAt
+        ? (expired ? '<span style="color:var(--red); font-weight:800;">Expired</span>' : '<span data-expiry="'+new Date(g.expiresAt).getTime()+'" class="gp-expiry-label">Expires ' + new Date(g.expiresAt).toLocaleString('en-UG', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) + '</span>')
+        : 'No expiry';
+      return `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; background:${expired?'#f5f5f5':'var(--light)'}; border:1px solid var(--border); border-radius:8px; padding:10px 14px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span style="font-family:'Inter',sans-serif; font-weight:800; letter-spacing:0.06em; background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:4px 12px; border-radius:6px; font-size:0.82rem;">${g.code}</span>
+            <span style="font-size:0.8rem; font-weight:700; color:#2a7d52;">UGX ${(g.discountAmount||0).toLocaleString('en-UG')} off</span>
+            <span style="font-size:0.72rem; color:#888;">${expiryLabel}</span>
+          </div>
+          <button onclick="deleteGlobalPromoCode('${g.fbDocId}','${g.code}')" style="background:#fdecea; border:1.5px solid #f5c6c0; color:var(--red); cursor:pointer; font-size:0.72rem; font-weight:700; padding:5px 10px; border-radius:6px;">🗑️ Remove</button>
+        </div>
+      `;
+    }).join('');
   }
 
   function renderEmployeeNamesList() {
@@ -3468,6 +3619,7 @@
     if (giftExpiresAdd) giftExpiresAdd.value = '';
     document.getElementById('f-promocode').value = '';
     document.getElementById('f-promo-amount').value = '';
+    document.getElementById('f-promo-expires').value = '';
     document.getElementById('images-list').innerHTML = '';
     addImageRow();
     document.getElementById('f-video').value = '';
@@ -3510,6 +3662,7 @@
     if (giftExpiresEdit) giftExpiresEdit.value = p.freeGiftExpiresAt ? toDatetimeLocalValue(new Date(p.freeGiftExpiresAt)) : '';
     document.getElementById('f-promocode').value = p.promoCode || '';
     document.getElementById('f-promo-amount').value = p.promoDiscountAmount || '';
+    document.getElementById('f-promo-expires').value = p.promoExpiresAt ? toDatetimeLocalValue(new Date(p.promoExpiresAt)) : '';
     document.getElementById('images-list').innerHTML = '';
     const images = p.images || (p.image ? [p.image] : []);
     if (images.length === 0) { addImageRow(); }
@@ -3798,6 +3951,7 @@
       freeGiftExpiresAt: p.freeGiftExpiresAt || '',
       promoCode: p.promoCode || '',
       promoDiscountAmount: parseInt(p.promoDiscountAmount) || 0,
+      promoExpiresAt: p.promoExpiresAt || '',
       variants: (p.variants || []).map(v => ({
         name: v.name || '', color: v.color || '',
         buy: parseInt(v.buy) || 0, sell: parseInt(v.sell) || 0,
@@ -3862,6 +4016,12 @@
     }
     const promoCode = document.getElementById('f-promocode').value.trim().toUpperCase();
     const promoDiscountAmount = parseInt(document.getElementById('f-promo-amount').value) || 0;
+    const promoExpiresRaw = document.getElementById('f-promo-expires').value;
+    let promoExpiresAt = '';
+    if (promoExpiresRaw) {
+      const ped = new Date(promoExpiresRaw);
+      if (!isNaN(ped.getTime())) promoExpiresAt = ped.toISOString();
+    }
     const sku = document.getElementById('f-sku').value.trim();
     const description = document.getElementById('f-description').value.trim();
     const threshold_ = parseInt(document.getElementById('f-threshold').value) || threshold;
@@ -3871,8 +4031,8 @@
 
     // Build the full candidate product object (used for both change-detection and saving)
     const candidateProduct = editingId
-      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null }
-      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null };
+      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null }
+      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null };
 
     // If editing an existing product and nothing actually changed, skip the save entirely
     if (editingId && editingOriginalSnapshot && productSignature(editingOriginalSnapshot) === productSignature(candidateProduct)) {
@@ -3884,14 +4044,14 @@
     if (editingId) {
       const idx = products.findIndex(p => p.id === editingId);
       if (idx > -1) {
-        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null };
+        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null };
       }
     } else {
       products.push({
         id: candidateProduct.id,
         name, category: cat, store, sku,
         threshold: threshold_,
-        variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null
+        variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null
       });
     }
 

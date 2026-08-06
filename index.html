@@ -107,6 +107,35 @@
 
     /* TRUST BAR */
     .trust-bar{background:var(--light);border-bottom:1px solid var(--border);display:flex;justify-content:center;gap:0;padding:0 5vw;flex-wrap:wrap;}
+    .promo-home-card{
+      display:flex; align-items:center; gap:14px;
+      background:linear-gradient(135deg,#ff5f6d,#ffc371);
+      border-radius:16px; padding:14px 20px;
+      box-shadow:0 8px 22px rgba(255,95,109,0.35);
+      animation:promoHomeCardPulse 2.2s ease-in-out infinite;
+      min-width:260px;
+    }
+    .promo-home-card.promo-variant-2{ background:linear-gradient(135deg,#7f5fff,#5ac8fa); box-shadow:0 8px 22px rgba(90,200,250,0.35); }
+    .promo-home-card.promo-variant-3{ background:linear-gradient(135deg,#00c9a7,#0abde3); box-shadow:0 8px 22px rgba(10,189,227,0.35); }
+    @keyframes promoHomeCardPulse{
+      0%,100%{ box-shadow:0 8px 22px rgba(255,95,109,0.35); }
+      50%{ box-shadow:0 10px 30px rgba(255,95,109,0.55); }
+    }
+    .promo-home-code-box{ display:flex; flex-direction:column; gap:2px; }
+    .promo-home-code{ font-family:'Inter',sans-serif; font-size:1.25rem; font-weight:900; color:#fff; letter-spacing:0.06em; text-shadow:0 2px 6px rgba(0,0,0,0.15); }
+    .promo-home-amount{ font-size:0.76rem; font-weight:800; color:rgba(255,255,255,0.95); }
+    .promo-home-timer{ font-size:0.66rem; font-weight:700; color:rgba(255,255,255,0.9); margin-top:2px; display:flex; align-items:center; gap:4px; }
+    .promo-home-copy-btn{
+      background:rgba(255,255,255,0.92); color:#333; border:none; border-radius:10px;
+      padding:9px 16px; font-size:0.78rem; font-weight:800; cursor:pointer; white-space:nowrap;
+      transition:transform 0.15s, background 0.15s;
+    }
+    .promo-home-copy-btn:hover{ transform:translateY(-1px); background:#fff; }
+    .promo-home-copy-btn.copied{ background:#2a9d50; color:#fff; }
+    @media(max-width:600px){
+      .promo-home-card{ min-width:0; width:100%; padding:12px 16px; }
+      .promo-home-code{ font-size:1.05rem; }
+    }
     .trust-item{display:flex;align-items:center;gap:9px;font-size:0.78rem;font-weight:600;color:#4a4738;letter-spacing:0.01em;padding:18px 26px;border-right:1px solid var(--border);}
     .trust-item:last-child{border-right:none;}
     .trust-item span{font-size:1.1rem;color:var(--gold-dark);}
@@ -764,6 +793,11 @@
   <div class="trust-item"><span>&#128274;</span> Genuine Products Only</div>
 </div>
 
+<!-- SITE-WIDE PROMO CODES -->
+<section id="promo-codes-section" style="display:none; padding:28px 5vw;">
+  <div id="promo-codes-list" style="display:flex; gap:14px; flex-wrap:wrap; justify-content:center;"></div>
+</section>
+
 <!-- CATEGORIES -->
 <section id="categories">
   <div class="section-header">
@@ -1078,15 +1112,6 @@
         <div id="pd-discount-countdown" style="display:none; margin-top:6px;"></div>
         <div class="pd-stock-status" id="pd-stock-status"></div>
 
-        <!-- PROMO CODE -->
-        <div id="pd-promo-section" style="margin-top:10px;">
-          <div id="pd-promo-input-row" style="display:flex; gap:8px;">
-            <input type="text" id="pd-promo-input" placeholder="Have a promo code?" style="flex:1; min-width:0; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:0.82rem; font-family:'Inter',sans-serif; text-transform:uppercase; outline:none;" onkeydown="if(event.key==='Enter'){event.preventDefault();applyPromoCode();}"/>
-            <button type="button" onclick="applyPromoCode()" style="background:var(--black); color:#fff; border:none; padding:0 18px; border-radius:8px; font-size:0.8rem; font-weight:700; cursor:pointer; font-family:'Inter',sans-serif;">Apply</button>
-          </div>
-          <div id="pd-promo-message" style="display:none; margin-top:6px; font-size:0.78rem; font-weight:700;"></div>
-        </div>
-
         <!-- FREE GIFT WITH PURCHASE -->
         <div id="pd-gift-box" style="display:none;"></div>
 
@@ -1107,6 +1132,15 @@
             </div>
           </div>
           <div style="color:var(--gold);font-size:0.82rem;margin-bottom:16px;">&#9733;&#9733;&#9733;&#9733;&#9733; <span style="color:var(--grey);font-size:0.72rem;">Verified product</span></div>
+        </div>
+
+        <!-- PROMO CODE (always shown, right above the action buttons) -->
+        <div id="pd-promo-section" style="margin-bottom:14px;">
+          <div id="pd-promo-input-row" style="display:flex; gap:8px;">
+            <input type="text" id="pd-promo-input" placeholder="Have a promo code?" style="flex:1; min-width:0; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:0.82rem; font-family:'Inter',sans-serif; text-transform:uppercase; outline:none;" onkeydown="if(event.key==='Enter'){event.preventDefault();applyPromoCode();}"/>
+            <button type="button" onclick="applyPromoCode()" style="background:var(--black); color:#fff; border:none; padding:0 18px; border-radius:8px; font-size:0.8rem; font-weight:700; cursor:pointer; font-family:'Inter',sans-serif;">Apply</button>
+          </div>
+          <div id="pd-promo-message" style="display:none; margin-top:6px; font-size:0.78rem; font-weight:700;"></div>
         </div>
 
         <div class="pd-actions">
@@ -1309,6 +1343,12 @@
     return base;
   }
 
+  function isProductPromoActive(p) {
+    if (!p || !p.promoCode || !(parseInt(p.promoDiscountAmount) > 0)) return false;
+    if (!p.promoExpiresAt) return true;
+    return new Date(p.promoExpiresAt).getTime() > Date.now();
+  }
+
   function applyPromoCode() {
     var p = pdCurrentProduct;
     var input = document.getElementById('pd-promo-input');
@@ -1317,23 +1357,86 @@
     if (!p || !input || !msg) return;
     var entered = input.value.trim().toUpperCase();
     if (!entered) return;
-    if (!p.promoCode || entered !== String(p.promoCode).toUpperCase()) {
+
+    var discount = 0;
+    if (isProductPromoActive(p) && entered === String(p.promoCode).toUpperCase()) {
+      discount = parseInt(p.promoDiscountAmount) || 0;
+    } else {
+      var globalMatch = globalPromoCodes.find(function(g){
+        return g.code && String(g.code).toUpperCase() === entered && g.discountAmount > 0 && (!g.expiresAt || new Date(g.expiresAt).getTime() > Date.now());
+      });
+      if (globalMatch) discount = parseInt(globalMatch.discountAmount) || 0;
+    }
+
+    if (discount <= 0) {
       pdAppliedPromoCode = null;
       pdAppliedPromoDiscount = 0;
       msg.style.display = 'block';
       msg.style.color = 'var(--red)';
-      msg.textContent = '✕ Invalid promo code.';
+      msg.textContent = '✕ Invalid or expired promo code.';
       updatePdPriceStock(pdCurrentVariantIdx);
       return;
     }
     pdAppliedPromoCode = entered;
-    pdAppliedPromoDiscount = parseInt(p.promoDiscountAmount) || 0;
+    pdAppliedPromoDiscount = discount;
     msg.style.display = 'block';
     msg.style.color = '#2a9d50';
     msg.textContent = '✓ Promo applied — ' + fmtPrice(pdAppliedPromoDiscount) + ' off!';
     if (inputRow) inputRow.style.display = 'none';
     updatePdPriceStock(pdCurrentVariantIdx);
   }
+  function renderHomepagePromoCodes() {
+    var section = document.getElementById('promo-codes-section');
+    var list = document.getElementById('promo-codes-list');
+    if (!section || !list) return;
+    var active = globalPromoCodes.filter(function(g){
+      return g.code && g.discountAmount > 0 && (!g.expiresAt || new Date(g.expiresAt).getTime() > Date.now());
+    });
+    if (active.length === 0) { section.style.display = 'none'; list.innerHTML = ''; return; }
+    section.style.display = 'block';
+    list.innerHTML = active.map(function(g, i){
+      var variantClass = i % 3 === 1 ? ' promo-variant-2' : (i % 3 === 2 ? ' promo-variant-3' : '');
+      var expMs = g.expiresAt ? new Date(g.expiresAt).getTime() : null;
+      var timerHtml = expMs
+        ? '<div class="promo-home-timer">&#9200; <span class="countdown-badge" data-expiry="'+expMs+'" style="background:rgba(0,0,0,0.25);">'+formatCountdown(expMs - Date.now())+'</span></div>'
+        : '';
+      var safeCode = String(g.code).replace(/'/g,"\\'");
+      return '<div class="promo-home-card'+variantClass+'">' +
+          '<div class="promo-home-code-box">' +
+            '<div class="promo-home-code">🏷️ '+g.code+'</div>' +
+            '<div class="promo-home-amount">'+fmtPrice(g.discountAmount)+' off any product</div>' +
+            timerHtml +
+          '</div>' +
+          '<button class="promo-home-copy-btn" onclick="copyPromoCode(\''+safeCode+'\', this)">Copy Code</button>' +
+        '</div>';
+    }).join('');
+  }
+
+  function copyPromoCode(code, btn) {
+    var finish = function(){
+      if (!btn) return;
+      var original = btn.textContent;
+      btn.textContent = '✓ Copied!';
+      btn.classList.add('copied');
+      setTimeout(function(){ btn.textContent = original; btn.classList.remove('copied'); }, 1800);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(code).then(finish).catch(function(){
+        var ta = document.createElement('textarea');
+        ta.value = code; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); } catch(e) {}
+        document.body.removeChild(ta);
+        finish();
+      });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = code; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch(e) {}
+      document.body.removeChild(ta);
+      finish();
+    }
+  }
+
   function isFreeGiftActive(p) {
     if (!p || !p.freeGiftProductId) return false;
     if (!p.freeGiftExpiresAt) return true;
@@ -1386,6 +1489,8 @@
     else { window.addEventListener('firebaseReady', startLiveProducts); }
   }
 
+  var globalPromoCodes = [];
+
   function startLiveProducts() {
     if (!window.fbDb || !window.fbFns) return;
     var col = window.fbFns.collection;
@@ -1393,6 +1498,10 @@
     snap(col(window.fbDb, 'products'), function(snapshot) {
       products = snapshot.docs.map(function(d){ return d.data(); });
       renderAllProducts();
+    });
+    snap(col(window.fbDb, 'promo_codes'), function(snapshot) {
+      globalPromoCodes = snapshot.docs.map(function(d){ return d.data(); });
+      renderHomepagePromoCodes();
     });
   }
 
@@ -1677,7 +1786,7 @@
     var promoSection = document.getElementById('pd-promo-section');
     var promoInput = document.getElementById('pd-promo-input');
     var promoMsg = document.getElementById('pd-promo-message');
-    if (promoSection) promoSection.style.display = p.promoCode ? 'block' : 'none';
+    if (promoSection) promoSection.style.display = 'block';
     if (promoInput) { promoInput.value = ''; promoInput.disabled = false; }
     if (promoMsg) { promoMsg.style.display = 'none'; promoMsg.textContent = ''; }
     var promoInputRow = document.getElementById('pd-promo-input-row');
