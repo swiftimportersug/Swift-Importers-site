@@ -1194,6 +1194,40 @@
           <option value="">No free gift</option>
         </select>
         <div id="f-freegift-preview" style="display:none; align-items:center; gap:10px; margin-top:10px; background:#fff; border:1.5px solid #c9bdec; border-radius:8px; padding:8px 10px;"></div>
+
+        <div id="f-freegift-timer-section" style="display:none; margin-top:12px; padding-top:12px; border-top:1px solid #d9cdf2;">
+          <div style="font-size:0.72rem; font-weight:800; color:#5b3fa8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">⏰ Gift Offer Timer (optional)</div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+            <button type="button" onclick="setFreeGiftCountdownPreset(1,'hours')" style="background:#fff; border:1.5px solid #c9bdec; border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+1 hour</button>
+            <button type="button" onclick="setFreeGiftCountdownPreset(6,'hours')" style="background:#fff; border:1.5px solid #c9bdec; border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+6 hours</button>
+            <button type="button" onclick="setFreeGiftCountdownPreset(1,'days')" style="background:#fff; border:1.5px solid #c9bdec; border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+1 day</button>
+            <button type="button" onclick="setFreeGiftCountdownPreset(2,'days')" style="background:#fff; border:1.5px solid #c9bdec; border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+2 days</button>
+            <button type="button" onclick="setFreeGiftCountdownPreset(7,'days')" style="background:#fff; border:1.5px solid #c9bdec; border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+7 days</button>
+            <button type="button" onclick="clearFreeGiftCountdown()" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#888;">✕ No timer</button>
+          </div>
+          <input type="datetime-local" id="f-freegift-expires" style="width:100%; padding:9px 11px; border:1.5px solid #c9bdec; border-radius:7px; font-size:0.82rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box;"/>
+          <div style="font-size:0.66rem; color:#999; margin-top:4px;">Leave blank for a gift with no expiry. If set, the storefront shows a live "act fast" countdown and the gift automatically stops being offered once time runs out.</div>
+        </div>
+      </div>
+
+      <div style="background:#e9f7ee; border:2px solid #4caf7d; border-radius:12px; padding:14px 18px; margin-top:12px;">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+          <span style="font-size:1.3rem;">🏷️</span>
+          <div>
+            <div style="font-size:0.82rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#2a7d52;">Promo Code</div>
+            <div style="font-size:0.72rem; color:#888; margin-top:2px;">Give this product a code clients can enter at checkout for money off. Leave the code blank for none.</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <div style="flex:1;">
+            <label style="display:block; font-size:0.68rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:#555; margin-bottom:4px;">Code</label>
+            <input type="text" id="f-promocode" placeholder="e.g. SAVE20" style="width:100%; padding:11px 13px; border:2px solid #a8dcc0; border-radius:8px; font-size:0.88rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box; text-transform:uppercase;"/>
+          </div>
+          <div style="flex:1;">
+            <label style="display:block; font-size:0.68rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:#555; margin-bottom:4px;">Reduce price by (UGX)</label>
+            <input type="number" id="f-promo-amount" min="0" placeholder="e.g. 20000" style="width:100%; padding:11px 13px; border:2px solid #a8dcc0; border-radius:8px; font-size:0.88rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box;"/>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -1242,9 +1276,14 @@
   function updateFreeGiftPreview() {
     const sel = document.getElementById('f-freegift');
     const preview = document.getElementById('f-freegift-preview');
+    const timerSection = document.getElementById('f-freegift-timer-section');
     if (!sel || !preview) return;
     const giftId = sel.value;
-    if (!giftId) { preview.style.display = 'none'; preview.innerHTML = ''; return; }
+    if (!giftId) {
+      preview.style.display = 'none'; preview.innerHTML = '';
+      if (timerSection) timerSection.style.display = 'none';
+      return;
+    }
     const gift = products.find(p => p.id === giftId);
     if (!gift) { preview.style.display = 'none'; return; }
     const thumb = (gift.images && gift.images[0]) || gift.image || '';
@@ -1255,6 +1294,21 @@
       </div>
       <div style="font-size:0.8rem; font-weight:700; color:#5b3fa8;">🎁 This gift: ${gift.name}</div>
     `;
+    if (timerSection) timerSection.style.display = 'block';
+  }
+
+  function setFreeGiftCountdownPreset(amount, unit) {
+    const input = document.getElementById('f-freegift-expires');
+    if (!input) return;
+    const now = new Date();
+    if (unit === 'hours') now.setHours(now.getHours() + amount);
+    else if (unit === 'days') now.setDate(now.getDate() + amount);
+    input.value = toDatetimeLocalValue(now);
+  }
+
+  function clearFreeGiftCountdown() {
+    const input = document.getElementById('f-freegift-expires');
+    if (input) input.value = '';
   }
 
   // ── CONFIG ──
@@ -3410,6 +3464,10 @@
     updateFeaturedBoxStyle();
     const giftSelAdd = document.getElementById('f-freegift');
     if (giftSelAdd) { giftSelAdd.innerHTML = freeGiftOptionsHtml(null, ''); updateFreeGiftPreview(); }
+    const giftExpiresAdd = document.getElementById('f-freegift-expires');
+    if (giftExpiresAdd) giftExpiresAdd.value = '';
+    document.getElementById('f-promocode').value = '';
+    document.getElementById('f-promo-amount').value = '';
     document.getElementById('images-list').innerHTML = '';
     addImageRow();
     document.getElementById('f-video').value = '';
@@ -3448,6 +3506,10 @@
     updateFeaturedBoxStyle();
     const giftSelEdit = document.getElementById('f-freegift');
     if (giftSelEdit) { giftSelEdit.innerHTML = freeGiftOptionsHtml(id, p.freeGiftProductId || ''); updateFreeGiftPreview(); }
+    const giftExpiresEdit = document.getElementById('f-freegift-expires');
+    if (giftExpiresEdit) giftExpiresEdit.value = p.freeGiftExpiresAt ? toDatetimeLocalValue(new Date(p.freeGiftExpiresAt)) : '';
+    document.getElementById('f-promocode').value = p.promoCode || '';
+    document.getElementById('f-promo-amount').value = p.promoDiscountAmount || '';
     document.getElementById('images-list').innerHTML = '';
     const images = p.images || (p.image ? [p.image] : []);
     if (images.length === 0) { addImageRow(); }
@@ -3733,6 +3795,9 @@
       hotDeal: !!p.hotDeal,
       featured: !!p.featured,
       freeGiftProductId: p.freeGiftProductId || '',
+      freeGiftExpiresAt: p.freeGiftExpiresAt || '',
+      promoCode: p.promoCode || '',
+      promoDiscountAmount: parseInt(p.promoDiscountAmount) || 0,
       variants: (p.variants || []).map(v => ({
         name: v.name || '', color: v.color || '',
         buy: parseInt(v.buy) || 0, sell: parseInt(v.sell) || 0,
@@ -3789,6 +3854,14 @@
     const hotDeal = document.getElementById('f-hotdeal').checked;
     const featured = document.getElementById('f-featured').checked;
     const freeGiftProductId = document.getElementById('f-freegift') ? document.getElementById('f-freegift').value : '';
+    const freeGiftExpiresRaw = document.getElementById('f-freegift-expires') ? document.getElementById('f-freegift-expires').value : '';
+    let freeGiftExpiresAt = '';
+    if (freeGiftExpiresRaw) {
+      const fgd = new Date(freeGiftExpiresRaw);
+      if (!isNaN(fgd.getTime())) freeGiftExpiresAt = fgd.toISOString();
+    }
+    const promoCode = document.getElementById('f-promocode').value.trim().toUpperCase();
+    const promoDiscountAmount = parseInt(document.getElementById('f-promo-amount').value) || 0;
     const sku = document.getElementById('f-sku').value.trim();
     const description = document.getElementById('f-description').value.trim();
     const threshold_ = parseInt(document.getElementById('f-threshold').value) || threshold;
@@ -3798,8 +3871,8 @@
 
     // Build the full candidate product object (used for both change-detection and saving)
     const candidateProduct = editingId
-      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null }
-      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null };
+      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null }
+      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null };
 
     // If editing an existing product and nothing actually changed, skip the save entirely
     if (editingId && editingOriginalSnapshot && productSignature(editingOriginalSnapshot) === productSignature(candidateProduct)) {
@@ -3811,14 +3884,14 @@
     if (editingId) {
       const idx = products.findIndex(p => p.id === editingId);
       if (idx > -1) {
-        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null };
+        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null };
       }
     } else {
       products.push({
         id: candidateProduct.id,
         name, category: cat, store, sku,
         threshold: threshold_,
-        variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null
+        variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null
       });
     }
 

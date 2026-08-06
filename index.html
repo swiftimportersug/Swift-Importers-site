@@ -1078,6 +1078,15 @@
         <div id="pd-discount-countdown" style="display:none; margin-top:6px;"></div>
         <div class="pd-stock-status" id="pd-stock-status"></div>
 
+        <!-- PROMO CODE -->
+        <div id="pd-promo-section" style="margin-top:10px;">
+          <div id="pd-promo-input-row" style="display:flex; gap:8px;">
+            <input type="text" id="pd-promo-input" placeholder="Have a promo code?" style="flex:1; min-width:0; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:0.82rem; font-family:'Inter',sans-serif; text-transform:uppercase; outline:none;" onkeydown="if(event.key==='Enter'){event.preventDefault();applyPromoCode();}"/>
+            <button type="button" onclick="applyPromoCode()" style="background:var(--black); color:#fff; border:none; padding:0 18px; border-radius:8px; font-size:0.8rem; font-weight:700; cursor:pointer; font-family:'Inter',sans-serif;">Apply</button>
+          </div>
+          <div id="pd-promo-message" style="display:none; margin-top:6px; font-size:0.78rem; font-weight:700;"></div>
+        </div>
+
         <!-- FREE GIFT WITH PURCHASE -->
         <div id="pd-gift-box" style="display:none;"></div>
 
@@ -1229,7 +1238,7 @@
       <div class="hto-option" id="del-opt-2"><div class="hto-num">&#127960;&#65039;</div><div class="hto-content"><div class="hto-title">Kampala &amp; Suburbs Coverage</div><p>We deliver across <strong>Kampala and its major suburbs</strong>, including Munyonyo, Buziga, Bweyogerere, Ntinda, Ggaba, Makindye, Makerere, and many more.</p></div></div>
       <div class="hto-option" id="del-opt-3"><div class="hto-num">&#128172;</div><div class="hto-content"><div class="hto-title">Add Detailed Directions</div><p>Include clear landmark-based directions in your order notes. For example: "Behind Shell Kireka, second gray gate on the left" or "Makerere, Ham Towers near the main gate."</p></div></div>
       <div class="hto-option" id="del-opt-4"><div class="hto-num">&#9201;&#65039;</div><div class="hto-content"><div class="hto-title">Delivery Times</div><p>Same-day delivery for orders placed before <strong>6:00 PM</strong> within Kampala. You can expect your items within <strong>20-40 minutes</strong> after order confirmation for most Kampala suburbs. For Jinja - same day via taxi. For Lira City - bus parcel, next morning pickup. Fees UGX 5,000-20,000.</p></div></div>
-      <div class="hto-footer-btn" id="del-footer-btn"><a href="#order" onclick="closeOverlayEl(document.getElementById('delivery-info-modal'));setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();},200)" class="btn-primary" style="display:block;text-align:center;margin-top:8px;text-decoration:none;">Place Your Order Now</a></div>
+      <div class="hto-footer-btn" id="del-footer-btn"><a href="#order" onclick="closeAllOverlays();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();},200)" class="btn-primary" style="display:block;text-align:center;margin-top:8px;text-decoration:none;">Place Your Order Now</a></div>
     </div>
   </div>
 </div>
@@ -1244,7 +1253,7 @@
     <div class="cart-total" id="cart-total-row" style="display:none;">
       <span>Total</span><span id="cart-total-val"></span>
     </div>
-    <button class="submit-btn" onclick="closeCart();renderOrderItemsSummary();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();}, 50);">Proceed to Order</button>
+    <button class="submit-btn" onclick="closeAllOverlays();renderOrderItemsSummary();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();}, 50);">Proceed to Order</button>
   </div>
 </div>
 
@@ -1290,6 +1299,47 @@
   function effectivePrice(v) {
     return hasDiscount(v) ? (parseInt(v.discountPrice)||0) : (parseInt(v.sell)||0);
   }
+
+  // Same as effectivePrice(), but also factors in a promo code the customer has applied
+  // on the product detail page (never below 0). Only used within that page's own price
+  // display / cart-adding — never affects prices shown elsewhere on the site.
+  function pdEffectivePrice(v) {
+    var base = effectivePrice(v);
+    if (pdAppliedPromoDiscount > 0) return Math.max(0, base - pdAppliedPromoDiscount);
+    return base;
+  }
+
+  function applyPromoCode() {
+    var p = pdCurrentProduct;
+    var input = document.getElementById('pd-promo-input');
+    var msg = document.getElementById('pd-promo-message');
+    var inputRow = document.getElementById('pd-promo-input-row');
+    if (!p || !input || !msg) return;
+    var entered = input.value.trim().toUpperCase();
+    if (!entered) return;
+    if (!p.promoCode || entered !== String(p.promoCode).toUpperCase()) {
+      pdAppliedPromoCode = null;
+      pdAppliedPromoDiscount = 0;
+      msg.style.display = 'block';
+      msg.style.color = 'var(--red)';
+      msg.textContent = '✕ Invalid promo code.';
+      updatePdPriceStock(pdCurrentVariantIdx);
+      return;
+    }
+    pdAppliedPromoCode = entered;
+    pdAppliedPromoDiscount = parseInt(p.promoDiscountAmount) || 0;
+    msg.style.display = 'block';
+    msg.style.color = '#2a9d50';
+    msg.textContent = '✓ Promo applied — ' + fmtPrice(pdAppliedPromoDiscount) + ' off!';
+    if (inputRow) inputRow.style.display = 'none';
+    updatePdPriceStock(pdCurrentVariantIdx);
+  }
+  function isFreeGiftActive(p) {
+    if (!p || !p.freeGiftProductId) return false;
+    if (!p.freeGiftExpiresAt) return true;
+    return new Date(p.freeGiftExpiresAt).getTime() > Date.now();
+  }
+
   function formatCountdown(msRemaining) {
     if (msRemaining <= 0) return 'Deal ended';
     var totalSec = Math.floor(msRemaining/1000);
@@ -1453,14 +1503,15 @@
       iconEl.innerHTML = icon;
       imgDiv.appendChild(iconEl);
     }
-    var giftProduct = p.freeGiftProductId ? products.find(function(gp){ return gp.id === p.freeGiftProductId; }) : null;
+    var giftProduct = isFreeGiftActive(p) ? products.find(function(gp){ return gp.id === p.freeGiftProductId; }) : null;
+    var giftExpiryMs = (giftProduct && p.freeGiftExpiresAt) ? new Date(p.freeGiftExpiresAt).getTime() : null;
     div.appendChild(imgDiv);
     div.innerHTML += '<div class="product-card-info">'+
         '<div class="product-card-name">'+p.name+'</div>'+
         '<div class="product-card-price">'+priceDisplay+(anyDiscount?' <span style="color:var(--grey);font-weight:600;font-size:0.75em;text-decoration:line-through;">'+fmtPrice(cheapestDiscounted.sell)+'</span>':'')+'</div>'+
         (soonestExp !== null ? '<div style="margin-top:4px;"><span class="countdown-badge" data-expiry="'+soonestExp+'" style="font-size:0.6rem;">'+formatCountdown(soonestExp - Date.now())+'</span></div>' : '')+
         (minP!==maxP?'<div class="product-card-price-range">Multiple variants</div>':'')+
-        (giftProduct ? '<div class="gift-strip"><span class="gift-strip-icon">🎁</span><span>FREE: '+giftProduct.name+'</span></div>' : '')+
+        (giftProduct ? '<div class="gift-strip"><span class="gift-strip-icon">🎁</span><span>FREE: '+giftProduct.name+'</span>'+(giftExpiryMs?' <span class="countdown-badge" data-expiry="'+giftExpiryMs+'" style="font-size:0.56rem;margin-left:4px;">'+formatCountdown(giftExpiryMs - Date.now())+'</span>':'')+'</div>' : '')+
         '<div class="product-card-stock '+stockCls+'">'+stockLabel+'</div>'+
         '<div class="tap-hint">Tap to view &amp; buy</div>'+
       '</div>';
@@ -1481,6 +1532,20 @@
   if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }
 
   var overlayStack = [];
+
+  // Closes EVERY currently-open overlay at once (e.g. the cart AND, if it was opened while
+  // browsing a product, the full-page product view underneath it too). Needed anywhere we're
+  // sending the person to the main order form — closing only the topmost overlay would leave
+  // an underlying full-page view still covering everything.
+  function closeAllOverlays() {
+    var n = overlayStack.length;
+    while (overlayStack.length > 0) {
+      var closeFn = overlayStack.pop();
+      if (closeFn) closeFn();
+    }
+    if (n > 0) history.go(-n);
+    if (typeof syncCartFabVisibility === 'function') syncCartFabVisibility();
+  }
 
   function openOverlayEl(el, extraCleanup) {
     if (!el) return;
@@ -1578,6 +1643,8 @@
   var pdSlideIdx = 0;
   var pdImages = [];
   var pdTouchX = 0;
+  var pdAppliedPromoCode = null;
+  var pdAppliedPromoDiscount = 0;
   // The product popup has its own dedicated "Chat about this item" WhatsApp button,
   // so the general floating support button is redundant (and visually cluttered) while it's open.
   function setWaFabVisible(visible) {
@@ -1600,24 +1667,44 @@
     pdCurrentVariantIdx = null;
     pdQty = 1;
     pdSlideIdx = 0;
+    pdAppliedPromoCode = null;
+    pdAppliedPromoDiscount = 0;
     document.getElementById('pd-breadcrumb').textContent = p.category;
     document.getElementById('pd-category').textContent = p.category;
     document.getElementById('pd-name').textContent = p.name;
 
+    // Promo code entry — hide entirely if this product has no code set
+    var promoSection = document.getElementById('pd-promo-section');
+    var promoInput = document.getElementById('pd-promo-input');
+    var promoMsg = document.getElementById('pd-promo-message');
+    if (promoSection) promoSection.style.display = p.promoCode ? 'block' : 'none';
+    if (promoInput) { promoInput.value = ''; promoInput.disabled = false; }
+    if (promoMsg) { promoMsg.style.display = 'none'; promoMsg.textContent = ''; }
+    var promoInputRow = document.getElementById('pd-promo-input-row');
+    if (promoInputRow) promoInputRow.style.display = 'flex';
+
     // Free gift with purchase
     var pdGiftBox = document.getElementById('pd-gift-box');
-    var giftProductPd = p.freeGiftProductId ? products.find(function(gp){ return gp.id === p.freeGiftProductId; }) : null;
+    var giftProductPd = isFreeGiftActive(p) ? products.find(function(gp){ return gp.id === p.freeGiftProductId; }) : null;
     if (giftProductPd) {
       var giftThumbSrc = giftProductPd.image || (giftProductPd.images && giftProductPd.images[0]) || '';
       var giftThumbHtml = giftThumbSrc
         ? '<img src="'+giftThumbSrc+'" alt="" onerror="this.parentElement.innerHTML=\'&#127873;\'"/>'
         : '&#127873;';
+      var giftExpMs = p.freeGiftExpiresAt ? new Date(p.freeGiftExpiresAt).getTime() : null;
+      var giftTimerHtml = giftExpMs
+        ? '<div style="margin-top:5px;display:flex;align-items:center;gap:6px;">' +
+            '<span style="font-size:0.68rem;font-weight:800;color:var(--red);">&#9200; Act fast — offer ends in</span>' +
+            '<span class="countdown-badge" data-expiry="'+giftExpMs+'" style="background:var(--red);color:#fff;font-size:0.62rem;">'+formatCountdown(giftExpMs - Date.now())+'</span>' +
+          '</div>'
+        : '';
       pdGiftBox.innerHTML =
         '<div class="pd-gift-box" data-gift-img="'+(giftThumbSrc||'').replace(/"/g,'&quot;')+'" onclick="var u=this.getAttribute(\'data-gift-img\'); if(u) openSingleImageFullscreen(u);" style="cursor:'+(giftThumbSrc?'zoom-in':'default')+';">' +
           '<div class="pd-gift-thumb">'+giftThumbHtml+'</div>' +
           '<div>' +
             '<div class="pd-gift-label"><span class="pd-gift-icon">🎁</span> Free Gift With This Purchase</div>' +
             '<div class="pd-gift-name">'+giftProductPd.name+'</div>' +
+            giftTimerHtml +
           '</div>' +
         '</div>';
       pdGiftBox.style.display = 'block';
@@ -1958,7 +2045,7 @@
     var p = pdCurrentProduct;
     if (!p) return;
     if (variantIdx===null) {
-      var prices = p.variants.map(function(v){return effectivePrice(v);}).filter(function(x){return x>0;});
+      var prices = p.variants.map(function(v){return pdEffectivePrice(v);}).filter(function(x){return x>0;});
       var mn = Math.min.apply(null,prices), mx = Math.max.apply(null,prices);
       document.getElementById('pd-price').innerHTML = mn===mx ? fmtPrice(mn) : fmtPrice(mn)+' - '+fmtPrice(mx);
       document.getElementById('pd-discount-countdown').style.display = 'none';
@@ -1973,11 +2060,22 @@
       var v = p.variants[variantIdx];
       var stock = parseInt(v.stock)||0;
       var thr = parseInt(p.threshold)||3;
-      var priceHtml = fmtPrice(effectivePrice(v));
+      var basePrice = effectivePrice(v);
+      var finalPrice = pdEffectivePrice(v);
+      var priceHtml;
+      if (pdAppliedPromoDiscount > 0) {
+        priceHtml = fmtPrice(finalPrice) +
+          ' <span style="color:var(--grey);font-weight:600;font-size:0.62em;text-decoration:line-through;">'+fmtPrice(basePrice)+'</span>' +
+          ' <span style="background:#2a9d50;color:#fff;font-size:0.56em;font-weight:800;padding:2px 7px;border-radius:20px;vertical-align:middle;">PROMO</span>';
+      } else {
+        priceHtml = fmtPrice(basePrice);
+      }
       var countdownRow = document.getElementById('pd-discount-countdown');
       if (hasDiscount(v)) {
-        priceHtml += ' <span style="color:var(--grey);font-weight:600;font-size:0.62em;text-decoration:line-through;">'+fmtPrice(v.sell)+'</span>' +
-          ' <span style="background:var(--gold);color:var(--black);font-size:0.56em;font-weight:800;padding:2px 7px;border-radius:20px;vertical-align:middle;">SALE</span>';
+        if (pdAppliedPromoDiscount === 0) {
+          priceHtml += ' <span style="color:var(--grey);font-weight:600;font-size:0.62em;text-decoration:line-through;">'+fmtPrice(v.sell)+'</span>' +
+            ' <span style="background:var(--gold);color:var(--black);font-size:0.56em;font-weight:800;padding:2px 7px;border-radius:20px;vertical-align:middle;">SALE</span>';
+        }
         var vExp = discountExpiryMs(v);
         if (vExp !== null) {
           countdownRow.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px;background:#fff3e0;border:1.5px solid var(--red);color:var(--red);font-weight:800;font-size:0.78rem;padding:5px 12px;border-radius:20px;">&#9200; Deal ends in <span class="countdown-badge" data-expiry="'+vExp+'">'+formatCountdown(vExp - Date.now())+'</span></span>';
@@ -2086,7 +2184,7 @@
     if (!p) return;
     var v = p.variants[pdCurrentVariantIdx];
     if (!v) { document.getElementById('pd-qty-total').textContent = ''; return; }
-    var price = effectivePrice(v);
+    var price = pdEffectivePrice(v);
     var stock = parseInt(v.stock)||0;
     document.getElementById('pd-qty-total').textContent = (price && stock>0) ? 'Total: '+fmtPrice(price*pdQty) : '';
   }
@@ -2108,7 +2206,8 @@
       existing.qty += pdQty;
     } else {
       var cartImg = v.variantImage || p.image || (p.images && p.images[0]) || '';
-      cart.push({ cartKey:cartKey, id:p.id, name:p.name+(hasVariants?' - '+v.name+(v.color?' ('+v.color+')':''):''), price:effectivePrice(v), cost:0, icon:catIcons[p.category]||'', img:cartImg, qty:pdQty, variantIdx:pdCurrentVariantIdx, maxStock:available });
+      var itemName = p.name+(hasVariants?' - '+v.name+(v.color?' ('+v.color+')':''):'')+(pdAppliedPromoDiscount>0?' (Promo: '+pdAppliedPromoCode+')':'');
+      cart.push({ cartKey:cartKey, id:p.id, name:itemName, price:pdEffectivePrice(v), cost:0, icon:catIcons[p.category]||'', img:cartImg, qty:pdQty, variantIdx:pdCurrentVariantIdx, maxStock:available });
     }
     updateCartCount();
     renderOrderItemsSummary();
