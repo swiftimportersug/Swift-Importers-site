@@ -163,6 +163,21 @@
     }
     .fbw-card-add:hover{ background:#333; }
     .fbw-card-add.added{ background:#2a9d50; }
+    @media(min-width:1024px){
+      #fbw-preview-modal .modal.fbw-preview-desktop{
+        max-width:700px; width:700px;
+      }
+      .fbw-preview-desktop #fbw-preview-gallery{
+        float:left; width:300px; height:300px; aspect-ratio:auto; margin-right:0;
+      }
+      .fbw-preview-desktop #fbw-preview-content{
+        padding:20px 24px 24px 320px !important;
+        min-height:300px; box-sizing:border-box;
+      }
+      .fbw-preview-desktop #fbw-preview-name{ font-size:1.2rem; }
+      .fbw-preview-desktop #fbw-preview-price{ font-size:1.3rem; }
+      .fbw-preview-desktop #fbw-preview-add-btn{ clear:both; }
+    }
     .trust-item{display:flex;align-items:center;gap:9px;font-size:0.78rem;font-weight:600;color:#4a4738;letter-spacing:0.01em;padding:18px 26px;border-right:1px solid var(--border);}
     .trust-item:last-child{border-right:none;}
     .trust-item span{font-size:1.1rem;color:var(--gold-dark);}
@@ -1364,14 +1379,16 @@
 
 <!-- FBW ITEM PREVIEW POPUP (browse pictures/description/video without leaving checkout) -->
 <div class="modal-overlay" id="fbw-preview-modal">
-  <div class="modal" style="max-width:480px; max-height:88vh; padding:0; overflow:hidden; border-radius:12px; position:relative;">
+  <div class="modal" id="fbw-preview-box" style="max-width:480px; max-height:88vh; padding:0; overflow:hidden; border-radius:12px; position:relative;">
     <button onclick="closeOverlayEl(document.getElementById('fbw-preview-modal'))" style="position:absolute; top:12px; right:12px; z-index:6; background:rgba(0,0,0,0.55); color:#fff; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; font-size:0.9rem; display:flex; align-items:center; justify-content:center;">✕</button>
-    <div style="max-height:88vh; overflow-y:auto; overflow-x:hidden;">
-      <div id="fbw-preview-gallery" style="width:100%; aspect-ratio:1/1; background:var(--light); position:relative; overflow:hidden;">
+    <div id="fbw-preview-scroll" style="max-height:88vh; overflow-y:auto; overflow-x:hidden;">
+      <div id="fbw-preview-gallery" style="width:100%; aspect-ratio:1/1; background:var(--light); position:relative; overflow:hidden;" ontouchstart="fbwTouchStart(event)" ontouchend="fbwTouchEnd(event)">
         <div id="fbw-preview-track" style="display:flex; height:100%; transition:transform 0.3s ease;"></div>
+        <button id="fbw-preview-arrow-left" onclick="fbwSlide(-1)" style="display:none; position:absolute; top:50%; left:8px; transform:translateY(-50%); width:30px; height:30px; border-radius:50%; background:rgba(0,0,0,0.4); color:#fff; border:none; cursor:pointer; font-size:1rem; align-items:center; justify-content:center; z-index:4;">&#8249;</button>
+        <button id="fbw-preview-arrow-right" onclick="fbwSlide(1)" style="display:none; position:absolute; top:50%; right:8px; transform:translateY(-50%); width:30px; height:30px; border-radius:50%; background:rgba(0,0,0,0.4); color:#fff; border:none; cursor:pointer; font-size:1rem; align-items:center; justify-content:center; z-index:4;">&#8250;</button>
         <div id="fbw-preview-dots" style="position:absolute; bottom:10px; left:0; right:0; display:flex; justify-content:center; gap:5px;"></div>
       </div>
-      <div style="padding:18px 20px 22px;">
+      <div id="fbw-preview-content" style="padding:18px 20px 22px;">
         <div id="fbw-preview-name" style="font-size:1.05rem; font-weight:800; color:var(--black); margin-bottom:4px;"></div>
         <div id="fbw-preview-price" style="font-size:1.15rem; font-weight:900; color:var(--gold-dark); margin-bottom:12px;"></div>
         <div id="fbw-preview-video-wrap" style="display:none; margin-bottom:14px;">
@@ -2614,11 +2631,17 @@
     }).join('');
   }
 
+  var fbwImages = [];
+  var fbwSlideIdx = 0;
+  var fbwTouchStartX = 0;
+
   function openFbwPreview(productId) {
     var p = products.find(function(x){ return x.id === productId; });
     if (!p) return;
     var v = p.variants && p.variants[0];
     var images = (p.images && p.images.length > 0) ? p.images : (p.image ? [p.image] : []);
+    fbwImages = images;
+    fbwSlideIdx = 0;
 
     document.getElementById('fbw-preview-name').textContent = p.name;
     document.getElementById('fbw-preview-price').textContent = v ? fmtPrice(effectivePrice(v)) : '';
@@ -2629,6 +2652,8 @@
 
     var track = document.getElementById('fbw-preview-track');
     var dots = document.getElementById('fbw-preview-dots');
+    var arrowL = document.getElementById('fbw-preview-arrow-left');
+    var arrowR = document.getElementById('fbw-preview-arrow-right');
     track.innerHTML = '';
     dots.innerHTML = '';
     if (images.length > 0) {
@@ -2646,7 +2671,13 @@
     } else {
       track.innerHTML = '<div style="min-width:100%;display:flex;align-items:center;justify-content:center;font-size:3rem;">📦</div>';
     }
+    track.style.transition = 'none';
     track.style.transform = 'translateX(0)';
+    void track.offsetWidth;
+    track.style.transition = '';
+    var multi = images.length > 1;
+    if (arrowL) arrowL.style.display = multi ? 'flex' : 'none';
+    if (arrowR) arrowR.style.display = multi ? 'flex' : 'none';
 
     var videoWrap = document.getElementById('fbw-preview-video-wrap');
     var videoIframe = document.getElementById('fbw-preview-video-iframe');
@@ -2665,10 +2696,56 @@
       videoWrap.style.display = 'none';
     }
 
+    var box = document.getElementById('fbw-preview-box');
+    var overlay = document.getElementById('fbw-preview-modal');
+    if (window.innerWidth >= 1024) {
+      box.classList.add('fbw-preview-desktop');
+      var anchor = document.querySelector('.checkout-info');
+      if (anchor) {
+        var rect = anchor.getBoundingClientRect();
+        overlay.style.alignItems = 'flex-start';
+        overlay.style.justifyContent = 'flex-start';
+        box.style.position = 'fixed';
+        box.style.margin = '0';
+        box.style.top = Math.max(16, Math.min(rect.top, window.innerHeight - 620)) + 'px';
+        box.style.left = Math.max(16, rect.left) + 'px';
+      }
+    } else {
+      box.classList.remove('fbw-preview-desktop');
+      overlay.style.alignItems = '';
+      overlay.style.justifyContent = '';
+      box.style.position = '';
+      box.style.margin = '';
+      box.style.top = '';
+      box.style.left = '';
+    }
+
     openOverlayEl(document.getElementById('fbw-preview-modal'), function(){
       var iframe = document.getElementById('fbw-preview-video-iframe');
       if (iframe) iframe.src = '';
     });
+  }
+
+  function fbwSlide(dir) {
+    if (!fbwImages || fbwImages.length <= 1) return;
+    fbwSlideIdx = (fbwSlideIdx + dir + fbwImages.length) % fbwImages.length;
+    var track = document.getElementById('fbw-preview-track');
+    if (track) track.style.transform = 'translateX(-' + (fbwSlideIdx * 100) + '%)';
+    var dots = document.getElementById('fbw-preview-dots');
+    if (dots) {
+      Array.prototype.forEach.call(dots.children, function(d, i){
+        d.style.background = i === fbwSlideIdx ? '#fff' : 'rgba(255,255,255,0.5)';
+      });
+    }
+  }
+
+  function fbwTouchStart(e) {
+    fbwTouchStartX = e.touches[0].clientX;
+  }
+
+  function fbwTouchEnd(e) {
+    var dx = fbwTouchStartX - e.changedTouches[0].clientX;
+    if (Math.abs(dx) > 35) fbwSlide(dx > 0 ? 1 : -1);
   }
 
   function addFbwItemToCart(productId, btn) {
