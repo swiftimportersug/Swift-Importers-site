@@ -355,6 +355,11 @@
       transition: transform 0.2s;
     }
 
+    /* ── ADMIN FOCUS MODE (blur everything except the section you're using) ── */
+    .admin-focusable { transition: filter 0.25s ease, opacity 0.25s ease; }
+    .admin-blurred { filter: blur(4px); opacity: 0.45; pointer-events: none; }
+    .admin-focused-region { position: relative; z-index: 30; }
+
     /* ── PRODUCT TABLE ── */
     .table-wrap { background: #fff; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
     table { width: 100%; border-collapse: collapse; }
@@ -768,10 +773,10 @@
 
       <!-- DASHBOARD PAGE -->
       <div class="page active" id="page-dashboard">
-        <div class="stats-grid" id="stats-grid"></div>
+        <div class="stats-grid admin-focusable" id="stats-grid"></div>
 
         <!-- TRANSACTION SEARCH -->
-        <div style="background:#fff; border:1px solid var(--border); border-radius:12px; padding:16px 20px; margin-bottom:24px;">
+        <div class="admin-focusable" style="background:#fff; border:1px solid var(--border); border-radius:12px; padding:16px 20px; margin-bottom:24px;">
           <div style="font-size:0.95rem; font-weight:800; margin-bottom:3px;">🔍 Search Transactions</div>
           <div style="font-size:0.76rem; color:#888; margin-bottom:12px;">Search by product name or staff name to see every sale and stock adjustment tied to it.</div>
           <input type="text" id="dash-search-input" placeholder="e.g. Samsung Galaxy A36, or Sarah Namuli..."
@@ -780,8 +785,9 @@
           <div class="dash-search-results" id="dash-search-results"></div>
         </div>
 
-        <!-- SITE-WIDE PROMO CODES -->
-        <div class="admin-3d-box">
+        <!-- SITE-WIDE PROMO CODES & STAFF NAMES — side by side -->
+        <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start; margin-bottom:24px;">
+        <div class="admin-3d-box admin-focusable" id="promo-section-box" style="flex:1; min-width:320px; margin-bottom:0;">
           <div onclick="togglePromoSection()" class="admin-3d-header">
             <div class="admin-3d-title"><span class="admin-3d-icon">🏷️</span> Site-Wide Promo Codes</div>
             <span id="promo-section-arrow" class="admin-3d-arrow">▸</span>
@@ -810,7 +816,7 @@
         </div>
 
         <!-- EMPLOYEE NAMES -->
-        <div class="admin-3d-box">
+        <div class="admin-3d-box admin-focusable" id="staff-section-box" style="flex:1; min-width:320px; margin-bottom:0;">
           <div onclick="toggleStaffSection()" class="admin-3d-header">
             <div class="admin-3d-title"><span class="admin-3d-icon">👤</span> Staff Names &amp; Secret Codes</div>
             <span id="staff-section-arrow" class="admin-3d-arrow">▸</span>
@@ -845,9 +851,10 @@
             <div id="employee-names-list" style="display:flex; flex-wrap:wrap; gap:12px;"></div>
           </div>
         </div>
+        </div>
 
         <!-- FINANCE OVERVIEW -->
-        <div class="fin-panel">
+        <div class="fin-panel admin-focusable">
           <div class="fin-panel-hdr">
             <div>
               <h2 style="font-family:'Inter',sans-serif;font-size:1.1rem;font-weight:800;margin:0;">💵 Finance Overview</h2>
@@ -876,6 +883,7 @@
           <div id="fin-entries-list"></div>
         </div>
 
+        <div class="admin-focusable">
         <div class="section-hdr" style="margin-top:24px;"><h2>📦 Recent Stock Overview</h2></div>
         <div class="period-tabs" id="stock-overview-period-tabs">
           <button class="period-tab active" data-period="today" onclick="setStockOverviewPeriod('today')">Today</button>
@@ -893,6 +901,7 @@
             </thead>
             <tbody id="dashboard-tbody"></tbody>
           </table>
+        </div>
         </div>
       </div>
 
@@ -2196,12 +2205,29 @@
     }
   }
 
+  // Blurs every other focusable region on the dashboard, leaving only focusedId sharp
+  // and clickable — pass null to clear focus mode entirely (all regions back to normal).
+  function setAdminFocus(focusedId) {
+    document.querySelectorAll('#page-dashboard .admin-focusable').forEach(function(el){
+      if (!focusedId) {
+        el.classList.remove('admin-blurred', 'admin-focused-region');
+      } else if (el.id === focusedId) {
+        el.classList.remove('admin-blurred');
+        el.classList.add('admin-focused-region');
+      } else {
+        el.classList.add('admin-blurred');
+        el.classList.remove('admin-focused-region');
+      }
+    });
+  }
+
   function toggleStaffSection() {
     const body = document.getElementById('staff-section-body');
     const arrow = document.getElementById('staff-section-arrow');
     const isOpen = body.style.display !== 'none';
     body.style.display = isOpen ? 'none' : 'block';
     arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+    setAdminFocus(isOpen ? null : 'staff-section-box');
   }
 
   function togglePromoSection() {
@@ -2210,6 +2236,7 @@
     const isOpen = body.style.display !== 'none';
     body.style.display = isOpen ? 'none' : 'block';
     arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+    setAdminFocus(isOpen ? null : 'promo-section-box');
   }
 
   // ── SITE-WIDE PROMO CODES (work on any product, shown on the storefront homepage) ──
