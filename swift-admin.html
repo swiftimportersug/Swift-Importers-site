@@ -322,6 +322,39 @@
     }
     .btn-gold:hover { background: var(--gold-dark); color: #fff; }
 
+    /* ── 3D COLLAPSIBLE SECTION BOX (Promo Codes, Staff Names, etc.) ── */
+    .admin-3d-box {
+      background: linear-gradient(180deg, #ffffff 0%, #f6f5f0 100%);
+      border: 1px solid #e4dfd0;
+      border-bottom: 4px solid #d9d2bd;
+      border-radius: 16px;
+      margin-bottom: 24px;
+      overflow: hidden;
+      box-shadow: 0 10px 22px rgba(0,0,0,0.09), 0 3px 6px rgba(0,0,0,0.05);
+      transition: box-shadow 0.2s ease, transform 0.12s ease, border-bottom-width 0.12s ease, margin-top 0.12s ease;
+    }
+    .admin-3d-box:active { transform: translateY(2px); border-bottom-width: 1px; box-shadow: 0 3px 8px rgba(0,0,0,0.08); }
+    .admin-3d-header {
+      padding: 18px 22px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      transition: background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .admin-3d-header:hover { background: rgba(199,162,72,0.06); }
+    .admin-3d-title { font-size: 0.95rem; font-weight: 800; display: flex; align-items: center; gap: 10px; }
+    .admin-3d-icon {
+      width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+      background: linear-gradient(160deg, var(--gold-light), var(--gold));
+      display: flex; align-items: center; justify-content: center; font-size: 1.05rem;
+      box-shadow: 0 3px 6px rgba(199,162,72,0.35), inset 0 1px 0 rgba(255,255,255,0.5);
+    }
+    .admin-3d-arrow {
+      width: 30px; height: 30px; border-radius: 50%; background: #fff;
+      border: 1px solid var(--border); display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem; color: #888; flex-shrink: 0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+      transition: transform 0.2s;
+    }
+
     /* ── PRODUCT TABLE ── */
     .table-wrap { background: #fff; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
     table { width: 100%; border-collapse: collapse; }
@@ -748,10 +781,10 @@
         </div>
 
         <!-- SITE-WIDE PROMO CODES -->
-        <div style="background:#fff; border:1px solid var(--border); border-radius:12px; margin-bottom:24px; overflow:hidden;">
-          <div onclick="togglePromoSection()" style="padding:16px 20px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:10px;">
-            <div style="font-size:0.95rem; font-weight:800; display:flex; align-items:center; gap:8px;">🏷️ Site-Wide Promo Codes</div>
-            <span id="promo-section-arrow" style="font-size:0.9rem; color:#888; transition:transform 0.2s;">▸</span>
+        <div class="admin-3d-box">
+          <div onclick="togglePromoSection()" class="admin-3d-header">
+            <div class="admin-3d-title"><span class="admin-3d-icon">🏷️</span> Site-Wide Promo Codes</div>
+            <span id="promo-section-arrow" class="admin-3d-arrow">▸</span>
           </div>
           <div id="promo-section-body" style="display:none; padding:0 20px 20px;">
             <div style="font-size:0.76rem; color:#888; margin-bottom:14px;">These codes work on ANY product storefront-wide, shown in bright badges on the homepage for clients to copy directly.</div>
@@ -777,10 +810,10 @@
         </div>
 
         <!-- EMPLOYEE NAMES -->
-        <div style="background:#fff; border:1px solid var(--border); border-radius:12px; margin-bottom:24px; overflow:hidden;">
-          <div onclick="toggleStaffSection()" style="padding:16px 20px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:10px;">
-            <div style="font-size:0.95rem; font-weight:800; display:flex; align-items:center; gap:8px;">👤 Staff Names &amp; Secret Codes</div>
-            <span id="staff-section-arrow" style="font-size:0.9rem; color:#888; transition:transform 0.2s;">▸</span>
+        <div class="admin-3d-box">
+          <div onclick="toggleStaffSection()" class="admin-3d-header">
+            <div class="admin-3d-title"><span class="admin-3d-icon">👤</span> Staff Names &amp; Secret Codes</div>
+            <span id="staff-section-arrow" class="admin-3d-arrow">▸</span>
           </div>
           <div id="staff-section-body" style="display:none; padding:0 20px 20px;">
 
