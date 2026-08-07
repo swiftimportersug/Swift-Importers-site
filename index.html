@@ -207,7 +207,12 @@
     }
     .pd-gift-thumb img{ width:100%; height:100%; object-fit:cover; }
     .pd-gift-icon{ font-size:1.15rem; animation:giftIconWiggle 1.8s ease-in-out infinite; display:inline-block; flex-shrink:0; }
-    .pd-gift-label{ font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:var(--gold-dark); }
+    .pd-gift-label{ font-size:0.68rem; font-weight:900; text-transform:uppercase; letter-spacing:0.06em; color:#1e9e4a; animation:pdGiftLabelPulse 1.6s ease-in-out infinite; }
+    @keyframes pdGiftLabelPulse{
+      0%,100%{ opacity:1; }
+      50%{ opacity:0.65; }
+    }
+    #pd-promo-input::placeholder{ opacity:0.5; color:inherit; }
     .pd-gift-name{ font-size:0.86rem; font-weight:700; color:var(--black); margin-top:1px; }
     .countdown-badge{display:inline-block;background:var(--black);color:var(--gold-light);font-size:0.62rem;font-weight:800;padding:3px 9px;border-radius:20px;letter-spacing:0.02em;font-family:'Inter',sans-serif;white-space:nowrap;}
     .countdown-badge.countdown-ended{background:#555;color:#ccc;}
@@ -903,6 +908,16 @@
         <div style="font-size:0.7rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#2e7d32;margin-bottom:8px;">Items in your order</div>
         <div id="order-items-list"></div>
         <div id="order-items-total" style="font-size:0.85rem;font-weight:800;color:#1b5e20;margin-top:8px;padding-top:8px;border-top:1px solid #a5d6a7;"></div>
+
+        <!-- SITE-WIDE PROMO CODE (applies to whole order, based on order total) -->
+        <div id="checkout-promo-section" style="margin-top:10px; padding-top:10px; border-top:1px dashed #a5d6a7;">
+          <div id="checkout-promo-input-row" style="display:flex; gap:8px;">
+            <input type="text" id="checkout-promo-input" placeholder="Have a site-wide promo code?" style="flex:1; min-width:0; padding:9px 11px; border:1.5px solid #a5d6a7; border-radius:7px; font-size:0.8rem; font-family:'Inter',sans-serif; text-transform:uppercase; outline:none; background:#fff;" onkeydown="if(event.key==='Enter'){event.preventDefault();applyCheckoutPromoCode();}"/>
+            <button type="button" onclick="applyCheckoutPromoCode()" style="background:var(--black); color:#fff; border:none; padding:0 16px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer; font-family:'Inter',sans-serif;">Apply</button>
+          </div>
+          <div id="checkout-promo-message" style="display:none; margin-top:6px; font-size:0.76rem; font-weight:700;"></div>
+        </div>
+
         <button onclick="openAddMoreItemsModal()" style="margin-top:10px;width:100%;background:var(--black);color:#fff;border:none;padding:10px;border-radius:7px;font-size:0.8rem;font-weight:700;cursor:pointer;">+ Add More Items</button>
         <button onclick="clearOrderSummary()" style="margin-top:8px;background:none;border:none;color:#888;font-size:0.72rem;cursor:pointer;text-decoration:underline;">Remove all &amp; fill manually</button>
       </div>
@@ -1361,11 +1376,6 @@
     var discount = 0;
     if (isProductPromoActive(p) && entered === String(p.promoCode).toUpperCase()) {
       discount = parseInt(p.promoDiscountAmount) || 0;
-    } else {
-      var globalMatch = globalPromoCodes.find(function(g){
-        return g.code && String(g.code).toUpperCase() === entered && g.discountAmount > 0 && (!g.expiresAt || new Date(g.expiresAt).getTime() > Date.now());
-      });
-      if (globalMatch) discount = parseInt(globalMatch.discountAmount) || 0;
     }
 
     if (discount <= 0) {
@@ -1373,7 +1383,7 @@
       pdAppliedPromoDiscount = 0;
       msg.style.display = 'block';
       msg.style.color = 'var(--red)';
-      msg.textContent = '✕ Invalid or expired promo code.';
+      msg.textContent = '✕ Invalid or expired promo code for this item. (Site-wide codes apply at checkout.)';
       updatePdPriceStock(pdCurrentVariantIdx);
       return;
     }
@@ -1391,7 +1401,7 @@
     if (!section || !list) return;
     var active = globalPromoCodes.filter(function(g){
       return g.code && g.discountAmount > 0 && (!g.expiresAt || new Date(g.expiresAt).getTime() > Date.now());
-    });
+    }).sort(function(a,b){ return (a.minOrderValue||0) - (b.minOrderValue||0); });
     if (active.length === 0) { section.style.display = 'none'; list.innerHTML = ''; return; }
     section.style.display = 'block';
     list.innerHTML = active.map(function(g, i){
@@ -1401,10 +1411,11 @@
         ? '<div class="promo-home-timer">&#9200; <span class="countdown-badge" data-expiry="'+expMs+'" style="background:rgba(0,0,0,0.25);">'+formatCountdown(expMs - Date.now())+'</span></div>'
         : '';
       var safeCode = String(g.code).replace(/'/g,"\\'");
+      var thresholdText = g.minOrderValue > 0 ? 'For orders above ' + fmtPrice(g.minOrderValue) : 'On any order';
       return '<div class="promo-home-card'+variantClass+'">' +
           '<div class="promo-home-code-box">' +
             '<div class="promo-home-code">🏷️ '+g.code+'</div>' +
-            '<div class="promo-home-amount">'+fmtPrice(g.discountAmount)+' off any product</div>' +
+            '<div class="promo-home-amount">'+fmtPrice(g.discountAmount)+' off &middot; '+thresholdText+'</div>' +
             timerHtml +
           '</div>' +
           '<button class="promo-home-copy-btn" onclick="copyPromoCode(\''+safeCode+'\', this)">Copy Code</button>' +
@@ -1754,6 +1765,8 @@
   var pdTouchX = 0;
   var pdAppliedPromoCode = null;
   var pdAppliedPromoDiscount = 0;
+  var checkoutAppliedPromoCode = null;
+  var checkoutAppliedPromoDiscount = 0;
   // The product popup has its own dedicated "Chat about this item" WhatsApp button,
   // so the general floating support button is redundant (and visually cluttered) while it's open.
   function setWaFabVisible(visible) {
@@ -2382,6 +2395,14 @@
     if (cart.length === 0) {
       if (summary) summary.style.display = 'none';
       if (manualWrap) manualWrap.style.display = 'block';
+      checkoutAppliedPromoCode = null;
+      checkoutAppliedPromoDiscount = 0;
+      var cpInput = document.getElementById('checkout-promo-input');
+      var cpMsg = document.getElementById('checkout-promo-message');
+      var cpRow = document.getElementById('checkout-promo-input-row');
+      if (cpInput) cpInput.value = '';
+      if (cpMsg) { cpMsg.style.display = 'none'; cpMsg.textContent = ''; }
+      if (cpRow) cpRow.style.display = 'flex';
       if (addPrompt) addPrompt.style.display = 'block';
       if (hiddenField) hiddenField.value = '';
       return;
@@ -2403,11 +2424,59 @@
           '</div>';
       }).join('');
     }
-    var total = cart.reduce(function(s,c){ return s + c.price * c.qty; }, 0);
-    if (totalEl) totalEl.textContent = 'Total: ' + fmtPrice(total);
+    var subtotal = cart.reduce(function(s,c){ return s + c.price * c.qty; }, 0);
+    var finalTotal = Math.max(0, subtotal - (checkoutAppliedPromoDiscount || 0));
+    if (totalEl) {
+      totalEl.innerHTML = checkoutAppliedPromoDiscount > 0
+        ? 'Subtotal: ' + fmtPrice(subtotal) + '<br>Promo (' + checkoutAppliedPromoCode + '): -' + fmtPrice(checkoutAppliedPromoDiscount) + '<br><span style="color:#2a9d50;">Total: ' + fmtPrice(finalTotal) + '</span>'
+        : 'Total: ' + fmtPrice(subtotal);
+    }
 
-    var itemLines = cart.map(function(c){ return c.name + ' x' + c.qty + ' (' + fmtPrice(c.price * c.qty) + ')'; }).join('\n') + '\nTotal: ' + fmtPrice(total);
+    var itemLines = cart.map(function(c){ return c.name + ' x' + c.qty + ' (' + fmtPrice(c.price * c.qty) + ')'; }).join('\n') +
+      (checkoutAppliedPromoDiscount > 0 ? '\nSubtotal: ' + fmtPrice(subtotal) + '\nPromo (' + checkoutAppliedPromoCode + '): -' + fmtPrice(checkoutAppliedPromoDiscount) : '') +
+      '\nTotal: ' + fmtPrice(finalTotal);
     if (hiddenField) hiddenField.value = itemLines;
+  }
+
+  function applyCheckoutPromoCode() {
+    var input = document.getElementById('checkout-promo-input');
+    var msg = document.getElementById('checkout-promo-message');
+    var inputRow = document.getElementById('checkout-promo-input-row');
+    if (!input || !msg) return;
+    var entered = input.value.trim().toUpperCase();
+    if (!entered) return;
+    var subtotal = cart.reduce(function(s,c){ return s + c.price * c.qty; }, 0);
+
+    var match = globalPromoCodes.find(function(g){
+      return g.code && String(g.code).toUpperCase() === entered && g.discountAmount > 0 && (!g.expiresAt || new Date(g.expiresAt).getTime() > Date.now());
+    });
+
+    if (!match) {
+      checkoutAppliedPromoCode = null;
+      checkoutAppliedPromoDiscount = 0;
+      msg.style.display = 'block';
+      msg.style.color = 'var(--red)';
+      msg.textContent = '✕ Invalid or expired promo code.';
+      renderOrderItemsSummary();
+      return;
+    }
+    var minOrder = parseInt(match.minOrderValue) || 0;
+    if (subtotal < minOrder) {
+      checkoutAppliedPromoCode = null;
+      checkoutAppliedPromoDiscount = 0;
+      msg.style.display = 'block';
+      msg.style.color = 'var(--red)';
+      msg.textContent = '✕ This code needs an order of ' + fmtPrice(minOrder) + ' or more (yours is ' + fmtPrice(subtotal) + ').';
+      renderOrderItemsSummary();
+      return;
+    }
+    checkoutAppliedPromoCode = entered;
+    checkoutAppliedPromoDiscount = parseInt(match.discountAmount) || 0;
+    msg.style.display = 'block';
+    msg.style.color = '#2a9d50';
+    msg.textContent = '✓ Promo applied — ' + fmtPrice(checkoutAppliedPromoDiscount) + ' off your order!';
+    if (inputRow) inputRow.style.display = 'none';
+    renderOrderItemsSummary();
   }
 
   function removeItemFromCheckout(cartKey) {
@@ -2419,6 +2488,8 @@
   function clearOrderSummary() {
     cart = [];
     updateCartCount();
+    checkoutAppliedPromoCode = null;
+    checkoutAppliedPromoDiscount = 0;
     var summary = document.getElementById('order-items-summary');
     var manualWrap = document.getElementById('order-manual-products-wrap');
     var addPrompt = document.getElementById('order-add-items-prompt');
@@ -2715,11 +2786,16 @@
     var submitBtn = document.querySelector('.order-form .submit-btn');
     if (submitBtn){ submitBtn.textContent='Processing...'; submitBtn.disabled=true; }
     if (window.fbDb && window.fbFns) {
+      var subtotalVal = cart.reduce(function(s,c){ return s + c.price * c.qty; }, 0);
       var order = {
         customerName: nameVal, phone: phoneVal, deliveryArea: areaVal,
         exactLocation: (document.getElementById('exact-location') && document.getElementById('exact-location').value) || '',
         products: productsVal, paymentMethod: paymentVal, notes: notesVal,
         cartItems: cart.map(function(c){ return {id:c.id, name:c.name, qty:c.qty, price:c.price, cost:c.cost||0, variantIdx:c.variantIdx}; }),
+        appliedPromoCode: checkoutAppliedPromoCode || null,
+        promoDiscount: checkoutAppliedPromoDiscount || 0,
+        subtotal: subtotalVal,
+        orderTotal: Math.max(0, subtotalVal - (checkoutAppliedPromoDiscount || 0)),
         status: 'pending', timestamp: new Date().toISOString()
       };
       window.fbFns.addDoc(window.fbFns.collection(window.fbDb,'orders'), order).then(function(){}).catch(function(e){console.error(e);});

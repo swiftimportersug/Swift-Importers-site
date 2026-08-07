@@ -760,6 +760,7 @@
               <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
                 <input type="text" id="gp-code" placeholder="e.g. WELCOME10" style="flex:1; min-width:140px; padding:10px 12px; border:1.5px solid var(--border); border-radius:7px; font-size:0.85rem; font-family:'Inter',sans-serif; text-transform:uppercase; box-sizing:border-box;"/>
                 <input type="number" id="gp-amount" min="0" placeholder="Amount off (UGX)" style="flex:1; min-width:140px; padding:10px 12px; border:1.5px solid var(--border); border-radius:7px; font-size:0.85rem; font-family:'Inter',sans-serif; box-sizing:border-box;"/>
+                <input type="number" id="gp-minorder" min="0" placeholder="For orders above (UGX) — optional" style="flex:1; min-width:200px; padding:10px 12px; border:1.5px solid var(--border); border-radius:7px; font-size:0.85rem; font-family:'Inter',sans-serif; box-sizing:border-box;"/>
               </div>
               <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
                 <button type="button" onclick="setGlobalPromoPreset(1,'hours')" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+1 hour</button>
@@ -2144,9 +2145,11 @@
   async function addGlobalPromoCode() {
     const codeInput = document.getElementById('gp-code');
     const amountInput = document.getElementById('gp-amount');
+    const minOrderInput = document.getElementById('gp-minorder');
     const expiresInput = document.getElementById('gp-expires');
     const code = codeInput.value.trim().toUpperCase();
     const amount = parseInt(amountInput.value) || 0;
+    const minOrderValue = parseInt(minOrderInput.value) || 0;
     if (!code) { showAppAlert('Please enter a promo code.'); return; }
     if (!amount || amount <= 0) { showAppAlert('Please enter how much this code takes off (UGX).'); return; }
     if (globalPromoCodes.some(g => g.code === code)) { showAppAlert('That code already exists.'); return; }
@@ -2158,8 +2161,8 @@
     if (!window.fbDb || !window.fbFns) { showAppAlert('Not connected. Check your internet connection.'); return; }
     const { collection, addDoc } = window.fbFns;
     try {
-      await addDoc(collection(window.fbDb, 'promo_codes'), { code, discountAmount: amount, expiresAt, createdAt: new Date().toISOString() });
-      codeInput.value = ''; amountInput.value = ''; expiresInput.value = '';
+      await addDoc(collection(window.fbDb, 'promo_codes'), { code, discountAmount: amount, minOrderValue, expiresAt, createdAt: new Date().toISOString() });
+      codeInput.value = ''; amountInput.value = ''; minOrderInput.value = ''; expiresInput.value = '';
       showSuccessToast('✅ Promo Code Added!');
     } catch(e) {
       showAppAlert('Error adding promo code. Check your internet connection.');
@@ -2197,6 +2200,7 @@
           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
             <span style="font-family:'Inter',sans-serif; font-weight:800; letter-spacing:0.06em; background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:4px 12px; border-radius:6px; font-size:0.82rem;">${g.code}</span>
             <span style="font-size:0.8rem; font-weight:700; color:#2a7d52;">UGX ${(g.discountAmount||0).toLocaleString('en-UG')} off</span>
+            <span style="font-size:0.72rem; font-weight:700; color:#555;">${g.minOrderValue > 0 ? 'Orders above UGX ' + g.minOrderValue.toLocaleString('en-UG') : 'Any order size'}</span>
             <span style="font-size:0.72rem; color:#888;">${expiryLabel}</span>
           </div>
           <button onclick="deleteGlobalPromoCode('${g.fbDocId}','${g.code}')" style="background:#fdecea; border:1.5px solid #f5c6c0; color:var(--red); cursor:pointer; font-size:0.72rem; font-weight:700; padding:5px 10px; border-radius:6px;">🗑️ Remove</button>
