@@ -107,35 +107,59 @@
 
     /* TRUST BAR */
     .trust-bar{background:var(--light);border-bottom:1px solid var(--border);display:flex;justify-content:center;gap:0;padding:0 5vw;flex-wrap:wrap;}
+    .promo-codes-scroll{
+      display:flex; gap:10px; overflow-x:auto; padding:2px 5vw 10px;
+      -webkit-overflow-scrolling:touch; scroll-snap-type:x proximity;
+    }
+    .promo-codes-scroll::-webkit-scrollbar{ height:5px; }
+    .promo-codes-scroll::-webkit-scrollbar-thumb{ background:#ddd; border-radius:10px; }
     .promo-home-card{
-      display:flex; align-items:center; gap:14px;
+      display:flex; flex-direction:column; gap:3px;
       background:linear-gradient(135deg,#ff5f6d,#ffc371);
-      border-radius:16px; padding:14px 20px;
-      box-shadow:0 8px 22px rgba(255,95,109,0.35);
-      animation:promoHomeCardPulse 2.2s ease-in-out infinite;
-      min-width:260px;
+      border-radius:10px; padding:9px 12px;
+      box-shadow:0 4px 12px rgba(255,95,109,0.3);
+      min-width:128px; max-width:150px; flex-shrink:0;
+      scroll-snap-align:start;
+      cursor:pointer; border:none;
+      animation:promoHomeCardPulse 2.4s ease-in-out infinite;
+      transition:transform 0.15s;
     }
-    .promo-home-card.promo-variant-2{ background:linear-gradient(135deg,#7f5fff,#5ac8fa); box-shadow:0 8px 22px rgba(90,200,250,0.35); }
-    .promo-home-card.promo-variant-3{ background:linear-gradient(135deg,#00c9a7,#0abde3); box-shadow:0 8px 22px rgba(10,189,227,0.35); }
+    .promo-home-card:hover{ transform:translateY(-2px); }
+    .promo-home-card:active{ transform:translateY(0) scale(0.97); }
+    .promo-home-card.promo-variant-2{ background:linear-gradient(135deg,#7f5fff,#5ac8fa); box-shadow:0 4px 12px rgba(90,200,250,0.3); }
+    .promo-home-card.promo-variant-3{ background:linear-gradient(135deg,#00c9a7,#0abde3); box-shadow:0 4px 12px rgba(10,189,227,0.3); }
     @keyframes promoHomeCardPulse{
-      0%,100%{ box-shadow:0 8px 22px rgba(255,95,109,0.35); }
-      50%{ box-shadow:0 10px 30px rgba(255,95,109,0.55); }
+      0%,100%{ box-shadow:0 4px 12px rgba(255,95,109,0.3); }
+      50%{ box-shadow:0 6px 18px rgba(255,95,109,0.5); }
     }
-    .promo-home-code-box{ display:flex; flex-direction:column; gap:2px; }
-    .promo-home-code{ font-family:'Inter',sans-serif; font-size:1.25rem; font-weight:900; color:#fff; letter-spacing:0.06em; text-shadow:0 2px 6px rgba(0,0,0,0.15); }
-    .promo-home-amount{ font-size:0.76rem; font-weight:800; color:rgba(255,255,255,0.95); }
-    .promo-home-timer{ font-size:0.66rem; font-weight:700; color:rgba(255,255,255,0.9); margin-top:2px; display:flex; align-items:center; gap:4px; }
-    .promo-home-copy-btn{
-      background:rgba(255,255,255,0.92); color:#333; border:none; border-radius:10px;
-      padding:9px 16px; font-size:0.78rem; font-weight:800; cursor:pointer; white-space:nowrap;
-      transition:transform 0.15s, background 0.15s;
+    .promo-home-amount{ font-size:0.82rem; font-weight:900; color:#fff; line-height:1.15; text-shadow:0 1px 4px rgba(0,0,0,0.12); }
+    .promo-home-threshold{ font-size:0.58rem; font-weight:700; color:rgba(255,255,255,0.92); }
+    .promo-home-code-row{
+      display:flex; align-items:center; justify-content:space-between; gap:4px;
+      background:rgba(255,255,255,0.9); border-radius:6px; padding:3px 7px; margin-top:2px;
     }
-    .promo-home-copy-btn:hover{ transform:translateY(-1px); background:#fff; }
-    .promo-home-copy-btn.copied{ background:#2a9d50; color:#fff; }
-    @media(max-width:600px){
-      .promo-home-card{ min-width:0; width:100%; padding:12px 16px; }
-      .promo-home-code{ font-size:1.05rem; }
+    .promo-home-code{ font-family:'Inter',sans-serif; font-size:0.68rem; font-weight:800; color:#333; letter-spacing:0.03em; }
+    .promo-home-copy-hint{ font-size:0.56rem; font-weight:700; color:#999; white-space:nowrap; }
+    .promo-home-card.copied .promo-home-code-row{ background:#fff; }
+    .promo-home-card.copied .promo-home-copy-hint{ color:#2a9d50; }
+    .promo-home-timer{ font-size:0.56rem; font-weight:700; color:rgba(255,255,255,0.92); margin-top:1px; }
+    .fbw-card{
+      min-width:110px; max-width:120px; flex-shrink:0;
+      background:#fff; border:1.5px solid var(--border); border-radius:12px;
+      overflow:hidden; text-align:center; padding-bottom:8px;
     }
+    .fbw-card-img{ width:100%; aspect-ratio:1/1; background:var(--light); display:flex; align-items:center; justify-content:center; font-size:1.6rem; overflow:hidden; padding:8px; box-sizing:border-box; }
+    .fbw-card-img img{ max-width:100%; max-height:100%; object-fit:contain; }
+    .fbw-card-name{ font-size:0.68rem; font-weight:700; color:var(--black); padding:6px 8px 2px; line-height:1.25; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:2.3em; }
+    .fbw-card-price{ font-size:0.68rem; font-weight:800; color:var(--gold-dark); padding:0 8px; }
+    .fbw-card-add{
+      margin:6px 8px 0; width:calc(100% - 16px);
+      background:var(--black); color:#fff; border:none; border-radius:7px;
+      padding:6px 0; font-size:0.68rem; font-weight:700; cursor:pointer;
+      transition:background 0.15s;
+    }
+    .fbw-card-add:hover{ background:#333; }
+    .fbw-card-add.added{ background:#2a9d50; }
     .trust-item{display:flex;align-items:center;gap:9px;font-size:0.78rem;font-weight:600;color:#4a4738;letter-spacing:0.01em;padding:18px 26px;border-right:1px solid var(--border);}
     .trust-item:last-child{border-right:none;}
     .trust-item span{font-size:1.1rem;color:var(--gold-dark);}
@@ -207,10 +231,13 @@
     }
     .pd-gift-thumb img{ width:100%; height:100%; object-fit:cover; }
     .pd-gift-icon{ font-size:1.15rem; animation:giftIconWiggle 1.8s ease-in-out infinite; display:inline-block; flex-shrink:0; }
-    .pd-gift-label{ font-size:0.68rem; font-weight:900; text-transform:uppercase; letter-spacing:0.06em; color:#1e9e4a; animation:pdGiftLabelPulse 1.6s ease-in-out infinite; }
-    @keyframes pdGiftLabelPulse{
-      0%,100%{ opacity:1; }
-      50%{ opacity:0.65; }
+    .pd-gift-label{ font-size:0.68rem; font-weight:900; text-transform:uppercase; letter-spacing:0.06em; color:#1e9e4a; display:inline-block; animation:pdGiftLabelJump 3s ease-in-out infinite; }
+    @keyframes pdGiftLabelJump{
+      0%, 66%, 100% { transform:translateY(0) scale(1); }
+      72% { transform:translateY(-5px) scale(1.1); }
+      78% { transform:translateY(0) scale(0.97); }
+      84% { transform:translateY(-3px) scale(1.05); }
+      90% { transform:translateY(0) scale(1); }
     }
     #pd-promo-input::placeholder{ opacity:0.5; color:inherit; }
     .pd-gift-name{ font-size:0.86rem; font-weight:700; color:var(--black); margin-top:1px; }
@@ -799,8 +826,8 @@
 </div>
 
 <!-- SITE-WIDE PROMO CODES -->
-<section id="promo-codes-section" style="display:none; padding:28px 5vw;">
-  <div id="promo-codes-list" style="display:flex; gap:14px; flex-wrap:wrap; justify-content:center;"></div>
+<section id="promo-codes-section" style="display:none; padding:14px 0 4px;">
+  <div class="promo-codes-scroll" id="promo-codes-list"></div>
 </section>
 
 <!-- CATEGORIES -->
@@ -920,6 +947,12 @@
 
         <button onclick="openAddMoreItemsModal()" style="margin-top:10px;width:100%;background:var(--black);color:#fff;border:none;padding:10px;border-radius:7px;font-size:0.8rem;font-weight:700;cursor:pointer;">+ Add More Items</button>
         <button onclick="clearOrderSummary()" style="margin-top:8px;background:none;border:none;color:#888;font-size:0.72rem;cursor:pointer;text-decoration:underline;">Remove all &amp; fill manually</button>
+      </div>
+
+      <!-- FREQUENTLY BOUGHT WITH THIS (complementary suggestions based on cart contents) -->
+      <div id="checkout-fbw-section" style="display:none; margin-bottom:16px;">
+        <div style="font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#444;margin-bottom:8px;">🛒 Frequently Bought With This</div>
+        <div id="checkout-fbw-scroll" style="display:flex; gap:10px; overflow-x:auto; padding-bottom:6px; -webkit-overflow-scrolling:touch;"></div>
       </div>
 
       <!-- Prompt to add items when the manual field is showing -->
@@ -1408,28 +1441,34 @@
       var variantClass = i % 3 === 1 ? ' promo-variant-2' : (i % 3 === 2 ? ' promo-variant-3' : '');
       var expMs = g.expiresAt ? new Date(g.expiresAt).getTime() : null;
       var timerHtml = expMs
-        ? '<div class="promo-home-timer">&#9200; <span class="countdown-badge" data-expiry="'+expMs+'" style="background:rgba(0,0,0,0.25);">'+formatCountdown(expMs - Date.now())+'</span></div>'
+        ? '<div class="promo-home-timer">&#9200; <span class="countdown-badge" data-expiry="'+expMs+'" style="background:rgba(0,0,0,0.22);">'+formatCountdown(expMs - Date.now())+'</span></div>'
         : '';
-      var safeCode = String(g.code).replace(/'/g,"\\'");
-      var thresholdText = g.minOrderValue > 0 ? 'For orders above ' + fmtPrice(g.minOrderValue) : 'On any order';
-      return '<div class="promo-home-card'+variantClass+'">' +
-          '<div class="promo-home-code-box">' +
-            '<div class="promo-home-code">🏷️ '+g.code+'</div>' +
-            '<div class="promo-home-amount">'+fmtPrice(g.discountAmount)+' off &middot; '+thresholdText+'</div>' +
-            timerHtml +
-          '</div>' +
-          '<button class="promo-home-copy-btn" onclick="copyPromoCode(\''+safeCode+'\', this)">Copy Code</button>' +
+      var safeCode = String(g.code).replace(/'/g, "\\'");
+      var thresholdText = g.minOrderValue > 0 ? 'Orders above '+fmtPriceShort(g.minOrderValue) : 'Any order';
+      return '<div class="promo-home-card'+variantClass+'" onclick="copyPromoCode(\''+safeCode+'\', this)">' +
+          '<div class="promo-home-amount">'+fmtPriceShort(g.discountAmount)+' OFF</div>' +
+          '<div class="promo-home-threshold">'+thresholdText+'</div>' +
+          '<div class="promo-home-code-row"><span class="promo-home-code">'+g.code+'</span><span class="promo-home-copy-hint">Tap to copy</span></div>' +
+          timerHtml +
         '</div>';
     }).join('');
   }
 
-  function copyPromoCode(code, btn) {
+  function fmtPriceShort(n) {
+    n = parseInt(n) || 0;
+    if (n >= 1000000) return (n/1000000).toFixed(n % 1000000 === 0 ? 0 : 1) + 'M';
+    if (n >= 1000) return (n/1000).toFixed(n % 1000 === 0 ? 0 : 1) + 'K';
+    return String(n);
+  }
+
+  function copyPromoCode(code, card) {
     var finish = function(){
-      if (!btn) return;
-      var original = btn.textContent;
-      btn.textContent = '✓ Copied!';
-      btn.classList.add('copied');
-      setTimeout(function(){ btn.textContent = original; btn.classList.remove('copied'); }, 1800);
+      if (!card) return;
+      var hint = card.querySelector('.promo-home-copy-hint');
+      var originalText = hint ? hint.textContent : '';
+      card.classList.add('copied');
+      if (hint) hint.textContent = '✓ Copied!';
+      setTimeout(function(){ card.classList.remove('copied'); if (hint) hint.textContent = originalText || 'Tap to copy'; }, 1800);
     };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(code).then(finish).catch(function(){
@@ -1447,6 +1486,7 @@
       finish();
     }
   }
+
 
   function isFreeGiftActive(p) {
     if (!p || !p.freeGiftProductId) return false;
@@ -2405,6 +2445,8 @@
       if (cpRow) cpRow.style.display = 'flex';
       if (addPrompt) addPrompt.style.display = 'block';
       if (hiddenField) hiddenField.value = '';
+      var fbwSec = document.getElementById('checkout-fbw-section');
+      if (fbwSec) fbwSec.style.display = 'none';
       return;
     }
 
@@ -2436,6 +2478,65 @@
       (checkoutAppliedPromoDiscount > 0 ? '\nSubtotal: ' + fmtPrice(subtotal) + '\nPromo (' + checkoutAppliedPromoCode + '): -' + fmtPrice(checkoutAppliedPromoDiscount) : '') +
       '\nTotal: ' + fmtPrice(finalTotal);
     if (hiddenField) hiddenField.value = itemLines;
+    renderCheckoutFrequentlyBought();
+  }
+
+  function renderCheckoutFrequentlyBought() {
+    var section = document.getElementById('checkout-fbw-section');
+    var scroll = document.getElementById('checkout-fbw-scroll');
+    if (!section || !scroll) return;
+    var cartProductIds = {};
+    cart.forEach(function(c){ cartProductIds[c.id] = true; });
+    var suggestedIds = [];
+    cart.forEach(function(c){
+      var p = products.find(function(x){ return x.id === c.id; });
+      if (!p || !Array.isArray(p.frequentlyBoughtWith)) return;
+      p.frequentlyBoughtWith.forEach(function(sid){
+        if (!cartProductIds[sid] && suggestedIds.indexOf(sid) === -1) suggestedIds.push(sid);
+      });
+    });
+    var suggestedProducts = suggestedIds.map(function(sid){ return products.find(function(x){ return x.id === sid; }); }).filter(Boolean).slice(0, 10);
+    if (suggestedProducts.length === 0) { section.style.display = 'none'; scroll.innerHTML = ''; return; }
+    section.style.display = 'block';
+    scroll.innerHTML = suggestedProducts.map(function(p){
+      var v = p.variants && p.variants[0];
+      if (!v) return '';
+      var thumb = v.variantImage || p.image || (p.images && p.images[0]) || '';
+      var price = effectivePrice(v);
+      var imgHtml = thumb ? '<img src="'+thumb+'" alt="" onerror="this.parentElement.textContent=\'📦\'"/>' : '📦';
+      var safeId = String(p.id).replace(/'/g,"\\'");
+      return '<div class="fbw-card">' +
+          '<div class="fbw-card-img">'+imgHtml+'</div>' +
+          '<div class="fbw-card-name">'+p.name+'</div>' +
+          '<div class="fbw-card-price">'+fmtPrice(price)+'</div>' +
+          '<button class="fbw-card-add" onclick="addFbwItemToCart(\''+safeId+'\', this)">+ Add</button>' +
+        '</div>';
+    }).join('');
+  }
+
+  function addFbwItemToCart(productId, btn) {
+    var p = products.find(function(x){ return x.id === productId; });
+    if (!p) return;
+    var v = p.variants && p.variants[0];
+    if (!v) return;
+    var available = parseInt(v.stock) || 0;
+    if (available <= 0) { showAppAlert('Sorry, that item is out of stock right now.'); return; }
+    var cartKey = p.id + '_0';
+    var existing = cart.find(function(c){ return c.cartKey === cartKey; });
+    if (existing) {
+      if (existing.qty + 1 > available) { showAppAlert('Only ' + available + ' pieces available.'); return; }
+      existing.qty += 1;
+    } else {
+      var cartImg = v.variantImage || p.image || (p.images && p.images[0]) || '';
+      cart.push({ cartKey:cartKey, id:p.id, name:p.name+(p.variants.length>1?' - '+v.name:''), price:effectivePrice(v), cost:0, icon:catIcons[p.category]||'', img:cartImg, qty:1, variantIdx:0, maxStock:available });
+    }
+    updateCartCount();
+    renderOrderItemsSummary();
+    if (btn) {
+      btn.textContent = '✓ Added';
+      btn.classList.add('added');
+    }
+    showAddToCartToast();
   }
 
   function applyCheckoutPromoCode() {

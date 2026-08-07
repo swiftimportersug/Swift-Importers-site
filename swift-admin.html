@@ -1271,6 +1271,20 @@
         </div>
       </div>
 
+      <div style="background:#e8f4fd; border:2px solid #5aa9e6; border-radius:12px; padding:14px 18px; margin-top:12px;">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+          <span style="font-size:1.3rem;">🛒</span>
+          <div>
+            <div style="font-size:0.82rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#2166a3;">Frequently Bought With This</div>
+            <div style="font-size:0.72rem; color:#888; margin-top:2px;">Suggest complementary items — shown to customers at checkout so they can add them to their order with one tap.</div>
+          </div>
+        </div>
+        <select id="f-fbw-add" onchange="addFrequentlyBoughtItem()" style="width:100%; padding:11px 13px; border:2px solid #a9d1f0; border-radius:8px; font-size:0.88rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box;">
+          <option value="">+ Add a product...</option>
+        </select>
+        <div id="f-fbw-list" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;"></div>
+      </div>
+
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
@@ -1312,6 +1326,52 @@
       `<option value="${p.id}" ${selected===p.id?'selected':''}>${p.name}</option>`
     ).join('');
     return html;
+  }
+
+  // ── FREQUENTLY BOUGHT WITH THIS (complementary product suggestions at checkout) ──
+  let currentFbwIds = [];
+
+  function fbwOptionsHtml(excludeId) {
+    let html = '<option value="">+ Add a product...</option>';
+    html += products.filter(p => p.id !== excludeId && !currentFbwIds.includes(p.id)).map(p =>
+      `<option value="${p.id}">${p.name}</option>`
+    ).join('');
+    return html;
+  }
+
+  function refreshFbwSelect() {
+    const sel = document.getElementById('f-fbw-add');
+    if (!sel) return;
+    sel.innerHTML = fbwOptionsHtml(editingId);
+  }
+
+  function addFrequentlyBoughtItem() {
+    const sel = document.getElementById('f-fbw-add');
+    if (!sel || !sel.value) return;
+    if (currentFbwIds.length >= 8) { showAppAlert('You can suggest up to 8 complementary products.'); sel.value=''; return; }
+    if (!currentFbwIds.includes(sel.value)) currentFbwIds.push(sel.value);
+    sel.value = '';
+    refreshFbwSelect();
+    renderFbwList();
+  }
+
+  function removeFrequentlyBoughtItem(id) {
+    currentFbwIds = currentFbwIds.filter(x => x !== id);
+    refreshFbwSelect();
+    renderFbwList();
+  }
+
+  function renderFbwList() {
+    const wrap = document.getElementById('f-fbw-list');
+    if (!wrap) return;
+    wrap.innerHTML = currentFbwIds.map(id => {
+      const prod = products.find(p => p.id === id);
+      const name = prod ? prod.name : '(deleted product)';
+      return `<span style="display:inline-flex; align-items:center; gap:6px; background:#fff; border:1.5px solid #a9d1f0; border-radius:20px; padding:5px 8px 5px 12px; font-size:0.78rem; font-weight:700; color:#2166a3;">
+        ${name}
+        <button type="button" onclick="removeFrequentlyBoughtItem('${id}')" style="background:#e8f4fd; border:none; color:#2166a3; width:18px; height:18px; border-radius:50%; cursor:pointer; font-size:0.7rem; line-height:1;">✕</button>
+      </span>`;
+    }).join('');
   }
 
   function updateFreeGiftPreview() {
@@ -3619,6 +3679,9 @@
     updateFeaturedBoxStyle();
     const giftSelAdd = document.getElementById('f-freegift');
     if (giftSelAdd) { giftSelAdd.innerHTML = freeGiftOptionsHtml(null, ''); updateFreeGiftPreview(); }
+    currentFbwIds = [];
+    refreshFbwSelect();
+    renderFbwList();
     const giftExpiresAdd = document.getElementById('f-freegift-expires');
     if (giftExpiresAdd) giftExpiresAdd.value = '';
     document.getElementById('f-promocode').value = '';
@@ -3662,6 +3725,9 @@
     updateFeaturedBoxStyle();
     const giftSelEdit = document.getElementById('f-freegift');
     if (giftSelEdit) { giftSelEdit.innerHTML = freeGiftOptionsHtml(id, p.freeGiftProductId || ''); updateFreeGiftPreview(); }
+    currentFbwIds = Array.isArray(p.frequentlyBoughtWith) ? p.frequentlyBoughtWith.slice() : [];
+    refreshFbwSelect();
+    renderFbwList();
     const giftExpiresEdit = document.getElementById('f-freegift-expires');
     if (giftExpiresEdit) giftExpiresEdit.value = p.freeGiftExpiresAt ? toDatetimeLocalValue(new Date(p.freeGiftExpiresAt)) : '';
     document.getElementById('f-promocode').value = p.promoCode || '';
@@ -3956,6 +4022,7 @@
       promoCode: p.promoCode || '',
       promoDiscountAmount: parseInt(p.promoDiscountAmount) || 0,
       promoExpiresAt: p.promoExpiresAt || '',
+      frequentlyBoughtWith: p.frequentlyBoughtWith || [],
       variants: (p.variants || []).map(v => ({
         name: v.name || '', color: v.color || '',
         buy: parseInt(v.buy) || 0, sell: parseInt(v.sell) || 0,
@@ -4026,6 +4093,7 @@
       const ped = new Date(promoExpiresRaw);
       if (!isNaN(ped.getTime())) promoExpiresAt = ped.toISOString();
     }
+    const frequentlyBoughtWith = currentFbwIds.slice();
     const sku = document.getElementById('f-sku').value.trim();
     const description = document.getElementById('f-description').value.trim();
     const threshold_ = parseInt(document.getElementById('f-threshold').value) || threshold;
@@ -4035,8 +4103,8 @@
 
     // Build the full candidate product object (used for both change-detection and saving)
     const candidateProduct = editingId
-      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null }
-      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null };
+      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, frequentlyBoughtWith: frequentlyBoughtWith }
+      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, frequentlyBoughtWith: frequentlyBoughtWith };
 
     // If editing an existing product and nothing actually changed, skip the save entirely
     if (editingId && editingOriginalSnapshot && productSignature(editingOriginalSnapshot) === productSignature(candidateProduct)) {
@@ -4048,14 +4116,14 @@
     if (editingId) {
       const idx = products.findIndex(p => p.id === editingId);
       if (idx > -1) {
-        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null };
+        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, frequentlyBoughtWith: frequentlyBoughtWith };
       }
     } else {
       products.push({
         id: candidateProduct.id,
         name, category: cat, store, sku,
         threshold: threshold_,
-        variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null
+        variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, frequentlyBoughtWith: frequentlyBoughtWith
       });
     }
 
