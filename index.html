@@ -111,6 +111,9 @@
       display:flex; gap:10px; overflow-x:auto; padding:2px 5vw 10px;
       -webkit-overflow-scrolling:touch; scroll-snap-type:x proximity;
     }
+    @media(min-width:1024px){
+      .promo-codes-scroll{ justify-content:center; }
+    }
     .promo-codes-scroll::-webkit-scrollbar{ height:5px; }
     .promo-codes-scroll::-webkit-scrollbar-thumb{ background:#ddd; border-radius:10px; }
     .promo-home-card{
@@ -1135,6 +1138,7 @@
       </div>
     </div>
     <span id="pd-breadcrumb">Product Details</span>
+    <button id="pd-share-btn" onclick="copyCurrentProductLink(this)" title="Copy shareable link" style="background:var(--light); border:none; height:34px; width:34px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:0.95rem; flex-shrink:0;">🔗</button>
     <button class="pd-close-btn" onclick="closePdOverlay();"><span style="font-size:1.1rem;line-height:1;">&#8249;</span> Back</button>
   </div>
   <div class="pd-modal" id="pd-modal">
@@ -1356,6 +1360,28 @@
   </div>
 </div>
 
+<!-- FBW ITEM PREVIEW POPUP (browse pictures/description/video without leaving checkout) -->
+<div class="modal-overlay" id="fbw-preview-modal">
+  <div class="modal" style="max-width:480px; padding:0; overflow:hidden;">
+    <button onclick="closeOverlayEl(document.getElementById('fbw-preview-modal'))" style="position:absolute; top:12px; right:12px; z-index:5; background:rgba(0,0,0,0.55); color:#fff; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; font-size:0.9rem; display:flex; align-items:center; justify-content:center;">✕</button>
+    <div id="fbw-preview-gallery" style="width:100%; aspect-ratio:1/1; background:var(--light); position:relative; overflow:hidden;">
+      <div id="fbw-preview-track" style="display:flex; height:100%; transition:transform 0.3s ease;"></div>
+      <div id="fbw-preview-dots" style="position:absolute; bottom:10px; left:0; right:0; display:flex; justify-content:center; gap:5px;"></div>
+    </div>
+    <div style="padding:18px 20px 22px;">
+      <div id="fbw-preview-name" style="font-size:1.05rem; font-weight:800; color:var(--black); margin-bottom:4px;"></div>
+      <div id="fbw-preview-price" style="font-size:1.15rem; font-weight:900; color:var(--gold-dark); margin-bottom:12px;"></div>
+      <div id="fbw-preview-video-wrap" style="display:none; margin-bottom:14px;">
+        <div style="aspect-ratio:16/9; border-radius:10px; overflow:hidden; background:#000;">
+          <iframe id="fbw-preview-video-iframe" width="100%" height="100%" frameborder="0" allow="accelerometer; autoplay; encrypted-media; picture-in-picture" allowfullscreen style="display:block;"></iframe>
+        </div>
+      </div>
+      <div id="fbw-preview-desc" style="font-size:0.85rem; color:#444; line-height:1.65; white-space:pre-line; margin-bottom:16px;"></div>
+      <button id="fbw-preview-add-btn" class="fbw-card-add" style="width:100%; padding:12px; font-size:0.85rem;" onclick="addFbwItemToCart(this.getAttribute('data-pid'), this); closeOverlayEl(document.getElementById('fbw-preview-modal'));">+ Add to Order</button>
+    </div>
+  </div>
+</div>
+
 <script>
   var products = [];
   var cart = [];
@@ -1542,6 +1568,21 @@
 
   var globalPromoCodes = [];
 
+  var deepLinkHandled = false;
+
+  function checkForProductDeepLink() {
+    if (deepLinkHandled) return;
+    var params = new URLSearchParams(window.location.search);
+    var pid = params.get('product');
+    if (!pid) { deepLinkHandled = true; return; }
+    if (!products.find(function(x){ return x.id === pid; })) return; // products may still be loading; try again next snapshot
+    deepLinkHandled = true;
+    // Replace the raw entry URL with a clean base (no product param) first, so Back
+    // from this deep-linked product correctly reveals the plain storefront underneath.
+    history.replaceState(null, '', window.location.pathname);
+    openProductDetail(pid);
+  }
+
   function startLiveProducts() {
     if (!window.fbDb || !window.fbFns) return;
     var col = window.fbFns.collection;
@@ -1549,6 +1590,7 @@
     snap(col(window.fbDb, 'products'), function(snapshot) {
       products = snapshot.docs.map(function(d){ return d.data(); });
       renderAllProducts();
+      checkForProductDeepLink();
     });
     snap(col(window.fbDb, 'promo_codes'), function(snapshot) {
       globalPromoCodes = snapshot.docs.map(function(d){ return d.data(); });
@@ -1707,7 +1749,7 @@
     if (typeof syncCartFabVisibility === 'function') syncCartFabVisibility();
   }
 
-  function openOverlayEl(el, extraCleanup) {
+  function openOverlayEl(el, extraCleanup, url) {
     if (!el) return;
     var alreadyOpen = el.classList.contains('open');
     el.classList.add('open');
@@ -1717,7 +1759,8 @@
       if (extraCleanup) extraCleanup();
     };
     el._overlayClose = closeFn;
-    history.pushState({ overlayDepth: overlayStack.length + 1 }, '');
+    if (url) history.pushState({ overlayDepth: overlayStack.length + 1 }, '', url);
+    else history.pushState({ overlayDepth: overlayStack.length + 1 }, '');
     overlayStack.push(closeFn);
   }
 
@@ -2029,6 +2072,36 @@
   // instead of closing the whole page back to browsing.
   var pdProductHistoryStack = [];
 
+  function productShareUrl(productId) {
+    return '?product=' + encodeURIComponent(productId);
+  }
+
+  function copyCurrentProductLink(btn) {
+    if (!pdCurrentProduct) return;
+    var fullUrl = window.location.origin + window.location.pathname + productShareUrl(pdCurrentProduct.id);
+    var finish = function(){
+      if (!btn) return;
+      var original = btn.textContent;
+      btn.textContent = '✓';
+      setTimeout(function(){ btn.textContent = original; }, 1600);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(fullUrl).then(finish).catch(function(){
+        var ta = document.createElement('textarea');
+        ta.value = fullUrl; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); } catch(e) {}
+        document.body.removeChild(ta);
+        finish();
+      });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = fullUrl; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch(e) {}
+      document.body.removeChild(ta);
+      finish();
+    }
+  }
+
   function openProductDetail(productId) {
     if (!products.find(function(x){ return x.id===productId; })) return;
     var pdOverlayEl = document.getElementById('pd-overlay');
@@ -2043,12 +2116,12 @@
         document.getElementById('pd-video-player').style.display = 'none';
         setWaFabVisible(true);
         pdProductHistoryStack = [];
-      });
+      }, productShareUrl(productId));
     } else {
       // Already viewing a product and navigating to a different one — push a lightweight
       // sub-step so Back goes to the PREVIOUS product instead of closing the whole page.
       pdProductHistoryStack.push(productId);
-      history.pushState({ pdSubNav: true }, '');
+      history.pushState({ pdSubNav: true }, '', productShareUrl(productId));
     }
   }
 
@@ -2506,12 +2579,69 @@
       var imgHtml = thumb ? '<img src="'+thumb+'" alt="" onerror="this.parentElement.textContent=\'📦\'"/>' : '📦';
       var safeId = String(p.id).replace(/'/g,"\\'");
       return '<div class="fbw-card">' +
-          '<div class="fbw-card-img">'+imgHtml+'</div>' +
-          '<div class="fbw-card-name">'+p.name+'</div>' +
+          '<div class="fbw-card-img" onclick="openFbwPreview(\''+safeId+'\')" style="cursor:pointer;">'+imgHtml+'</div>' +
+          '<div class="fbw-card-name" onclick="openFbwPreview(\''+safeId+'\')" style="cursor:pointer;">'+p.name+'</div>' +
           '<div class="fbw-card-price">'+fmtPrice(price)+'</div>' +
           '<button class="fbw-card-add" onclick="addFbwItemToCart(\''+safeId+'\', this)">+ Add</button>' +
         '</div>';
     }).join('');
+  }
+
+  function openFbwPreview(productId) {
+    var p = products.find(function(x){ return x.id === productId; });
+    if (!p) return;
+    var v = p.variants && p.variants[0];
+    var images = (p.images && p.images.length > 0) ? p.images : (p.image ? [p.image] : []);
+
+    document.getElementById('fbw-preview-name').textContent = p.name;
+    document.getElementById('fbw-preview-price').textContent = v ? fmtPrice(effectivePrice(v)) : '';
+    document.getElementById('fbw-preview-desc').textContent = p.description || '';
+    document.getElementById('fbw-preview-add-btn').setAttribute('data-pid', p.id);
+    document.getElementById('fbw-preview-add-btn').classList.remove('added');
+    document.getElementById('fbw-preview-add-btn').textContent = '+ Add to Order';
+
+    var track = document.getElementById('fbw-preview-track');
+    var dots = document.getElementById('fbw-preview-dots');
+    track.innerHTML = '';
+    dots.innerHTML = '';
+    if (images.length > 0) {
+      images.forEach(function(img, i){
+        var slide = document.createElement('div');
+        slide.style.cssText = 'min-width:100%;height:100%;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:14px;box-sizing:border-box;';
+        var im = document.createElement('img');
+        im.src = img; im.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain;';
+        slide.appendChild(im);
+        track.appendChild(slide);
+        var dot = document.createElement('div');
+        dot.style.cssText = 'width:6px;height:6px;border-radius:50%;background:'+(i===0?'#fff':'rgba(255,255,255,0.5)')+';box-shadow:0 0 3px rgba(0,0,0,0.4);';
+        dots.appendChild(dot);
+      });
+    } else {
+      track.innerHTML = '<div style="min-width:100%;display:flex;align-items:center;justify-content:center;font-size:3rem;">📦</div>';
+    }
+    track.style.transform = 'translateX(0)';
+
+    var videoWrap = document.getElementById('fbw-preview-video-wrap');
+    var videoIframe = document.getElementById('fbw-preview-video-iframe');
+    if (p.video && p.video.includes('youtube.com/embed/')) {
+      var vidMatch = p.video.match(/embed\/([a-zA-Z0-9_-]{11})/);
+      var vidId = vidMatch ? vidMatch[1] : null;
+      if (vidId) {
+        videoIframe.src = 'https://www.youtube-nocookie.com/embed/' + vidId + '?rel=0&modestbranding=1&playsinline=1';
+        videoWrap.style.display = 'block';
+      } else {
+        videoIframe.src = '';
+        videoWrap.style.display = 'none';
+      }
+    } else {
+      videoIframe.src = '';
+      videoWrap.style.display = 'none';
+    }
+
+    openOverlayEl(document.getElementById('fbw-preview-modal'), function(){
+      var iframe = document.getElementById('fbw-preview-video-iframe');
+      if (iframe) iframe.src = '';
+    });
   }
 
   function addFbwItemToCart(productId, btn) {
@@ -3052,7 +3182,7 @@
   }
 
   // Close on overlay click
-  ['returns-modal','track-order-modal','payment-guide-modal','delivery-info-modal','how-to-order-modal','cart-modal','success-modal','app-dialog-overlay'].forEach(function(id){
+  ['returns-modal','track-order-modal','payment-guide-modal','delivery-info-modal','how-to-order-modal','cart-modal','success-modal','app-dialog-overlay','fbw-preview-modal'].forEach(function(id){
     var el=document.getElementById(id);
     if(el) el.addEventListener('click',function(e){ if(e.target===this){ if(id==='cart-modal'){closeCart();}else{closeOverlayEl(this);} } });
   });
