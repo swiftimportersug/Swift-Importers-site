@@ -785,6 +785,20 @@
           <div class="dash-search-results" id="dash-search-results"></div>
         </div>
 
+        <!-- FIND PRODUCT LOCATION (warehouse stock tracking) -->
+        <div class="admin-3d-box admin-focusable" id="locator-section-box">
+          <div onclick="toggleLocatorSection()" class="admin-3d-header">
+            <div class="admin-3d-title"><span class="admin-3d-icon">📍</span> Find Product Location</div>
+            <span id="locator-section-arrow" class="admin-3d-arrow">▸</span>
+          </div>
+          <div id="locator-section-body" style="display:none; padding:0 20px 20px;">
+            <div style="font-size:0.76rem; color:#888; margin-bottom:12px;">Type a product name to instantly see exactly where it's stored in the warehouse.</div>
+            <input type="text" id="locator-search-input" placeholder="e.g. KZ ZSN Pro X IEMs..." oninput="searchProductLocation(this.value)"
+              style="width:100%; box-sizing:border-box; padding:11px 14px; border:1.5px solid var(--border); border-radius:8px; font-size:0.88rem; font-family:'Inter',sans-serif;"/>
+            <div id="locator-results" style="margin-top:12px;"></div>
+          </div>
+        </div>
+
         <!-- SITE-WIDE PROMO CODES & STAFF NAMES — side by side -->
         <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start; margin-bottom:24px;">
         <div class="admin-3d-box admin-focusable" id="promo-section-box" style="flex:1; min-width:320px; margin-bottom:0;">
@@ -1120,6 +1134,12 @@
           <label>Low Stock Threshold</label>
           <input type="number" id="f-threshold" value="3" min="1"/>
         </div>
+      </div>
+
+      <div class="form-group">
+        <label>📍 Warehouse Location</label>
+        <input type="text" id="f-warehouse-location" placeholder="e.g. Aisle 3, Shelf B, Bin 12"/>
+        <div style="font-size:0.7rem; color:#888; margin-top:4px;">Where this item physically sits in the warehouse — shows up whenever staff search for this product, so anyone can find it fast.</div>
       </div>
 
       <!-- PRODUCT IMAGES -->
@@ -2219,6 +2239,37 @@
         el.classList.remove('admin-focused-region');
       }
     });
+  }
+
+  function toggleLocatorSection() {
+    const body = document.getElementById('locator-section-body');
+    const arrow = document.getElementById('locator-section-arrow');
+    const isOpen = body.style.display !== 'none';
+    body.style.display = isOpen ? 'none' : 'block';
+    arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+    setAdminFocus(isOpen ? null : 'locator-section-box');
+    if (!isOpen) setTimeout(function(){
+      const input = document.getElementById('locator-search-input');
+      if (input) input.focus();
+    }, 150);
+  }
+
+  function searchProductLocation(query) {
+    const results = document.getElementById('locator-results');
+    if (!results) return;
+    const q = query.trim().toLowerCase();
+    if (!q) { results.innerHTML = '<div style="font-size:0.8rem; color:#999; padding:6px 0;">Start typing to find a product...</div>'; return; }
+    const matches = products.filter(p => p.name.toLowerCase().includes(q)).slice(0, 10);
+    if (matches.length === 0) { results.innerHTML = '<div style="font-size:0.8rem; color:#999; padding:6px 0;">No matching products found.</div>'; return; }
+    results.innerHTML = matches.map(p => `
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--light); border:1px solid var(--border); border-radius:8px; padding:12px 16px; margin-bottom:8px; flex-wrap:wrap;">
+        <div style="font-weight:700; font-size:0.85rem;">${p.name}</div>
+        ${p.warehouseLocation
+          ? `<div style="background:#e8f4fd; border:1.5px solid #5aa9e6; color:#2166a3; font-weight:800; font-size:0.85rem; padding:7px 16px; border-radius:8px; white-space:nowrap;">📍 ${p.warehouseLocation}</div>`
+          : `<div style="color:#bbb; font-size:0.78rem; font-style:italic; white-space:nowrap;">No location set</div>`
+        }
+      </div>
+    `).join('');
   }
 
   function toggleStaffSection() {
@@ -3550,6 +3601,7 @@
               <div>
                 <strong style="font-size:0.9rem;">${p.name}</strong>${p.hotDeal ? ' <span style="background:var(--red);color:#fff;font-size:0.6rem;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.04em;vertical-align:middle;">🔥 HOT</span>' : ''}${p.featured ? ' <span style="background:var(--gold);color:var(--black);font-size:0.6rem;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.04em;vertical-align:middle;">⭐ FEATURED</span>' : ''}${p.variants.some(v => csHasDiscount(v)) ? ' <span style="background:var(--gold-dark);color:#fff;font-size:0.6rem;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.04em;vertical-align:middle;">🏷️ SALE</span>' : ''}
                 ${p.store ? '<br/><span style="font-size:0.68rem;color:var(--gold-dark);font-weight:700;">🏬 '+storeDisplayLabel(p.store)+'</span>' : ''}
+                ${p.warehouseLocation ? '<br/><span style="font-size:0.68rem;color:#2166a3;font-weight:700;">📍 '+p.warehouseLocation+'</span>' : ''}
                 ${p.sku ? '<br/><span style="font-size:0.7rem;color:var(--grey);">SKU: '+p.sku+'</span>' : ''}
                 <br/>
                 <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
@@ -3733,6 +3785,7 @@
     storeSelAdd.setAttribute('data-current', storeSelAdd.value);
     document.getElementById('f-sku').value = '';
     document.getElementById('f-threshold').value = threshold;
+    document.getElementById('f-warehouse-location').value = '';
     document.getElementById('f-description').value = '';
     var wc = document.getElementById('desc-word-count');
     if (wc) { wc.textContent = '0 words'; wc.style.color = 'var(--grey)'; }
@@ -3780,6 +3833,7 @@
     storeSelEdit.setAttribute('data-current', storeSelEdit.value);
     document.getElementById('f-sku').value = p.sku || '';
     document.getElementById('f-threshold').value = p.threshold || threshold;
+    document.getElementById('f-warehouse-location').value = p.warehouseLocation || '';
     document.getElementById('f-description').value = p.description || '';
     updateDescWordCount(document.getElementById('f-description'));
     document.getElementById('f-hotdeal').checked = !!p.hotDeal;
@@ -4086,6 +4140,7 @@
       promoDiscountAmount: parseInt(p.promoDiscountAmount) || 0,
       promoExpiresAt: p.promoExpiresAt || '',
       frequentlyBoughtWith: p.frequentlyBoughtWith || [],
+      warehouseLocation: p.warehouseLocation || '',
       variants: (p.variants || []).map(v => ({
         name: v.name || '', color: v.color || '',
         buy: parseInt(v.buy) || 0, sell: parseInt(v.sell) || 0,
@@ -4157,6 +4212,7 @@
       if (!isNaN(ped.getTime())) promoExpiresAt = ped.toISOString();
     }
     const frequentlyBoughtWith = currentFbwIds.slice();
+    const warehouseLocation = document.getElementById('f-warehouse-location').value.trim();
     const sku = document.getElementById('f-sku').value.trim();
     const description = document.getElementById('f-description').value.trim();
     const threshold_ = parseInt(document.getElementById('f-threshold').value) || threshold;
@@ -4166,8 +4222,8 @@
 
     // Build the full candidate product object (used for both change-detection and saving)
     const candidateProduct = editingId
-      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, frequentlyBoughtWith: frequentlyBoughtWith }
-      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, frequentlyBoughtWith: frequentlyBoughtWith };
+      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '' }
+      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '' };
 
     // If editing an existing product and nothing actually changed, skip the save entirely
     if (editingId && editingOriginalSnapshot && productSignature(editingOriginalSnapshot) === productSignature(candidateProduct)) {
@@ -4179,14 +4235,14 @@
     if (editingId) {
       const idx = products.findIndex(p => p.id === editingId);
       if (idx > -1) {
-        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, frequentlyBoughtWith: frequentlyBoughtWith };
+        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '' };
       }
     } else {
       products.push({
         id: candidateProduct.id,
         name, category: cat, store, sku,
         threshold: threshold_,
-        variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, frequentlyBoughtWith: frequentlyBoughtWith
+        variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || ''
       });
     }
 
