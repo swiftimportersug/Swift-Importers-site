@@ -272,19 +272,29 @@
     .fin-stat.expense .fin-stat-value { color: var(--red); }
     .fin-stat.net .fin-stat-value { color: var(--gold-dark); }
     .fin-chart-wrap { margin-bottom: 20px; }
-    .fin-chart-title { font-size: 0.7rem; font-weight: 700; color: var(--grey); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
-    .fin-chart-scroll { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+    .fin-chart-title-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .fin-chart-title { font-size: 0.7rem; font-weight: 700; color: var(--grey); text-transform: uppercase; letter-spacing: 0.06em; }
+    .fin-chart-legend { display: flex; align-items: center; gap: 14px; font-size: 0.72rem; font-weight: 600; color: #555; }
+    .fin-chart-legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .fin-chart-legend i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+    .fin-chart-scroll {
+      overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch;
+      background: var(--light); border: 1px solid var(--border); border-radius: 12px;
+      padding: 18px 16px 10px;
+    }
     .fin-chart-scroll::-webkit-scrollbar { height: 6px; }
-    .fin-chart-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-    .fin-chart { display: flex; align-items: flex-end; gap: 14px; height: 140px; padding: 0 4px; border-bottom: 1.5px solid var(--border); width: max-content; min-width: 100%; }
-    .fin-chart-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; flex: 0 0 44px; width: 44px; height: 100%; gap: 3px; cursor: pointer; }
+    .fin-chart-scroll::-webkit-scrollbar-thumb { background: #d4cfbe; border-radius: 3px; }
+    .fin-chart { display: flex; align-items: flex-end; gap: 20px; height: 160px; padding: 0 6px; border-bottom: 1.5px solid var(--border); width: max-content; min-width: 100%; }
+    .fin-chart-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; flex: 0 0 56px; width: 56px; height: 100%; gap: 3px; cursor: pointer; border-radius: 8px; transition: background 0.15s; }
+    .fin-chart-col:hover { background: rgba(199,162,72,0.08); }
+    .fin-chart-col-active { background: rgba(199,162,72,0.12); }
     .fin-chart-col-active .fin-chart-label { color: var(--gold-dark); font-weight: 800; }
-    .fin-chart-bars { display: flex; align-items: flex-end; gap: 3px; height: 100%; width: 100%; justify-content: center; }
-    .fin-bar { width: 40%; max-width: 18px; border-radius: 3px 3px 0 0; transition: opacity 0.15s; }
+    .fin-chart-bars { display: flex; align-items: flex-end; gap: 5px; height: 100%; width: 100%; justify-content: center; }
+    .fin-bar { width: 32%; max-width: 20px; border-radius: 4px 4px 0 0; transition: opacity 0.15s; min-height: 2px; }
     .fin-bar.income { background: var(--green); }
     .fin-bar.expense { background: var(--red); }
-    .fin-chart-col:hover .fin-bar { opacity: 0.75; }
-    .fin-chart-label { font-size: 0.6rem; color: var(--grey); margin-top: 6px; font-weight: 600; }
+    .fin-chart-col:hover .fin-bar { opacity: 0.8; }
+    .fin-chart-label { font-size: 0.62rem; color: var(--grey); margin-top: 6px; margin-bottom: 8px; font-weight: 600; }
     .fin-entries-hdr { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
     .fin-entries-title { font-size: 0.78rem; font-weight: 700; color: #444; }
     .fin-entry-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 8px; background: var(--light); margin-bottom: 8px; }
@@ -785,20 +795,6 @@
           <div class="dash-search-results" id="dash-search-results"></div>
         </div>
 
-        <!-- FIND PRODUCT LOCATION (warehouse stock tracking) -->
-        <div class="admin-3d-box admin-focusable" id="locator-section-box">
-          <div onclick="toggleLocatorSection()" class="admin-3d-header">
-            <div class="admin-3d-title"><span class="admin-3d-icon">📍</span> Find Product Location</div>
-            <span id="locator-section-arrow" class="admin-3d-arrow">▸</span>
-          </div>
-          <div id="locator-section-body" style="display:none; padding:0 20px 20px;">
-            <div style="font-size:0.76rem; color:#888; margin-bottom:12px;">Type a product name to instantly see exactly where it's stored in the warehouse.</div>
-            <input type="text" id="locator-search-input" placeholder="e.g. KZ ZSN Pro X IEMs..." oninput="searchProductLocation(this.value)"
-              style="width:100%; box-sizing:border-box; padding:11px 14px; border:1.5px solid var(--border); border-radius:8px; font-size:0.88rem; font-family:'Inter',sans-serif;"/>
-            <div id="locator-results" style="margin-top:12px;"></div>
-          </div>
-        </div>
-
         <!-- SITE-WIDE PROMO CODES & STAFF NAMES — side by side -->
         <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start; margin-bottom:24px;">
         <div class="admin-3d-box admin-focusable" id="promo-section-box" style="flex:1; min-width:320px; margin-bottom:0;">
@@ -884,8 +880,14 @@
           <div class="fin-stats-grid" id="fin-stats-grid"></div>
 
           <div class="fin-chart-wrap">
-            <div class="fin-chart-title">Income vs Expenses &mdash; scroll to see previous months</div>
-            <div class="fin-chart-scroll">
+            <div class="fin-chart-title-row">
+              <div class="fin-chart-title">Income vs Expenses &mdash; last 12 months</div>
+              <div class="fin-chart-legend">
+                <span><i style="background:var(--green);"></i> Income</span>
+                <span><i style="background:var(--red);"></i> Expenses</span>
+              </div>
+            </div>
+            <div class="fin-chart-scroll" id="fin-chart-scroll" onwheel="finChartWheelScroll(event)">
               <div class="fin-chart" id="fin-chart"></div>
             </div>
           </div>
@@ -932,6 +934,20 @@
               style="width:38px; height:38px; flex-shrink:0; background:var(--black); color:#fff; border:none; border-radius:7px; font-size:1.1rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.2s;"
               onmouseover="this.style.background='var(--gold)'" onmouseout="this.style.background='var(--black)'">📷</button>
             <button class="btn-gold" onclick="openAddModal()">+ Add Product</button>
+          </div>
+        </div>
+
+        <!-- FIND PRODUCT LOCATION (warehouse stock tracking) -->
+        <div class="admin-3d-box" id="locator-section-box" style="margin-bottom:20px;">
+          <div onclick="toggleLocatorSection()" class="admin-3d-header">
+            <div class="admin-3d-title"><span class="admin-3d-icon">📍</span> Find Product Location</div>
+            <span id="locator-section-arrow" class="admin-3d-arrow">▸</span>
+          </div>
+          <div id="locator-section-body" style="display:none; padding:0 20px 20px;">
+            <div style="font-size:0.76rem; color:#888; margin-bottom:12px;">Type a product name to instantly see exactly where it's stored in the warehouse.</div>
+            <input type="text" id="locator-search-input" placeholder="e.g. KZ ZSN Pro X IEMs..." oninput="searchProductLocation(this.value)"
+              style="width:100%; box-sizing:border-box; padding:11px 14px; border:1.5px solid var(--border); border-radius:8px; font-size:0.88rem; font-family:'Inter',sans-serif;"/>
+            <div id="locator-results" style="margin-top:12px;"></div>
           </div>
         </div>
 
@@ -3474,6 +3490,17 @@
     return new Date(y, m-1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
   }
 
+  // PC mouse wheels only scroll vertically by default, which made the horizontal chart
+  // strip feel unresponsive/weird when hovering and scrolling normally — this redirects
+  // that vertical scroll into horizontal movement while the cursor is over the chart.
+  function finChartWheelScroll(e) {
+    const el = document.getElementById('fin-chart-scroll');
+    if (!el) return;
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return; // already a horizontal gesture — let it through
+    e.preventDefault();
+    el.scrollLeft += e.deltaY;
+  }
+
   function renderFinanceOverview() {
     const grid = document.getElementById('fin-stats-grid');
     if (!grid) return; // dashboard not mounted yet
@@ -3527,9 +3554,20 @@
           </div>
         `;
       }).join('');
-      // Keep the selected month's column in view (right-aligned by default, but preserves scroll if user already scrolled)
+      // Keep the selected month's column in view — scrolls only the chart strip itself
+      // (never the page), since a plain scrollIntoView() here could nudge the whole
+      // page's scroll position too, which read as "weird" jumpy behavior on PC.
+      const scrollWrap = document.getElementById('fin-chart-scroll');
       const activeCol = chart.querySelector('.fin-chart-col-active');
-      if (activeCol) activeCol.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      if (scrollWrap && activeCol) {
+        const wrapRect = scrollWrap.getBoundingClientRect();
+        const colRect = activeCol.getBoundingClientRect();
+        if (colRect.right > wrapRect.right) {
+          scrollWrap.scrollLeft += (colRect.right - wrapRect.right) + 16;
+        } else if (colRect.left < wrapRect.left) {
+          scrollWrap.scrollLeft -= (wrapRect.left - colRect.left) + 16;
+        }
+      }
     }
 
     // Manual entries list for selected month
