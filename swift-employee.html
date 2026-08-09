@@ -887,6 +887,33 @@
     </div>
   </div>
 
+  <!-- CLOSE ORDER — payment confirmation -->
+  <div class="modal-overlay" id="close-order-confirm-modal">
+    <div class="modal-box" style="max-width:400px; text-align:center; padding:28px 24px;">
+      <div style="font-size:2.1rem; margin-bottom:10px;">💰</div>
+      <div style="font-size:1.02rem; font-weight:800; color:#222; margin-bottom:22px;">Do You Confirm Payment Has Been Fully Received?</div>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <button class="btn-gold" style="width:100%; padding:12px; font-size:0.88rem;" onclick="handleCloseOrderChoice('yes')">✅ Yes — Fully Paid</button>
+        <button style="width:100%; background:#fff3e0; border:1.5px solid #e8a020; color:#b87d12; padding:11px; border-radius:7px; font-weight:700; font-size:0.86rem; cursor:pointer; font-family:'Inter',sans-serif;" onclick="handleCloseOrderChoice('partial')">⚠️ Partial Payment</button>
+        <button style="width:100%; background:var(--light); border:none; color:#555; padding:11px; border-radius:7px; font-weight:700; font-size:0.86rem; cursor:pointer; font-family:'Inter',sans-serif;" onclick="handleCloseOrderChoice('no')">✕ No, Not Yet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CLOSE ORDER — partial amount entry -->
+  <div class="modal-overlay" id="partial-amount-modal">
+    <div class="modal-box" style="max-width:400px; padding:24px;">
+      <div style="font-size:1rem; font-weight:800; margin-bottom:6px; color:#222;">Enter Amount Received</div>
+      <div id="partial-amount-context" style="font-size:0.78rem; color:#888; margin-bottom:14px; line-height:1.5;"></div>
+      <input type="number" id="partial-amount-input" placeholder="e.g. 50000" min="0"
+        style="width:100%; padding:12px 14px; border:1.5px solid var(--border); border-radius:8px; font-size:1rem; font-family:'Inter',sans-serif; box-sizing:border-box; margin-bottom:16px;"/>
+      <div style="display:flex; gap:10px;">
+        <button class="btn-cancel" style="flex:1;" onclick="closeOverlayEl(document.getElementById('partial-amount-modal'))">Cancel</button>
+        <button class="btn-gold" style="flex:1;" onclick="confirmPartialAmount()">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <!-- FLOATING RECORD A SALE BUTTON -->
   <button id="fab-record-sale" title="Record a Sale · drag to move">
     <span class="fab-icon">🛒</span>
@@ -2574,10 +2601,20 @@
     }
   }
 
+  function fmtDMY(d, withTime) {
+    if (!(d instanceof Date) || isNaN(d.getTime())) return '';
+    const pad = n => String(n).padStart(2, '0');
+    var s = pad(d.getDate()) + '/' + pad(d.getMonth()+1) + '/' + d.getFullYear();
+    if (withTime) s += ' ' + d.toLocaleTimeString('en-UG', { hour:'2-digit', minute:'2-digit' });
+    return s;
+  }
+
   function fmtOrderTime(ts) {
     if (!ts) return '';
     const d = new Date(ts);
-    return d.toLocaleDateString('en-UG', { day:'2-digit', month:'short', year:'numeric' }) + ' ' +
+    if (isNaN(d.getTime())) return '';
+    const pad = n => String(n).padStart(2, '0');
+    return pad(d.getDate()) + '/' + pad(d.getMonth()+1) + '/' + d.getFullYear() + ' ' +
            d.toLocaleTimeString('en-UG', { hour:'2-digit', minute:'2-digit' });
   }
 
@@ -2619,10 +2656,14 @@
       actions = `<button class="btn-reopen" onclick="updateOrderStatus('${o.fbDocId}','pending')">↩ Reopen</button>
          <button class="btn-wa-order" onclick="window.open('${waLink}','_blank')">💬 WhatsApp</button>`;
     } else if (canComplete) {
+      const hasPartialPayment = o.paymentStatus === 'partial' && (o.balanceDue || 0) > 0;
+      const closeOrderBtn = hasPartialPayment
+        ? `<button class="btn-close-order" style="background:#e8820c;" onclick="openCloseOrderConfirm('${o.fbDocId}')">🟠 Balance Due: ${fmt(o.balanceDue||0)}</button>`
+        : `<button class="btn-close-order" onclick="openCloseOrderConfirm('${o.fbDocId}')">📦 Close Order</button>`;
       actions = `<button class="btn-confirm" onclick="updateOrderStatus('${o.fbDocId}','confirmed')" ${o.status==='confirmed'?'style="opacity:0.5"':''}>
            ${o.status==='confirmed'?'✅ Confirmed':'✅ Confirm Order'}
          </button>
-         <button class="btn-close-order" onclick="updateOrderStatus('${o.fbDocId}','closed')">📦 Close Order</button>
+         ${closeOrderBtn}
          <button class="btn-wa-order" onclick="window.open('${waLink}','_blank')">💬 WhatsApp</button>`;
     } else {
       const lockMsg = o.recordedBy ? `Only ${o.recordedBy} or the admin can complete this` : 'Only the admin can complete this';
@@ -2794,7 +2835,7 @@
           recordedBy: recordedByName,
           store: currentEmployeeStore || '',
           timestamp: new Date().toISOString(),
-          date: new Date().toLocaleDateString('en-UG', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
+          date: fmtDMY(new Date(), true)
         });
         console.log('[stock] adjusted', p.name, v.name, currentStock, '→', newStock);
         // Attach the true cost now that we have authenticated access to it, so the owner's
@@ -2841,6 +2882,84 @@
     } catch(e) { showAppAlert('Error updating order. Check your connection.'); console.error('[order] updateOrderStatus failed:', e); }
   }
 
+  // ── CLOSE ORDER — payment confirmation flow ──
+  var closeOrderTargetDocId = null;
+  var partialAmountTargetDocId = null;
+
+  function openCloseOrderConfirm(docId) {
+    const o = orders.find(x => x.fbDocId === docId);
+    if (o && o.paymentStatus === 'partial' && (o.balanceDue || 0) > 0) {
+      openPartialAmountModal(docId);
+      return;
+    }
+    closeOrderTargetDocId = docId;
+    openOverlayEl(document.getElementById('close-order-confirm-modal'));
+  }
+
+  async function handleCloseOrderChoice(choice) {
+    closeOverlayEl(document.getElementById('close-order-confirm-modal'));
+    const docId = closeOrderTargetDocId;
+    closeOrderTargetDocId = null;
+    if (!docId) return;
+
+    if (choice === 'yes') {
+      try {
+        const orderRef = window.fbFns.doc(window.fbDb, 'orders', docId);
+        const o = orders.find(x => x.fbDocId === docId);
+        const total = (o && o.pricing && o.pricing.total) || (o ? (o.amountPaid||0) + (o.balanceDue||0) : 0);
+        await window.fbFns.updateDoc(orderRef, { amountPaid: total, balanceDue: 0, paymentStatus: 'paid' });
+        await updateOrderStatus(docId, 'closed');
+        showOrderCompletedToast();
+      } catch(e) { showAppAlert('Error closing order. Check your connection.'); console.error(e); }
+    } else if (choice === 'partial') {
+      openPartialAmountModal(docId);
+    }
+  }
+
+  function openPartialAmountModal(docId) {
+    partialAmountTargetDocId = docId;
+    const o = orders.find(x => x.fbDocId === docId);
+    const total = (o && o.pricing && o.pricing.total) || (o ? (o.amountPaid||0) + (o.balanceDue||0) : 0);
+    const alreadyPaid = o ? (o.amountPaid || 0) : 0;
+    const remaining = Math.max(0, total - alreadyPaid);
+    const ctx = document.getElementById('partial-amount-context');
+    ctx.textContent = alreadyPaid > 0
+      ? 'Order total: ' + fmt(total) + '  •  Already received: ' + fmt(alreadyPaid) + '  •  Remaining: ' + fmt(remaining)
+      : 'Order total: ' + fmt(total);
+    document.getElementById('partial-amount-input').value = '';
+    openOverlayEl(document.getElementById('partial-amount-modal'));
+    setTimeout(() => document.getElementById('partial-amount-input').focus(), 150);
+  }
+
+  async function confirmPartialAmount() {
+    const docId = partialAmountTargetDocId;
+    if (!docId) return;
+    const input = document.getElementById('partial-amount-input');
+    const amountNow = parseInt(input.value) || 0;
+    if (amountNow <= 0) { showAppAlert('Please enter the amount received.'); return; }
+
+    const o = orders.find(x => x.fbDocId === docId);
+    if (!o) return;
+    const total = (o.pricing && o.pricing.total) || (o.amountPaid||0) + (o.balanceDue||0);
+    const previouslyPaid = o.amountPaid || 0;
+    const newTotalPaid = previouslyPaid + amountNow;
+    const newBalance = Math.max(0, total - newTotalPaid);
+
+    closeOverlayEl(document.getElementById('partial-amount-modal'));
+    partialAmountTargetDocId = null;
+
+    try {
+      if (newBalance <= 0) {
+        await window.fbFns.updateDoc(window.fbFns.doc(window.fbDb, 'orders', docId), { amountPaid: newTotalPaid, balanceDue: 0, paymentStatus: 'paid' });
+        await updateOrderStatus(docId, 'closed');
+        showOrderCompletedToast();
+      } else {
+        await window.fbFns.updateDoc(window.fbFns.doc(window.fbDb, 'orders', docId), { amountPaid: newTotalPaid, balanceDue: newBalance, paymentStatus: 'partial' });
+        showInfoToast('ℹ️ Partial payment recorded — ' + fmt(newBalance) + ' still due.');
+      }
+    } catch(e) { showAppAlert('Error updating order. Check your connection.'); console.error(e); }
+  }
+
   async function markOrderBalancePaid(docId) {
     const o = orders.find(x => x.fbDocId === docId);
     if (!o) return;
@@ -2869,7 +2988,7 @@
 
   // ── HELPERS ──
   let successToastTimer = null;
-  function showToast(message, type) {
+  function showToast(message, type, duration) {
     const toast = document.getElementById('success-toast');
     if (!toast) return;
     toast.textContent = message || '✅ Successful!';
@@ -2880,11 +2999,12 @@
     toast.classList.remove('show');
     void toast.offsetWidth;
     toast.classList.add('show');
-    successToastTimer = setTimeout(() => { toast.classList.remove('show'); }, 3000);
+    successToastTimer = setTimeout(() => { toast.classList.remove('show'); }, duration || 3000);
   }
   function showSuccessToast(message) { showToast(message, 'success'); }
   function showErrorToast(message) { showToast(message, 'error'); }
   function showInfoToast(message) { showToast(message, 'info'); }
+  function showOrderCompletedToast() { showToast('✅ Order Completed Successfully!', 'success', 4000); }
 
   // ── GENERIC APP DIALOG (replaces native alert()/confirm(), which show the
   // site's URL in the browser's own dialog chrome — these are proper in-page
@@ -3047,7 +3167,12 @@
 
   function fmtOrderDate(ts) {
     if (!ts) return '';
-    try { return new Date(ts).toLocaleDateString('en-GB', { day:'2-digit', month:'short' }); } catch(e) { return ''; }
+    try {
+      const d = new Date(ts);
+      if (isNaN(d.getTime())) return '';
+      const pad = n => String(n).padStart(2, '0');
+      return pad(d.getDate()) + '/' + pad(d.getMonth()+1);
+    } catch(e) { return ''; }
   }
 
   function openFinanceBreakdown(type) {
@@ -3643,7 +3768,7 @@
         if (expiresAt.getTime() <= Date.now()) {
           expiryNote = ` <span style="color:var(--red);font-weight:700;">⏱️ This countdown has already passed — update it or the discount won't show.</span>`;
         } else {
-          expiryNote = ` <span style="color:var(--gold-dark);font-weight:700;">⏱️ Ends ${expiresAt.toLocaleString('en-GB', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}.</span>`;
+          expiryNote = ` <span style="color:var(--gold-dark);font-weight:700;">⏱️ Ends ${fmtDMY(expiresAt, true)}.</span>`;
         }
       }
     }
@@ -5575,7 +5700,7 @@
         recordedBy: currentEmployeeName || 'Unknown Employee',
         store: currentEmployeeStore || '',
         timestamp: new Date().toISOString(),
-        date: new Date().toLocaleDateString('en-UG', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
+        date: fmtDMY(new Date(), true)
       });
 
       loadAdjHistory(productId, variantIdx);
