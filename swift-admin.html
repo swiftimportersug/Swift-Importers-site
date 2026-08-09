@@ -194,8 +194,12 @@
       color: #888; cursor: pointer; transition: all 0.2s; font-size: 0.85rem;
       font-weight: 500; border-left: 3px solid transparent;
     }
-    .nav-item:hover { color: #fff; background: #111; }
-    .nav-item.active { color: var(--gold); background: #111; border-left-color: var(--gold); }
+    .nav-item:hover { color: #fff; background: rgba(255,255,255,0.06); }
+    .nav-item.active {
+      color: var(--gold); border-left-color: var(--gold);
+      background: linear-gradient(90deg, rgba(199,162,72,0.18) 0%, rgba(199,162,72,0.05) 100%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+    }
     .nav-item .nav-icon { font-size: 1rem; width: 20px; text-align: center; }
     .sidebar-footer {
       padding: 16px 20px; border-top: 1px solid #1f1f1f;
@@ -232,9 +236,15 @@
     /* ── STATS CARDS ── */
     .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
     .stat-card {
-      background: #fff; border-radius: 10px; padding: 12px 14px;
-      border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(246,245,240,0.78) 100%);
+      backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
+      border-radius: 12px; padding: 12px 14px;
+      border: 1px solid rgba(228,223,208,0.85);
+      border-bottom: 3px solid #d9d2bd;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.08), 0 2px 5px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.55);
+      transition: box-shadow 0.2s ease, transform 0.12s ease;
     }
+    .stat-card:hover { box-shadow: 0 12px 24px rgba(0,0,0,0.1), 0 3px 7px rgba(0,0,0,0.06); }
     .stat-label { font-size: 0.62rem; font-weight: 700; color: var(--grey); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 4px; }
     .stat-value { font-family: 'Inter', sans-serif; font-size: 1.35rem; font-weight: 800; }
     .stat-sub { font-size: 0.65rem; color: var(--grey); margin-top: 3px; }
@@ -262,7 +272,13 @@
     .cs-variant-btn-price { font-size: 0.72rem; font-weight: 700; color: var(--gold-dark); }
 
     /* ── FINANCE OVERVIEW ── */
-    .fin-panel { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 24px; }
+    .fin-panel {
+      background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(248,247,243,0.85) 100%);
+      backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
+      border: 1px solid rgba(228,223,208,0.85); border-bottom: 3px solid #d9d2bd;
+      border-radius: 14px; padding: 18px 20px; margin-bottom: 24px;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.5);
+    }
     .fin-panel-hdr { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
     .fin-month-nav { display: flex; align-items: center; gap: 6px; }
     .fin-month-btn { width: 30px; height: 30px; border-radius: 6px; border: 1.5px solid var(--border); background: #fff; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; color: #333; }
@@ -370,13 +386,40 @@
       transition: transform 0.2s;
     }
 
+    /* ── MASTER GLASS-3D PANEL (reused across stat cards, variant rows, image rows,
+         video box, coupon cards, inventory cards — every "box" in the system) ── */
+    .glass-3d {
+      background: linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(246,245,240,0.78) 100%) !important;
+      backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
+      border: 1px solid rgba(228,223,208,0.85) !important;
+      border-bottom: 3px solid #d9d2bd !important;
+      border-radius: 12px !important;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.08), 0 2px 5px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.55) !important;
+      transition: box-shadow 0.2s ease, transform 0.12s ease, border-bottom-width 0.12s ease;
+    }
+    .glass-3d:hover { box-shadow: 0 12px 24px rgba(0,0,0,0.1), 0 3px 7px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.55); }
+    .glass-3d:active { transform: translateY(2px); border-bottom-width: 1px !important; }
+    /* Tinted variants keep their own hue but gain the same glass+3D treatment */
+    .glass-3d-purple { background: linear-gradient(180deg, rgba(237,230,255,0.85) 0%, rgba(228,218,250,0.72) 100%) !important; border-color: rgba(201,189,236,0.9) !important; border-bottom-color: #b3a1e0 !important; }
+    .glass-3d-green  { background: linear-gradient(180deg, rgba(224,247,232,0.85) 0%, rgba(210,240,220,0.72) 100%) !important; border-color: rgba(168,220,192,0.9) !important; border-bottom-color: #7fc79f !important; }
+    .glass-3d-orange { background: linear-gradient(180deg, rgba(255,241,222,0.85) 0%, rgba(255,231,199,0.72) 100%) !important; border-color: rgba(240,207,148,0.9) !important; border-bottom-color: #e0a94a !important; }
+    .glass-3d-blue   { background: linear-gradient(180deg, rgba(224,241,253,0.85) 0%, rgba(206,232,250,0.72) 100%) !important; border-color: rgba(169,209,240,0.9) !important; border-bottom-color: #6bb0e6 !important; }
+
     /* ── ADMIN FOCUS MODE (blur everything except the section you're using) ── */
     .admin-focusable { transition: filter 0.25s ease, opacity 0.25s ease; }
     .admin-blurred { filter: blur(4px); opacity: 0.45; pointer-events: none; }
     .admin-focused-region { position: relative; z-index: 30; }
 
     /* ── PRODUCT TABLE ── */
-    .table-wrap { background: #fff; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
+    .table-wrap {
+      background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(248,247,243,0.85) 100%);
+      backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
+      border-radius: 14px;
+      border: 1px solid rgba(228,223,208,0.85);
+      border-bottom: 3px solid #d9d2bd;
+      overflow: hidden;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.5);
+    }
     table { width: 100%; border-collapse: collapse; }
     th {
       background: var(--black); color: #fff; padding: 11px 14px;
@@ -524,9 +567,13 @@
 
     /* ── LOW STOCK ALERTS ── */
     .alert-card {
-      background: #fff; border-radius: 12px; border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(246,245,240,0.78) 100%);
+      backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
+      border-radius: 12px; border: 1px solid rgba(228,223,208,0.85);
+      border-bottom: 3px solid #d9d2bd;
       padding: 16px 20px; margin-bottom: 10px; display: flex;
       align-items: center; justify-content: space-between;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.5);
     }
     .alert-card.low { border-left: 4px solid var(--amber); }
     .alert-card.out { border-left: 4px solid var(--red); }
@@ -1248,7 +1295,7 @@
       <!-- PRODUCT VIDEO -->
       <div class="form-group">
         <label>Product Video (YouTube)</label>
-        <div style="background:#1a1a1a; border-radius:10px; padding:14px 16px; margin-bottom:10px;">
+        <div style="background:linear-gradient(180deg, rgba(32,32,28,0.92) 0%, rgba(14,14,11,0.88) 100%); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); border:1px solid rgba(255,255,255,0.08); border-bottom:3px solid #000; border-radius:12px; padding:14px 16px; margin-bottom:10px; box-shadow:0 8px 18px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08);">
           <div style="font-size:0.72rem; font-weight:800; color:var(--gold); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:4px;">&#127916; YouTube Video</div>
           <div style="font-size:0.7rem; color:#888; margin-bottom:10px; line-height:1.6;">
             Paste any YouTube link and we'll convert it automatically.<br/>
@@ -1344,7 +1391,7 @@
         </label>
       </div>
 
-      <div style="background:#f3f0ff; border:2px solid #8a6fd6; border-radius:12px; padding:14px 18px; margin-top:12px;">
+      <div style="background:linear-gradient(180deg, rgba(237,230,255,0.88) 0%, rgba(228,218,250,0.78) 100%); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); border:1px solid rgba(201,189,236,0.9); border-bottom:3px solid #b3a1e0; border-radius:12px; padding:14px 18px; margin-top:12px; box-shadow:0 8px 18px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.5);">
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
           <span style="font-size:1.3rem;">🎁</span>
           <div>
@@ -1373,7 +1420,7 @@
         </div>
       </div>
 
-      <div style="background:#e9f7ee; border:2px solid #4caf7d; border-radius:12px; padding:14px 18px; margin-top:12px;">
+      <div style="background:linear-gradient(180deg, rgba(224,247,232,0.88) 0%, rgba(210,240,220,0.78) 100%); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); border:1px solid rgba(168,220,192,0.9); border-bottom:3px solid #7fc79f; border-radius:12px; padding:14px 18px; margin-top:12px; box-shadow:0 8px 18px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.5);">
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
           <span style="font-size:1.3rem;">🏷️</span>
           <div>
@@ -1406,9 +1453,7 @@
         </div>
       </div>
 
-      <div style="background:#e8f4fd; border:2px solid #5aa9e6; border-radius:12px; padding:14px 18px; margin-top:12px;">
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-          <span style="font-size:1.3rem;">🛒</span>
+      <div style="background:linear-gradient(180deg, rgba(224,241,253,0.88) 0%, rgba(206,232,250,0.78) 100%); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); border:1px solid rgba(169,209,240,0.9); border-bottom:3px solid #6bb0e6; border-radius:12px; padding:14px 18px; margin-top:12px; box-shadow:0 8px 18px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.5);">
           <div>
             <div style="font-size:0.82rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#2166a3;">Frequently Bought With This</div>
             <div style="font-size:0.72rem; color:#888; margin-top:2px;">Suggest complementary items — shown to customers at checkout so they can add them to their order with one tap.</div>
@@ -1420,7 +1465,7 @@
         <div id="f-fbw-list" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;"></div>
       </div>
 
-      <div style="background:#fff3e0; border:2px solid #e8a020; border-radius:12px; padding:14px 18px; margin-top:12px;">
+      <div style="background:linear-gradient(180deg, rgba(255,241,222,0.88) 0%, rgba(255,231,199,0.78) 100%); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); border:1px solid rgba(240,207,148,0.9); border-bottom:3px solid #e0a94a; border-radius:12px; padding:14px 18px; margin-top:12px; box-shadow:0 8px 18px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.5);">
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
           <span style="font-size:1.3rem;">📦</span>
           <div>
@@ -4304,7 +4349,7 @@
   function addVariantRow(data = {}) {
     const row = document.createElement('div');
     row.className = 'variant-row';
-    row.style.cssText = 'background:#fff; padding:16px; border-radius:10px; border:2px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,0.06);';
+    row.style.cssText = 'background:linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(246,245,240,0.78) 100%); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); padding:16px; border-radius:12px; border:1px solid rgba(228,223,208,0.85); border-bottom:3px solid #d9d2bd; box-shadow:0 8px 18px rgba(0,0,0,0.08), 0 2px 5px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.55);';
     const variantId = 'vimg_' + Date.now() + '_' + Math.random().toString(36).substr(2,5);
     let discountExpiresLocalValue = '';
     if (data.discountExpiresAt) {
@@ -6101,7 +6146,7 @@
     const wrap = document.createElement('div');
     wrap.className = 'image-row';
     wrap.draggable = true;
-    wrap.style.cssText = 'display:flex; gap:8px; align-items:center; margin-bottom:8px; background:#fff; border:1.5px solid var(--border); border-radius:8px; padding:6px 8px; box-sizing:border-box; transition:opacity 0.15s, border-color 0.15s, background 0.15s;';
+    wrap.style.cssText = 'display:flex; gap:8px; align-items:center; margin-bottom:8px; background:linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(246,245,240,0.78) 100%); backdrop-filter:blur(10px) saturate(150%); -webkit-backdrop-filter:blur(10px) saturate(150%); border:1px solid rgba(228,223,208,0.85); border-bottom:2px solid #d9d2bd; border-radius:10px; padding:8px 10px; box-sizing:border-box; box-shadow:0 4px 10px rgba(0,0,0,0.06); transition:opacity 0.15s, border-color 0.15s, background 0.15s;';
     wrap.addEventListener('dragstart', handleImageDragStart);
     wrap.addEventListener('dragover', handleImageDragOver);
     wrap.addEventListener('drop', handleImageDrop);

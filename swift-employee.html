@@ -308,8 +308,12 @@
       color: #888; cursor: pointer; transition: all 0.2s; font-size: 0.85rem;
       font-weight: 500; border-left: 3px solid transparent;
     }
-    .nav-item:hover { color: #fff; background: #111; }
-    .nav-item.active { color: var(--gold); background: #111; border-left-color: var(--gold); }
+    .nav-item:hover { color: #fff; background: rgba(255,255,255,0.06); }
+    .nav-item.active {
+      color: var(--gold); border-left-color: var(--gold);
+      background: linear-gradient(90deg, rgba(199,162,72,0.18) 0%, rgba(199,162,72,0.05) 100%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+    }
     .nav-item .nav-icon { font-size: 1rem; width: 20px; text-align: center; }
     .sidebar-footer {
       padding: 16px 20px; border-top: 1px solid #1f1f1f;
@@ -372,9 +376,15 @@
     /* ── STATS CARDS ── */
     .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
     .stat-card {
-      background: #fff; border-radius: 10px; padding: 12px 14px;
-      border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(246,245,240,0.78) 100%);
+      backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
+      border-radius: 12px; padding: 12px 14px;
+      border: 1px solid rgba(228,223,208,0.85);
+      border-bottom: 3px solid #d9d2bd;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.08), 0 2px 5px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.55);
+      transition: box-shadow 0.2s ease, transform 0.12s ease;
     }
+    .stat-card:hover { box-shadow: 0 12px 24px rgba(0,0,0,0.1), 0 3px 7px rgba(0,0,0,0.06); }
     .stat-label { font-size: 0.62rem; font-weight: 700; color: var(--grey); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 4px; }
     .stat-value { font-family: 'Inter', sans-serif; font-size: 1.35rem; font-weight: 800; }
     .stat-sub { font-size: 0.65rem; color: var(--grey); margin-top: 3px; }
@@ -402,7 +412,13 @@
     .cs-variant-btn-price { font-size: 0.72rem; font-weight: 700; color: var(--gold-dark); }
 
     /* ── FINANCE OVERVIEW ── */
-    .fin-panel { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 24px; }
+    .fin-panel {
+      background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(248,247,243,0.85) 100%);
+      backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
+      border: 1px solid rgba(228,223,208,0.85); border-bottom: 3px solid #d9d2bd;
+      border-radius: 14px; padding: 18px 20px; margin-bottom: 24px;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.5);
+    }
     .fin-panel-hdr { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
     .fin-month-nav { display: flex; align-items: center; gap: 6px; }
     .fin-month-btn { width: 30px; height: 30px; border-radius: 6px; border: 1.5px solid var(--border); background: #fff; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; color: #333; }
@@ -467,7 +483,15 @@
     .btn-gold:hover { background: var(--gold-dark); color: #fff; }
 
     /* ── PRODUCT TABLE ── */
-    .table-wrap { background: #fff; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
+    .table-wrap {
+      background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(248,247,243,0.85) 100%);
+      backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
+      border-radius: 14px;
+      border: 1px solid rgba(228,223,208,0.85);
+      border-bottom: 3px solid #d9d2bd;
+      overflow: hidden;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.5);
+    }
     table { width: 100%; border-collapse: collapse; }
     th {
       background: var(--black); color: #fff; padding: 11px 14px;
@@ -3705,7 +3729,7 @@
   function addVariantRow(data = {}) {
     const row = document.createElement('div');
     row.className = 'variant-row';
-    row.style.cssText = 'background:#fff; padding:16px; border-radius:10px; border:2px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,0.06);';
+    row.style.cssText = 'background:linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(246,245,240,0.78) 100%); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); padding:16px; border-radius:12px; border:1px solid rgba(228,223,208,0.85); border-bottom:3px solid #d9d2bd; box-shadow:0 8px 18px rgba(0,0,0,0.08), 0 2px 5px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.55);';
     const variantId = 'vimg_' + Date.now() + '_' + Math.random().toString(36).substr(2,5);
     let discountExpiresLocalValue = '';
     if (data.discountExpiresAt) {
@@ -5465,7 +5489,7 @@
     const wrap = document.createElement('div');
     wrap.className = 'image-row';
     wrap.draggable = true;
-    wrap.style.cssText = 'display:flex; gap:8px; align-items:center; margin-bottom:8px; background:#fff; border:1.5px solid var(--border); border-radius:8px; padding:6px 8px; box-sizing:border-box; transition:opacity 0.15s, border-color 0.15s, background 0.15s;';
+    wrap.style.cssText = 'display:flex; gap:8px; align-items:center; margin-bottom:8px; background:linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(246,245,240,0.78) 100%); backdrop-filter:blur(10px) saturate(150%); -webkit-backdrop-filter:blur(10px) saturate(150%); border:1px solid rgba(228,223,208,0.85); border-bottom:2px solid #d9d2bd; border-radius:10px; padding:8px 10px; box-sizing:border-box; box-shadow:0 4px 10px rgba(0,0,0,0.06); transition:opacity 0.15s, border-color 0.15s, background 0.15s;';
     wrap.addEventListener('dragstart', handleImageDragStart);
     wrap.addEventListener('dragover', handleImageDragOver);
     wrap.addEventListener('drop', handleImageDrop);
