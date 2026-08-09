@@ -367,6 +367,7 @@
         flex-direction:column;
       }
       .pd-body{ flex:1; padding:24px; }
+      .pd-related{ grid-column:1/-1; padding:20px 24px; border-bottom:1px solid var(--border); border-top:1px solid var(--border); }
       .pd-name{ font-size:1.4rem !important; }
       .pd-price{ font-size:1.6rem !important; }
       /* Desktop: the mobile-style full-width fixed bar looks out of place in a two-column
@@ -665,7 +666,7 @@
     .pd-btn-buy.pd-btn-notready{opacity:0.55;}
     .pd-btn-wa{background:#25D366;color:#fff;border:none;padding:12px 14px;border-radius:8px;font-size:1rem;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
     .pd-desc-clamped{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
-    .pd-related{margin-top:0; margin-bottom:18px; padding-bottom:16px; border-bottom:1px solid var(--border);}
+    .pd-related{margin:0; padding:16px; border-bottom:1px solid var(--border);}
     .pd-related-title{font-size:1rem;font-weight:800;color:var(--black);margin-bottom:14px;display:flex;align-items:center;gap:8px;}
     .pd-related-title::before{content:'✨';font-size:1.1rem;}
     .pd-related-scroll{display:flex;gap:14px;overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch;}
@@ -745,6 +746,7 @@
 
     /* HTO MODALS */
     .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:700;align-items:center;justify-content:center;}
+    #fbw-preview-modal{background:rgba(0,0,0,0.8);}
     .modal-overlay.open{display:flex;}
     .modal{background:var(--white);border-radius:12px;padding:32px;max-width:420px;width:90%;position:relative;}
     .modal h2{font-family:var(--serif);font-size:1.5rem;font-weight:600;margin-bottom:8px;}
@@ -1267,14 +1269,17 @@
       <div class="pd-thumbs" id="pd-thumbs"></div>
     </div>
 
+    <!-- YOU MIGHT ALSO LIKE: sits directly below the pictures on mobile (natural block
+         stacking); on desktop, CSS grid auto-placement pushes this spanning row below
+         BOTH columns since it can't fit beside the sticky gallery column. -->
+    <div class="pd-related" id="pd-related" style="display:none;">
+      <div class="pd-related-title">You might also like</div>
+      <div class="pd-related-scroll" id="pd-related-scroll"></div>
+    </div>
+
     <!-- RIGHT COLUMN: Product details (scrollable) -->
     <div class="pd-content" id="pd-content">
       <div class="pd-body">
-        <div class="pd-related" id="pd-related" style="display:none;">
-          <div class="pd-related-title">You might also like</div>
-          <div class="pd-related-scroll" id="pd-related-scroll"></div>
-        </div>
-
         <div class="pd-category" id="pd-category"></div>
         <div class="pd-name" id="pd-name"></div>
 
@@ -3022,7 +3027,7 @@
         box.style.maxWidth = popupWidth + 'px';
         box.style.maxHeight = popupHeight + 'px';
         box.style.top = Math.max(16, (window.innerHeight - popupHeight) / 2) + 'px';
-        box.style.left = Math.max(16, rect.left) + 'px';
+        box.style.left = Math.max(16, rect.left - 60) + 'px';
       }
     } else {
       box.classList.remove('fbw-preview-desktop');

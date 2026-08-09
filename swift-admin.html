@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -751,7 +751,7 @@
       <input type="number" id="partial-amount-input" placeholder="e.g. 50000" min="0"
         style="width:100%; padding:12px 14px; border:1.5px solid var(--border); border-radius:8px; font-size:1rem; font-family:'Inter',sans-serif; box-sizing:border-box; margin-bottom:16px;"/>
       <div style="display:flex; gap:10px;">
-        <button class="btn-cancel" style="flex:1;" onclick="closeOverlayEl(document.getElementById('partial-amount-modal'))">Cancel</button>
+        <button class="btn-cancel" style="flex:1;" onclick="document.getElementById('partial-amount-modal').classList.remove('open')">Cancel</button>
         <button class="btn-gold" style="flex:1;" onclick="confirmPartialAmount()">Confirm</button>
       </div>
     </div>
@@ -865,7 +865,7 @@
                 <button type="button" onclick="setGlobalPromoPreset(30,'days')" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+30 days</button>
                 <button type="button" onclick="document.getElementById('gp-expires').value=''" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#888;">✕ No timer</button>
               </div>
-              <input type="datetime-local" id="gp-expires" style="width:100%; padding:9px 11px; border:1.5px solid var(--border); border-radius:7px; font-size:0.82rem; font-family:'Inter',sans-serif; box-sizing:border-box; margin-bottom:10px;"/>
+              <input type="datetime-local" lang="en-GB" id="gp-expires" style="width:100%; padding:9px 11px; border:1.5px solid var(--border); border-radius:7px; font-size:0.82rem; font-family:'Inter',sans-serif; box-sizing:border-box; margin-bottom:10px;"/>
               <button class="btn-gold" onclick="addGlobalPromoCode()" style="width:100%;">+ Add Code</button>
             </div>
           </div>
@@ -1365,7 +1365,7 @@
             <button type="button" onclick="setFreeGiftCountdownPreset(7,'days')" style="background:#fff; border:1.5px solid #c9bdec; border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+7 days</button>
             <button type="button" onclick="clearFreeGiftCountdown()" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#888;">✕ No timer</button>
           </div>
-          <input type="datetime-local" id="f-freegift-expires" style="width:100%; padding:9px 11px; border:1.5px solid #c9bdec; border-radius:7px; font-size:0.82rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box;"/>
+          <input type="datetime-local" lang="en-GB" id="f-freegift-expires" style="width:100%; padding:9px 11px; border:1.5px solid #c9bdec; border-radius:7px; font-size:0.82rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box;"/>
           <div style="font-size:0.66rem; color:#999; margin-top:4px;">Leave blank for a gift with no expiry. If set, the storefront shows a live "act fast" countdown and the gift automatically stops being offered once time runs out.</div>
         </div>
       </div>
@@ -1397,7 +1397,7 @@
             <button type="button" onclick="setProductPromoCountdownPreset(7,'days')" style="background:#fff; border:1.5px solid #a8dcc0; border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+7 days</button>
             <button type="button" onclick="clearProductPromoCountdown()" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#888;">✕ No timer</button>
           </div>
-          <input type="datetime-local" id="f-promo-expires" style="width:100%; padding:9px 11px; border:1.5px solid #a8dcc0; border-radius:7px; font-size:0.82rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box;"/>
+          <input type="datetime-local" lang="en-GB" id="f-promo-expires" style="width:100%; padding:9px 11px; border:1.5px solid #a8dcc0; border-radius:7px; font-size:0.82rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box;"/>
           <div style="font-size:0.66rem; color:#999; margin-top:4px;">Leave blank for a code with no expiry. If set, the storefront shows a live countdown and the code stops working once time runs out.</div>
         </div>
       </div>
@@ -2504,9 +2504,15 @@
     }
     wrap.innerHTML = globalPromoCodes.map(g => {
       const expired = g.expiresAt && new Date(g.expiresAt).getTime() <= Date.now();
-      const expiryLabel = g.expiresAt
-        ? (expired ? '<span style="color:var(--red); font-weight:800;">Expired</span>' : '<span data-expiry="'+new Date(g.expiresAt).getTime()+'" class="gp-expiry-label">Expires ' + fmtDMY(new Date(g.expiresAt), true) + '</span>')
-        : 'No expiry';
+      var expiryLabel;
+      if (!g.expiresAt) {
+        expiryLabel = 'No expiry';
+      } else if (expired) {
+        expiryLabel = '<span style="color:var(--red); font-weight:800;">Expired</span>';
+      } else {
+        const expMs = new Date(g.expiresAt).getTime();
+        expiryLabel = fmtDMY(new Date(g.expiresAt), true) + ' &middot; <span class="admin-countdown" style="font-weight:800;color:#2a9d50;" data-expiry="'+expMs+'">' + formatCountdownAdmin(expMs - Date.now()) + '</span>';
+      }
       return `
         <div style="width:210px; flex:0 0 210px; display:flex; flex-direction:column; gap:6px; background:${expired?'#f5f5f5':'var(--light)'}; border:1px solid var(--border); border-radius:10px; padding:12px 14px; box-sizing:border-box;">
           <span style="align-self:flex-start; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:0.06em; background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:4px 12px; border-radius:6px; font-size:0.82rem;">${g.code}</span>
@@ -3283,11 +3289,11 @@
       return;
     }
     closeOrderTargetDocId = docId;
-    openOverlayEl(document.getElementById('close-order-confirm-modal'));
+    document.getElementById('close-order-confirm-modal').classList.add('open');
   }
 
   async function handleCloseOrderChoice(choice) {
-    closeOverlayEl(document.getElementById('close-order-confirm-modal'));
+    document.getElementById('close-order-confirm-modal').classList.remove('open');
     const docId = closeOrderTargetDocId;
     closeOrderTargetDocId = null;
     if (!docId) return;
@@ -3318,7 +3324,7 @@
       ? 'Order total: ' + fmt(total) + '  •  Already received: ' + fmt(alreadyPaid) + '  •  Remaining: ' + fmt(remaining)
       : 'Order total: ' + fmt(total);
     document.getElementById('partial-amount-input').value = '';
-    openOverlayEl(document.getElementById('partial-amount-modal'));
+    document.getElementById('partial-amount-modal').classList.add('open');
     setTimeout(() => document.getElementById('partial-amount-input').focus(), 150);
   }
 
@@ -3336,7 +3342,7 @@
     const newTotalPaid = previouslyPaid + amountNow;
     const newBalance = Math.max(0, total - newTotalPaid);
 
-    closeOverlayEl(document.getElementById('partial-amount-modal'));
+    document.getElementById('partial-amount-modal').classList.remove('open');
     partialAmountTargetDocId = null;
 
     try {
@@ -3822,6 +3828,48 @@
   }
 
 
+  // ── LIVE STATUS FOR TIMED EVENTS (free gift / promo code timers) ──
+  function formatCountdownAdmin(msRemaining) {
+    if (msRemaining <= 0) return 'Expired';
+    var s = Math.floor(msRemaining / 1000);
+    var d = Math.floor(s / 86400); s -= d * 86400;
+    var h = Math.floor(s / 3600); s -= h * 3600;
+    var m = Math.floor(s / 60);
+    if (d > 0) return d + 'd ' + h + 'h left';
+    if (h > 0) return h + 'h ' + m + 'm left';
+    return m + 'm left';
+  }
+
+  function tickAdminCountdowns() {
+    document.querySelectorAll('.admin-countdown[data-expiry]').forEach(function(el){
+      var exp = parseInt(el.getAttribute('data-expiry'), 10);
+      if (!exp) return;
+      var remaining = exp - Date.now();
+      el.textContent = formatCountdownAdmin(remaining);
+      el.style.color = remaining <= 0 ? 'var(--red)' : '#2a9d50';
+    });
+  }
+  setInterval(tickAdminCountdowns, 30000);
+
+  function timedEventBadge(icon, label, expiresAt) {
+    if (!expiresAt) {
+      return '<br/><span style="font-size:0.66rem;font-weight:700;color:#2a9d50;">' + icon + ' ' + label + ': Active (no expiry)</span>';
+    }
+    var exp = new Date(expiresAt).getTime();
+    var expired = exp <= Date.now();
+    if (expired) {
+      return '<br/><span style="font-size:0.66rem;font-weight:700;color:var(--red);">' + icon + ' ' + label + ': Expired</span>';
+    }
+    return '<br/><span style="font-size:0.66rem;font-weight:700;color:#2a9d50;">' + icon + ' ' + label + ': <span class="admin-countdown" data-expiry="' + exp + '">' + formatCountdownAdmin(exp - Date.now()) + '</span></span>';
+  }
+
+  function timedEventBadges(p) {
+    var html = '';
+    if (p.freeGiftProductId) html += timedEventBadge('🎁', 'Gift', p.freeGiftExpiresAt);
+    if (p.promoCode) html += timedEventBadge('🏷️', p.promoCode, p.promoExpiresAt);
+    return html;
+  }
+
   function renderInventory(filter) {
     renderHotDealsManager();
     renderStoreDropdowns();
@@ -3866,6 +3914,7 @@
                 <strong style="font-size:0.9rem;">${p.name}</strong>${p.hotDeal ? ' <span style="background:var(--red);color:#fff;font-size:0.6rem;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.04em;vertical-align:middle;">🔥 HOT</span>' : ''}${p.featured ? ' <span style="background:var(--gold);color:var(--black);font-size:0.6rem;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.04em;vertical-align:middle;">⭐ FEATURED</span>' : ''}${p.variants.some(v => csHasDiscount(v)) ? ' <span style="background:var(--gold-dark);color:#fff;font-size:0.6rem;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.04em;vertical-align:middle;">🏷️ SALE</span>' : ''}
                 ${p.store ? '<br/><span style="font-size:0.68rem;color:var(--gold-dark);font-weight:700;">🏬 '+storeDisplayLabel(p.store)+'</span>' : ''}
                 ${p.warehouseLocation ? '<br/><span style="font-size:0.68rem;color:#2166a3;font-weight:700;">📍 '+p.warehouseLocation+'</span>' : ''}
+                ${timedEventBadges(p)}
                 ${p.sku ? '<br/><span style="font-size:0.7rem;color:var(--grey);">SKU: '+p.sku+'</span>' : ''}
                 <br/>
                 <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
@@ -4286,7 +4335,7 @@
             <button type="button" onclick="setDiscountCountdownPreset(this, 7, 'days')" style="background:#fff; border:1.5px solid #e0b0a8; border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+7 days</button>
             <button type="button" onclick="clearDiscountCountdown(this)" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#888;">✕ No timer</button>
           </div>
-          <input type="datetime-local" data-field="discountExpiresAt" value="${discountExpiresLocalValue}"
+          <input type="datetime-local" lang="en-GB" data-field="discountExpiresAt" value="${discountExpiresLocalValue}"
             style="width:100%; padding:9px 11px; border:1.5px solid #e0b0a8; border-radius:7px; font-size:0.82rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box;"
             oninput="updateDiscountPreview(this)"/>
           <div style="font-size:0.66rem; color:#999; margin-top:4px;">Leave blank for a discount with no expiry. If set, the discount automatically ends and the storefront shows a live countdown until then.</div>
@@ -4919,7 +4968,7 @@
         </div>
         <div class="form-group">
           <label>Date *</label>
-          <input type="date" id="fin-date"/>
+          <input type="date" id="fin-date" lang="en-GB"/>
         </div>
       </div>
     </div>
