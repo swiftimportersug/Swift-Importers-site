@@ -502,8 +502,8 @@
 
     /* ── MODAL ── */
     .modal-overlay {
-      display: none; position: fixed; inset: 0; background: rgba(30,26,18,0.22);
-      backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+      display: none; position: fixed; inset: 0; background: rgba(20,17,10,0.5);
+      backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
       z-index: 200; align-items: center; justify-content: center; padding: 16px;
     }
     .modal-overlay.open { display: flex; }
@@ -2306,8 +2306,17 @@
   }
 
   function orderValue(o) {
-    return (o.pricing && o.pricing.total) || ((o.amountPaid||0) + (o.balanceDue||0));
+    if (!o) return 0;
+    if (o.orderTotal) return o.orderTotal;
+    if (o.pricing && o.pricing.total) return o.pricing.total;
+    if (o.subtotal) return o.subtotal;
+    if (Array.isArray(o.cartItems) && o.cartItems.length) {
+      return o.cartItems.reduce((s,c) => s + (c.price||0) * (c.qty||0), 0);
+    }
+    return (o.amountPaid||0) + (o.balanceDue||0);
   }
+  // Alias used by the close-order payment flow, kept for readability at each call site.
+  const getOrderTotal = orderValue;
 
   function renderMyPanel() {
     const nameLabel = document.getElementById('my-panel-name-label');
@@ -2734,11 +2743,11 @@
           ` : ''}
           ${o.balanceDue > 0 ? `
             <div style="width:100%; margin-top:6px; background:#fdecea; border:1.5px solid var(--red); border-radius:8px; padding:8px 10px; font-size:0.8rem; color:var(--red); font-weight:800; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
-              <span>⚠️ Balance owed: ${fmt(o.balanceDue)} (paid ${fmt(o.amountPaid||0)} of ${fmt((o.pricing&&o.pricing.total)||o.amountPaid||0)})</span>
+              <span>⚠️ Balance owed: ${fmt(o.balanceDue)} (paid ${fmt(o.amountPaid||0)} of ${fmt(getOrderTotal(o))})</span>
               <button onclick="markOrderBalancePaid('${o.fbDocId}')" style="background:var(--green); color:#fff; border:none; padding:5px 10px; border-radius:6px; font-size:0.72rem; font-weight:700; cursor:pointer;">✅ Mark Paid</button>
             </div>
-          ` : (o.paymentStatus === 'paid' && o.pricing ? `
-            <div style="width:100%; margin-top:6px; font-size:0.74rem; color:var(--green); font-weight:700; display:flex; align-items:center; gap:6px;">✅ Paid in full <span style="font-weight:800; color:var(--green); font-size:0.88rem;">${fmt(o.pricing.total)}</span></div>
+          ` : (o.paymentStatus === 'paid' ? `
+            <div style="width:100%; margin-top:6px; font-size:0.74rem; color:var(--green); font-weight:700; display:flex; align-items:center; gap:6px;">✅ Paid in full <span style="font-weight:800; color:var(--green); font-size:0.88rem;">${fmt(getOrderTotal(o))}</span></div>
           ` : '')}
         </div>
         <div class="order-card-actions">${actions}</div>
@@ -2906,7 +2915,7 @@
       try {
         const orderRef = window.fbFns.doc(window.fbDb, 'orders', docId);
         const o = orders.find(x => x.fbDocId === docId);
-        const total = (o && o.pricing && o.pricing.total) || (o ? (o.amountPaid||0) + (o.balanceDue||0) : 0);
+        const total = getOrderTotal(o);
         await window.fbFns.updateDoc(orderRef, { amountPaid: total, balanceDue: 0, paymentStatus: 'paid' });
         await updateOrderStatus(docId, 'closed');
         showOrderCompletedToast();
@@ -2919,7 +2928,7 @@
   function openPartialAmountModal(docId) {
     partialAmountTargetDocId = docId;
     const o = orders.find(x => x.fbDocId === docId);
-    const total = (o && o.pricing && o.pricing.total) || (o ? (o.amountPaid||0) + (o.balanceDue||0) : 0);
+    const total = getOrderTotal(o);
     const alreadyPaid = o ? (o.amountPaid || 0) : 0;
     const remaining = Math.max(0, total - alreadyPaid);
     const ctx = document.getElementById('partial-amount-context');
@@ -2940,7 +2949,7 @@
 
     const o = orders.find(x => x.fbDocId === docId);
     if (!o) return;
-    const total = (o.pricing && o.pricing.total) || (o.amountPaid||0) + (o.balanceDue||0);
+    const total = getOrderTotal(o);
     const previouslyPaid = o.amountPaid || 0;
     const newTotalPaid = previouslyPaid + amountNow;
     const newBalance = Math.max(0, total - newTotalPaid);
@@ -2966,7 +2975,7 @@
     showAppConfirm('Mark this order\'s outstanding balance of ' + fmt(o.balanceDue||0) + ' as fully paid?', async function(){
       if (!window.fbDb || !window.fbFns) return;
       const { doc, updateDoc } = window.fbFns;
-      const fullTotal = (o.pricing && o.pricing.total) || (o.amountPaid||0) + (o.balanceDue||0);
+      const fullTotal = getOrderTotal(o);
       try {
         await updateDoc(doc(window.fbDb, 'orders', docId), { amountPaid: fullTotal, balanceDue: 0, paymentStatus: 'paid' });
       } catch(e) { showAppAlert('Error updating order. Check your connection.'); console.error(e); }

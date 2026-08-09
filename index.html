@@ -342,6 +342,7 @@
       .pd-modal{
         display:grid;
         grid-template-columns:1.35fr 1fr;
+        grid-auto-flow:dense;
         width:100%;
         max-width:1400px;
         margin:0 auto;
@@ -745,8 +746,8 @@
     .footer-bottom{border-top:1px solid var(--line);padding-top:24px;display:flex;justify-content:space-between;align-items:center;font-size:0.74rem;color:#726e5e;}
 
     /* HTO MODALS */
-    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:700;align-items:center;justify-content:center;}
-    #fbw-preview-modal{background:rgba(0,0,0,0.8);}
+    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.78);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);z-index:700;align-items:center;justify-content:center;}
+    #fbw-preview-modal{background:rgba(0,0,0,0.85);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
     .modal-overlay.open{display:flex;}
     .modal{background:var(--white);border-radius:12px;padding:32px;max-width:420px;width:90%;position:relative;}
     .modal h2{font-family:var(--serif);font-size:1.5rem;font-weight:600;margin-bottom:8px;}
