@@ -259,7 +259,11 @@
 
     /* ── SIDEBAR ── */
     .sidebar {
-      width: var(--sidebar-w); background: var(--black); min-height: 100vh;
+      width: var(--sidebar-w);
+      background: rgba(10,10,8,0.78);
+      backdrop-filter: blur(20px) saturate(150%); -webkit-backdrop-filter: blur(20px) saturate(150%);
+      border-right: 1px solid rgba(255,255,255,0.07);
+      min-height: 100vh;
       display: flex; flex-direction: column; position: fixed; top: 0; left: 0; z-index: 100;
       transition: transform 0.3s;
     }
