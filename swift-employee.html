@@ -498,19 +498,20 @@
 
     /* ── MODAL ── */
     .modal-overlay {
-      display: none; position: fixed; inset: 0; background: rgba(20,18,12,0.45);
-      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      display: none; position: fixed; inset: 0; background: rgba(30,26,18,0.22);
+      backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
       z-index: 200; align-items: center; justify-content: center; padding: 16px;
     }
     .modal-overlay.open { display: flex; }
     #app-dialog-overlay { z-index: 900; }
     .modal-box {
-      background: rgba(255,255,255,0.82);
-      backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%);
-      border: 1px solid rgba(255,255,255,0.5);
-      border-radius: 14px; width: 100%; max-width: 560px;
+      background: rgba(255,255,255,0.58);
+      backdrop-filter: blur(34px) saturate(190%); -webkit-backdrop-filter: blur(34px) saturate(190%);
+      border: 1px solid rgba(255,255,255,0.7);
+      border-top: 1px solid rgba(255,255,255,0.95);
+      border-radius: 18px; width: 100%; max-width: 560px;
       max-height: 90vh; overflow-y: auto;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+      box-shadow: 0 25px 60px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.6);
       animation: slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1);
     }
     @keyframes slideUp {
@@ -518,21 +519,21 @@
       to   { opacity: 1; transform: translateY(0) scale(1); }
     }
     .modal-hdr {
-      position: sticky; top: 0; background: rgba(255,255,255,0.92);
-      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      position: sticky; top: 0; background: rgba(255,255,255,0.5);
+      backdrop-filter: blur(24px) saturate(190%); -webkit-backdrop-filter: blur(24px) saturate(190%);
       padding: 18px 20px 14px;
-      border-bottom: 1px solid var(--border); display: flex;
-      align-items: center; justify-content: space-between; border-radius: 14px 14px 0 0;
+      border-bottom: 1px solid rgba(255,255,255,0.6); display: flex;
+      align-items: center; justify-content: space-between; border-radius: 18px 18px 0 0;
     }
     .modal-hdr h3 { font-family: 'Inter', sans-serif; font-size: 1rem; font-weight: 800; }
     #product-modal .modal-footer {
-      position: sticky; bottom: 0; background: rgba(255,255,255,0.92);
-      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      position: sticky; bottom: 0; background: rgba(255,255,255,0.5);
+      backdrop-filter: blur(24px) saturate(190%); -webkit-backdrop-filter: blur(24px) saturate(190%);
       z-index: 5;
-      box-shadow: 0 -4px 12px rgba(0,0,0,0.06);
+      box-shadow: 0 -4px 12px rgba(0,0,0,0.08);
     }
     .modal-close-btn {
-      background: var(--light); border: none; width: 30px; height: 30px;
+      background: rgba(255,255,255,0.55); border: none; width: 30px; height: 30px;
       border-radius: 50%; cursor: pointer; font-size: 0.9rem; display: flex;
       align-items: center; justify-content: center;
     }
@@ -542,7 +543,7 @@
     .form-group input, .form-group select, .form-group textarea {
       width: 100%; padding: 10px 13px; border: 1.5px solid var(--border);
       border-radius: 7px; font-size: 0.88rem; font-family: 'Inter', sans-serif;
-      outline: none; transition: border-color 0.2s; background: var(--white);
+      outline: none; transition: border-color 0.2s; background: rgba(255,255,255,0.85);
     }
     .form-group input:focus, .form-group select:focus { border-color: var(--gold); }
     .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -1324,6 +1325,30 @@
           <input type="checkbox" id="f-hotdeal" style="opacity:0; width:0; height:0;" onchange="updateHotDealBoxStyle()"/>
           <span id="f-hotdeal-slider" style="position:absolute; cursor:pointer; inset:0; background:#ccc; border-radius:26px; transition:0.2s;"></span>
         </label>
+      </div>
+
+      <div style="background:#fff3e0; border:2px solid #e8a020; border-radius:12px; padding:14px 18px; margin-top:16px;">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+          <span style="font-size:1.3rem;">📦</span>
+          <div>
+            <div style="font-size:0.82rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#b87d12;">Bundle Purchase</div>
+            <div style="font-size:0.72rem; color:#888; margin-top:2px;">Pair this item with something that goes with it (e.g. IEMs + upgrade cable). Shown under "Choose Your Variant" so the client can add both with one tap.</div>
+          </div>
+        </div>
+        <select id="f-bundle-product" onchange="updateBundlePreview()" style="width:100%; padding:11px 13px; border:2px solid #f0cf94; border-radius:8px; font-size:0.88rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box; margin-bottom:10px;">
+          <option value="">No bundle</option>
+        </select>
+        <div id="f-bundle-preview" style="display:none; align-items:center; gap:10px; margin-bottom:10px; background:#fff; border:1.5px solid #f0cf94; border-radius:8px; padding:8px 10px;"></div>
+        <div class="form-row-2">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Bundle Preview Picture (optional)</label>
+            <input type="text" id="f-bundle-image" placeholder="Image URL for the bundle listing"/>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Bundle Price (optional)</label>
+            <input type="number" id="f-bundle-price" min="0" placeholder="Leave blank to just add both prices"/>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -3362,6 +3387,10 @@
     if (wc) { wc.textContent = '0 words'; wc.style.color = 'var(--grey)'; }
     document.getElementById('f-hotdeal').checked = false;
     updateHotDealBoxStyle();
+    const bundleSelAdd = document.getElementById('f-bundle-product');
+    if (bundleSelAdd) { bundleSelAdd.innerHTML = bundleOptionsHtml(null, ''); updateBundlePreview(); }
+    document.getElementById('f-bundle-image').value = '';
+    document.getElementById('f-bundle-price').value = '';
     document.getElementById('images-list').innerHTML = '';
     addImageRow();
     document.getElementById('f-video').value = '';
@@ -3394,6 +3423,10 @@
     updateDescWordCount(document.getElementById('f-description'));
     document.getElementById('f-hotdeal').checked = !!p.hotDeal;
     updateHotDealBoxStyle();
+    const bundleSelEdit = document.getElementById('f-bundle-product');
+    if (bundleSelEdit) { bundleSelEdit.innerHTML = bundleOptionsHtml(id, p.bundleProductId || ''); updateBundlePreview(); }
+    document.getElementById('f-bundle-image').value = p.bundleImage || '';
+    document.getElementById('f-bundle-price').value = p.bundlePrice || '';
     document.getElementById('images-list').innerHTML = '';
     const images = p.images || (p.image ? [p.image] : []);
     if (images.length === 0) { addImageRow(); }
@@ -3658,6 +3691,33 @@
     }
   }
 
+  // ── BUNDLE PURCHASE (main item + a complementary item, sold together) ──
+  function bundleOptionsHtml(excludeId, selected) {
+    let html = '<option value="">No bundle</option>';
+    html += products.filter(p => p.id !== excludeId).map(p =>
+      `<option value="${p.id}" ${selected===p.id?'selected':''}>${p.name}</option>`
+    ).join('');
+    return html;
+  }
+
+  function updateBundlePreview() {
+    const sel = document.getElementById('f-bundle-product');
+    const preview = document.getElementById('f-bundle-preview');
+    if (!sel || !preview) return;
+    const bid = sel.value;
+    if (!bid) { preview.style.display = 'none'; preview.innerHTML = ''; return; }
+    const bundleProd = products.find(p => p.id === bid);
+    if (!bundleProd) { preview.style.display = 'none'; return; }
+    const thumb = (bundleProd.images && bundleProd.images[0]) || bundleProd.image || '';
+    preview.style.display = 'flex';
+    preview.innerHTML = `
+      <div style="width:36px;height:36px;border-radius:6px;overflow:hidden;background:#eee;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.1rem;">
+        ${thumb ? `<img src="${thumb}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.textContent='📦'"/>` : '📦'}
+      </div>
+      <div style="font-size:0.8rem; font-weight:700; color:#b87d12;">📦 Bundled with: ${bundleProd.name}</div>
+    `;
+  }
+
   function productSignature(p) {
     if (!p) return '';
     return JSON.stringify({
@@ -3672,6 +3732,9 @@
       threshold: parseInt(p.threshold) || 0,
       hotDeal: !!p.hotDeal,
       warehouseLocation: p.warehouseLocation || '',
+      bundleProductId: p.bundleProductId || '',
+      bundleImage: p.bundleImage || '',
+      bundlePrice: parseInt(p.bundlePrice) || 0,
       variants: (p.variants || []).map(v => ({
         name: v.name || '', color: v.color || '',
         buy: parseInt(v.buy) || 0, sell: parseInt(v.sell) || 0,
@@ -3731,13 +3794,16 @@
     const threshold_ = parseInt(document.getElementById('f-threshold').value) || threshold;
     const video = document.getElementById('f-video').value.trim();
     const warehouseLocation = document.getElementById('f-warehouse-location').value.trim();
+    const bundleProductId = document.getElementById('f-bundle-product') ? document.getElementById('f-bundle-product').value : '';
+    const bundleImage = document.getElementById('f-bundle-image').value.trim();
+    const bundlePrice = parseInt(document.getElementById('f-bundle-price').value) || 0;
     const imageUrls = Array.from(document.querySelectorAll('#images-list .img-url-input'))
       .map(i => i.value.trim()).filter(Boolean);
 
     // Build the full candidate product object (used for both change-detection and saving)
     const candidateProduct = editingId
-      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '' }
-      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '' };
+      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 }
+      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
 
     // If editing an existing product and nothing actually changed, skip the save entirely
     if (editingId && editingOriginalSnapshot && productSignature(editingOriginalSnapshot) === productSignature(candidateProduct)) {
@@ -3749,14 +3815,14 @@
     if (editingId) {
       const idx = products.findIndex(p => p.id === editingId);
       if (idx > -1) {
-        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '' };
+        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
       }
     } else {
       products.push({
         id: candidateProduct.id,
         name, category: cat, store, sku,
         threshold: threshold_,
-        variants, hotDeal, warehouseLocation: warehouseLocation || ''
+        variants, hotDeal, warehouseLocation: warehouseLocation || '', bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0
       });
     }
 

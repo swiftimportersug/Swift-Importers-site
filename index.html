@@ -221,10 +221,23 @@
     .see-all{font-size:0.76rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--gold-dark);text-decoration:none;border-bottom:1px solid var(--gold);padding-bottom:2px;}
 
     /* CATEGORIES */
-    .cats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;}
-    .cat-card{background:var(--black);border:1px solid #232320;border-radius:8px;padding:10px 6px;text-align:center;cursor:pointer;transition:transform 0.2s,border-color 0.2s;text-decoration:none;}
-    .cat-card:hover{transform:translateY(-3px);border-color:var(--gold);}
-    .cat-card.highlighted{background:linear-gradient(160deg,var(--gold-light),var(--gold));border:1px solid var(--gold);transform:translateY(-4px);box-shadow:0 10px 28px rgba(199,162,72,0.35);}
+    .cats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:10px;}
+    .cat-card{
+      background:linear-gradient(180deg, #26261f 0%, #15150f 100%);
+      border:1px solid #302f27;
+      border-bottom:3px solid #060604;
+      border-radius:10px;
+      padding:10px 6px;
+      text-align:center;
+      cursor:pointer;
+      transition:transform 0.15s ease, box-shadow 0.2s ease, border-bottom-width 0.12s ease;
+      text-decoration:none;
+      box-shadow:0 7px 16px rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.05);
+    }
+    .cat-card:hover{transform:translateY(-3px);border-color:var(--gold);box-shadow:0 12px 24px rgba(0,0,0,0.45), 0 2px 4px rgba(0,0,0,0.25);}
+    .cat-card:active{transform:translateY(1px);border-bottom-width:1px;box-shadow:0 3px 8px rgba(0,0,0,0.3);}
+    .cat-card.highlighted{background:linear-gradient(160deg,var(--gold-light),var(--gold));border:1px solid var(--gold);border-bottom:3px solid #a3803a;transform:translateY(-4px);box-shadow:0 10px 28px rgba(199,162,72,0.35);}
+    .cat-card.highlighted:active{transform:translateY(-2px);border-bottom-width:1px;}
     .cat-card.highlighted .cat-name{color:var(--black);}
     .cat-card .cat-icon{font-size:0.95rem;margin-bottom:4px;}
     .cat-card .cat-name{color:var(--white);font-size:0.62rem;font-weight:600;letter-spacing:0.02em;}
@@ -405,6 +418,24 @@
     .pd-price{font-family:'Inter',sans-serif;font-size:1.25rem;font-weight:700;color:var(--black);margin-bottom:3px;letter-spacing:-0.01em;}
     .pd-stock-status{font-size:0.72rem;font-weight:600;margin-bottom:12px;}
     .pd-variant-section{margin-bottom:14px;border-radius:10px;transition:box-shadow 0.2s;}
+    .pd-bundle-box{
+      background:linear-gradient(135deg,#fff8e6,#fff3e0); border:1.5px solid var(--gold);
+      border-radius:12px; padding:12px 14px; margin-bottom:16px;
+    }
+    .pd-bundle-hdr{ font-size:0.68rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:var(--gold-dark); margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+    .pd-bundle-row{ display:flex; align-items:center; gap:10px; }
+    .pd-bundle-thumb{ width:52px; height:52px; border-radius:8px; overflow:hidden; background:#fff; border:1px solid var(--gold); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:1.3rem; }
+    .pd-bundle-thumb img{ width:100%; height:100%; object-fit:contain; }
+    .pd-bundle-info{ flex:1; min-width:0; }
+    .pd-bundle-name{ font-size:0.82rem; font-weight:700; color:var(--black); line-height:1.3; }
+    .pd-bundle-price{ font-size:0.8rem; font-weight:800; color:var(--gold-dark); margin-top:2px; }
+    .pd-bundle-price .pd-bundle-price-original{ color:var(--grey); font-weight:600; text-decoration:line-through; margin-left:6px; font-size:0.85em; }
+    .pd-bundle-toggle{
+      flex-shrink:0; background:var(--black); color:#fff; border:none; border-radius:8px;
+      padding:9px 14px; font-size:0.76rem; font-weight:700; cursor:pointer; font-family:'Inter',sans-serif;
+      transition:background 0.15s;
+    }
+    .pd-bundle-toggle.added{ background:#2a9d50; }
     .pd-variant-section.pd-attention{animation:pdVariantShake 0.5s ease;box-shadow:0 0 0 3px var(--red), 0 0 16px rgba(214,59,47,0.35);}
     @keyframes pdVariantShake{
       0%,100%{transform:translateX(0);}
@@ -1225,6 +1256,10 @@
             <div class="pd-variant-btns" id="pd-variant-btns"></div>
             <select class="pd-variant-select" id="pd-variant-select" onchange="onPdVariantChange(this)" style="display:none;"></select>
           </div>
+
+          <!-- BUNDLE PURCHASE -->
+          <div id="pd-bundle-box" style="display:none;"></div>
+
           <div style="margin-bottom:16px;">
             <div style="font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#444;margin-bottom:7px;">Quantity</div>
             <div style="display:flex;align-items:center;gap:10px;">
@@ -1764,7 +1799,7 @@
       var imgEl = document.createElement('img');
       imgEl.src = p.image; imgEl.alt = p.name;
       imgEl.style.cssText = 'width:100%;height:100%;object-fit:cover;';
-      imgEl.onerror = function(){ this.style.opacity = 0; };
+      imgEl.setAttribute('onerror', "this.style.opacity=0;");
       imgDiv.appendChild(imgEl);
     } else {
       var iconEl = document.createElement('div');
@@ -1779,9 +1814,10 @@
     likeBtn.type = 'button';
     likeBtn.title = 'Like this product';
     likeBtn.innerHTML = '🤍';
-    (function(pid, btnEl){
-      btnEl.onclick = function(e){ likeProductFromCard(pid, e, btnEl); };
-    })(p.id, likeBtn);
+    // NOTE: uses an inline onclick attribute (not .onclick = fn) on purpose — the card's
+    // "innerHTML +=" call just below re-parses this button from scratch, which would
+    // silently strip a JS-property event handler but preserves an inline attribute one.
+    likeBtn.setAttribute('onclick', "likeProductFromCard('" + String(p.id).replace(/'/g,"\\'") + "', event, this)");
     imgDiv.appendChild(likeBtn);
     div.appendChild(imgDiv);
     div.innerHTML += '<div class="product-card-info">'+
@@ -1942,6 +1978,7 @@
   var pdImages = [];
   var pdTouchX = 0;
   var pdAppliedPromoCode = null;
+  var pdBundleSelected = false;
   var pdAppliedPromoDiscount = 0;
   var checkoutAppliedPromoCode = null;
   var checkoutAppliedPromoDiscount = 0;
@@ -2150,6 +2187,8 @@
     document.getElementById('pd-qty').textContent = 1;
     pdQty = 1;
     document.getElementById('pd-qty-total').textContent = '';
+    pdBundleSelected = false;
+    renderPdBundleBox(p);
     document.getElementById('pd-btn-wa').onclick = function(){
       window.open('https://wa.me/256757675088?text=Hi%20Swift%20Importers!%20I%27m%20interested%20in%20'+encodeURIComponent(p.name),'_blank');
     };
@@ -2634,7 +2673,67 @@
     var btn = document.getElementById('pd-btn-cart');
     btn.textContent = 'Added to Cart!'; btn.style.background='#2a9d50';
     setTimeout(function(){ btn.textContent='Add to Cart'; btn.style.background=''; },1400);
+
+    if (pdBundleSelected && p.bundleProductId) {
+      var bundleProd = products.find(function(x){ return x.id === p.bundleProductId; });
+      var bv = bundleProd && bundleProd.variants && bundleProd.variants[0];
+      if (bundleProd && bv) {
+        var bAvailable = parseInt(bv.stock) || 0;
+        if (bAvailable > 0) {
+          var bCartKey = bundleProd.id + '_0';
+          var bExisting = cart.find(function(c){ return c.cartKey === bCartKey; });
+          if (bExisting) {
+            if (bExisting.qty + 1 <= bAvailable) bExisting.qty += 1;
+          } else {
+            var bImg = bv.variantImage || bundleProd.image || (bundleProd.images && bundleProd.images[0]) || '';
+            cart.push({ cartKey:bCartKey, id:bundleProd.id, name:bundleProd.name+(bundleProd.variants.length>1?' - '+bv.name:'')+' (Bundle)', price:effectivePrice(bv), cost:0, icon:catIcons[bundleProd.category]||'', img:bImg, qty:1, variantIdx:0, maxStock:bAvailable, promoApplied:false });
+          }
+          updateCartCount();
+          renderOrderItemsSummary();
+        }
+      }
+    }
     return true;
+  }
+
+  function renderPdBundleBox(p) {
+    var box = document.getElementById('pd-bundle-box');
+    if (!box) return;
+    var bundleProd = p.bundleProductId ? products.find(function(x){ return x.id === p.bundleProductId; }) : null;
+    var bv = bundleProd && bundleProd.variants && bundleProd.variants[0];
+    if (!bundleProd || !bv) { box.style.display = 'none'; box.innerHTML = ''; return; }
+
+    var thumb = p.bundleImage || bv.variantImage || bundleProd.image || (bundleProd.images && bundleProd.images[0]) || '';
+    var thumbHtml = thumb ? '<img src="'+thumb+'" alt="" onerror="this.parentElement.textContent=\'📦\'"/>' : '📦';
+    var v = p.variants[pdCurrentVariantIdx !== null && pdCurrentVariantIdx !== undefined ? pdCurrentVariantIdx : 0] || p.variants[0];
+    var mainPrice = v ? pdEffectivePrice(v) : 0;
+    var companionPrice = effectivePrice(bv);
+    var normalTotal = mainPrice + companionPrice;
+    var bundleTotal = (parseInt(p.bundlePrice) > 0) ? parseInt(p.bundlePrice) : normalTotal;
+    var priceHtml = fmtPrice(bundleTotal) + (bundleTotal < normalTotal ? ' <span class="pd-bundle-price-original">'+fmtPrice(normalTotal)+'</span>' : '');
+
+    box.innerHTML =
+      '<div class="pd-bundle-box">' +
+        '<div class="pd-bundle-hdr">📦 Bundle &amp; Save</div>' +
+        '<div class="pd-bundle-row">' +
+          '<div class="pd-bundle-thumb">'+thumbHtml+'</div>' +
+          '<div class="pd-bundle-info">' +
+            '<div class="pd-bundle-name">+ '+bundleProd.name+'</div>' +
+            '<div class="pd-bundle-price">'+priceHtml+' <span style="color:var(--grey);font-weight:600;">for both</span></div>' +
+          '</div>' +
+          '<button type="button" class="pd-bundle-toggle" id="pd-bundle-toggle-btn" onclick="togglePdBundle()">+ Add Bundle</button>' +
+        '</div>' +
+      '</div>';
+    box.style.display = 'block';
+  }
+
+  function togglePdBundle() {
+    pdBundleSelected = !pdBundleSelected;
+    var btn = document.getElementById('pd-bundle-toggle-btn');
+    if (btn) {
+      btn.textContent = pdBundleSelected ? '✓ Bundle Selected' : '+ Add Bundle';
+      btn.classList.toggle('added', pdBundleSelected);
+    }
   }
 
   function highlightVariantSelector() {
