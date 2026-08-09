@@ -1431,12 +1431,22 @@
         <div style="display:flex; gap:10px;">
           <div style="flex:1;">
             <label style="display:block; font-size:0.68rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:#555; margin-bottom:4px;">Code</label>
-            <input type="text" id="f-promocode" placeholder="e.g. SAVE20" style="width:100%; padding:11px 13px; border:2px solid #a8dcc0; border-radius:8px; font-size:0.88rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box; text-transform:uppercase;"/>
+            <input type="text" id="f-promocode" placeholder="e.g. SAVE20" oninput="refreshPromoVisibleToggleWrap()" style="width:100%; padding:11px 13px; border:2px solid #a8dcc0; border-radius:8px; font-size:0.88rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box; text-transform:uppercase;"/>
           </div>
           <div style="flex:1;">
             <label style="display:block; font-size:0.68rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:#555; margin-bottom:4px;">Reduce price by (UGX)</label>
             <input type="number" id="f-promo-amount" min="0" placeholder="e.g. 20000" style="width:100%; padding:11px 13px; border:2px solid #a8dcc0; border-radius:8px; font-size:0.88rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box;"/>
           </div>
+        </div>
+        <div id="f-promo-visible-toggle-wrap" style="display:none; margin-top:12px; background:rgba(255,255,255,0.6); border:1.5px solid #a8dcc0; border-radius:8px; padding:10px 12px; align-items:center; justify-content:space-between; gap:10px;">
+          <div>
+            <div style="font-size:0.78rem; font-weight:800; color:#2a7d52;">👁️ Show On Product Page</div>
+            <div style="font-size:0.68rem; color:#888; margin-top:2px; max-width:320px;">Off = a "secret" code — still works if a client enters it (great for WhatsApp/Facebook deals), but nothing shows on the product page. On = the savings show right on the product for everyone to see.</div>
+          </div>
+          <label style="position:relative; display:inline-block; width:46px; height:26px; flex-shrink:0;">
+            <input type="checkbox" id="f-promo-visible" style="opacity:0; width:0; height:0;" onchange="updatePromoVisibleSliderStyle()"/>
+            <span id="f-promo-visible-slider" style="position:absolute; cursor:pointer; inset:0; background:#ccc; border-radius:26px; transition:0.2s;"></span>
+          </label>
         </div>
         <div style="margin-top:12px; padding-top:12px; border-top:1px solid #a8dcc0;">
           <div style="font-size:0.72rem; font-weight:800; color:#2a7d52; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">⏰ Promo Timer (optional)</div>
@@ -1498,6 +1508,23 @@
 </div>
 
 <script>
+  function updatePromoVisibleSliderStyle() {
+    const on = document.getElementById('f-promo-visible').checked;
+    const slider = document.getElementById('f-promo-visible-slider');
+    slider.style.background = on ? '#2a9d50' : '#ccc';
+    slider.innerHTML = '';
+    const knob = document.createElement('span');
+    knob.style.cssText = 'position:absolute; height:20px; width:20px; left:' + (on ? '23px' : '3px') + '; top:3px; background:#fff; border-radius:50%; transition:0.2s; box-shadow:0 1px 3px rgba(0,0,0,0.3);';
+    slider.appendChild(knob);
+  }
+
+  function refreshPromoVisibleToggleWrap() {
+    const codeInput = document.getElementById('f-promocode');
+    const wrap = document.getElementById('f-promo-visible-toggle-wrap');
+    if (!codeInput || !wrap) return;
+    wrap.style.display = codeInput.value.trim() ? 'flex' : 'none';
+  }
+
   function updateHotDealBoxStyle() {
     const on = document.getElementById('f-hotdeal').checked;
     const slider = document.getElementById('f-hotdeal-slider');
@@ -4201,6 +4228,9 @@
     document.getElementById('f-promo-amount').value = '';
     document.getElementById('f-promo-expires').value = '';
     updateDMYPreview(document.getElementById('f-promo-expires'));
+    document.getElementById('f-promo-visible').checked = false;
+    updatePromoVisibleSliderStyle();
+    refreshPromoVisibleToggleWrap();
     document.getElementById('images-list').innerHTML = '';
     addImageRow();
     document.getElementById('f-video').value = '';
@@ -4253,6 +4283,9 @@
     document.getElementById('f-promo-amount').value = p.promoDiscountAmount || '';
     document.getElementById('f-promo-expires').value = p.promoExpiresAt ? toDatetimeLocalValue(new Date(p.promoExpiresAt)) : '';
     updateDMYPreview(document.getElementById('f-promo-expires'));
+    document.getElementById('f-promo-visible').checked = !!p.promoVisible;
+    updatePromoVisibleSliderStyle();
+    refreshPromoVisibleToggleWrap();
     document.getElementById('images-list').innerHTML = '';
     const images = p.images || (p.image ? [p.image] : []);
     if (images.length === 0) { addImageRow(); }
@@ -4542,6 +4575,7 @@
       promoCode: p.promoCode || '',
       promoDiscountAmount: parseInt(p.promoDiscountAmount) || 0,
       promoExpiresAt: p.promoExpiresAt || '',
+      promoVisible: !!p.promoVisible,
       frequentlyBoughtWith: p.frequentlyBoughtWith || [],
       warehouseLocation: p.warehouseLocation || '',
       bundleProductId: p.bundleProductId || '',
@@ -4611,6 +4645,7 @@
     }
     const promoCode = document.getElementById('f-promocode').value.trim().toUpperCase();
     const promoDiscountAmount = parseInt(document.getElementById('f-promo-amount').value) || 0;
+    const promoVisible = document.getElementById('f-promo-visible').checked;
     const promoExpiresRaw = document.getElementById('f-promo-expires').value;
     let promoExpiresAt = '';
     if (promoExpiresRaw) {
@@ -4631,8 +4666,8 @@
 
     // Build the full candidate product object (used for both change-detection and saving)
     const candidateProduct = editingId
-      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 }
-      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
+      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 }
+      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
 
     // If editing an existing product and nothing actually changed, skip the save entirely
     if (editingId && editingOriginalSnapshot && productSignature(editingOriginalSnapshot) === productSignature(candidateProduct)) {
@@ -4644,14 +4679,14 @@
     if (editingId) {
       const idx = products.findIndex(p => p.id === editingId);
       if (idx > -1) {
-        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
+        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
       }
     } else {
       products.push({
         id: candidateProduct.id,
         name, category: cat, store, sku,
         threshold: threshold_,
-        variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0
+        variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0
       });
     }
 

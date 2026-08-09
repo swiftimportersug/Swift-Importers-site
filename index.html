@@ -362,13 +362,14 @@
         min-height:calc(100vh - 64px);
         align-self:start;
         border-radius:16px;
-        box-shadow:0 12px 30px rgba(0,0,0,0.18), 0 4px 10px rgba(0,0,0,0.1);
-        border:1px solid rgba(255,255,255,0.06);
+        box-shadow:0 8px 18px rgba(0,0,0,0.09), 0 2px 6px rgba(0,0,0,0.05);
+        border:1px solid rgba(255,255,255,0.04);
       }
       .pd-gallery{
-        flex:1;
+        flex:0 0 auto;
         height:auto !important;
         min-height:580px;
+        max-height:72vh;
       }
       .pd-content{
         display:flex;
@@ -891,7 +892,7 @@
 <!-- NAV -->
 <nav>
   <div class="logo-img-wrap">
-    <div class="swift-logo">
+    <div class="swift-logo" onclick="goToHomePage()" style="cursor:pointer;" title="Back to home">
       <div class="swift-logo-main">SWIFT IMP<span class="dot"></span>RTERS</div>
       <div class="swift-logo-sub">Delivering Quality</div>
     </div>
@@ -1277,7 +1278,7 @@
 <!-- PRODUCT DETAIL MODAL -->
 <div class="pd-overlay" id="pd-overlay" onclick="closePdModal(event)">
   <div class="pd-close-bar">
-    <div class="pd-logo-mini" onclick="event.stopPropagation(); closePdOverlay();" title="Back to homepage">
+    <div class="pd-logo-mini" onclick="event.stopPropagation(); goToHomePage();" title="Back to home">
       <div class="swift-logo">
         <div class="swift-logo-main">SWIFT IMP<span class="dot"></span>RTERS</div>
       </div>
@@ -1346,6 +1347,7 @@
 
         <!-- PROMO CODE (always shown, right above the action buttons) -->
         <div id="pd-promo-section" class="pd-glass-box">
+          <div id="pd-promo-teaser" style="display:none; margin-bottom:10px; font-size:0.85rem; font-weight:800; color:#2a9d50; align-items:center; gap:6px;"></div>
           <div id="pd-promo-input-row" style="display:flex; gap:8px;">
             <input type="text" id="pd-promo-input" placeholder="Have a promo code?" style="flex:1; min-width:0; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:0.82rem; font-family:'Inter',sans-serif; text-transform:uppercase; outline:none;" onkeydown="if(event.key==='Enter'){event.preventDefault();applyPromoCode();}"/>
             <button type="button" onclick="applyPromoCode()" style="background:var(--black); color:#fff; border:none; padding:0 18px; border-radius:8px; font-size:0.8rem; font-weight:700; cursor:pointer; font-family:'Inter',sans-serif;">Apply</button>
@@ -1493,7 +1495,7 @@
       <div class="hto-option" id="del-opt-2"><div class="hto-num">&#127960;&#65039;</div><div class="hto-content"><div class="hto-title">Kampala &amp; Suburbs Coverage</div><p>We deliver across <strong>Kampala and its major suburbs</strong>, including Munyonyo, Buziga, Bweyogerere, Ntinda, Ggaba, Makindye, Makerere, and many more.</p></div></div>
       <div class="hto-option" id="del-opt-3"><div class="hto-num">&#128172;</div><div class="hto-content"><div class="hto-title">Add Detailed Directions</div><p>Include clear landmark-based directions in your order notes. For example: "Behind Shell Kireka, second gray gate on the left" or "Makerere, Ham Towers near the main gate."</p></div></div>
       <div class="hto-option" id="del-opt-4"><div class="hto-num">&#9201;&#65039;</div><div class="hto-content"><div class="hto-title">Delivery Times</div><p>Same-day delivery for orders placed before <strong>6:00 PM</strong> within Kampala. You can expect your items within <strong>20-40 minutes</strong> after order confirmation for most Kampala suburbs. For Jinja - same day via taxi. For Lira City - bus parcel, next morning pickup. Fees UGX 5,000-20,000.</p></div></div>
-      <div class="hto-footer-btn" id="del-footer-btn"><a href="#order" onclick="closeAllOverlays();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();},200)" class="btn-primary" style="display:block;text-align:center;margin-top:8px;text-decoration:none;">Place Your Order Now</a></div>
+      <div class="hto-footer-btn" id="del-footer-btn"><a href="#order" onclick="closeAllOverlays();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();armCheckoutGuard();},200)" class="btn-primary" style="display:block;text-align:center;margin-top:8px;text-decoration:none;">Place Your Order Now</a></div>
     </div>
   </div>
 </div>
@@ -1508,7 +1510,7 @@
     <div class="cart-total" id="cart-total-row" style="display:none;">
       <span>Total</span><span id="cart-total-val"></span>
     </div>
-    <button class="submit-btn" onclick="closeAllOverlays();renderOrderItemsSummary();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();}, 50);">Proceed to Order</button>
+    <button class="submit-btn" onclick="closeAllOverlays();renderOrderItemsSummary();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();armCheckoutGuard();}, 50);">Proceed to Order</button>
   </div>
 </div>
 
@@ -1526,6 +1528,22 @@
     <a href="https://wa.me/256757675088" target="_blank" class="btn-primary" style="display:inline-block;text-decoration:none;margin-top:4px;">Chat on WhatsApp</a>
     <br/><br/>
     <button onclick="closeOverlayEl(document.getElementById('success-modal'))" style="background:none;border:none;color:var(--grey);font-size:0.85rem;cursor:pointer;">Close</button>
+  </div>
+</div>
+
+<!-- CHECKOUT "ARE YOU SURE?" WARNING (shown if the customer presses Back mid-checkout,
+     before finishing their order) — deliberately NOT using openOverlayEl/closeOverlayEl,
+     since this is shown from within a popstate handler and nesting more history
+     operations there risks corrupting the history stack. -->
+<div class="modal-overlay" id="checkout-leave-warning-modal">
+  <div class="modal" style="text-align:center;">
+    <div style="font-size:2.2rem;margin-bottom:6px;">⚠️</div>
+    <h2 style="color:var(--red);">Leave without finishing?</h2>
+    <p id="checkout-leave-message" style="margin-top:10px;font-weight:700;color:#444;"></p>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:20px;">
+      <button onclick="checkoutLeaveCancelled()" class="btn-primary" style="width:100%;">Stay &amp; Finish My Order</button>
+      <button onclick="checkoutLeaveConfirmed()" style="width:100%;background:none;border:1.5px solid var(--border);color:#777;padding:11px;border-radius:6px;font-size:0.85rem;cursor:pointer;font-family:'Inter',sans-serif;">Leave Anyway</button>
+    </div>
   </div>
 </div>
 
@@ -1910,6 +1928,7 @@
         (soonestExp !== null ? '<div style="margin-top:4px;"><span class="countdown-badge" data-expiry="'+soonestExp+'" style="font-size:0.6rem;">'+formatCountdown(soonestExp - Date.now())+'</span></div>' : '')+
         (minP!==maxP?'<div class="product-card-price-range">Multiple variants</div>':'')+
         (giftProduct ? '<div class="gift-strip"><span class="gift-strip-icon">🎁</span>'+((giftProduct.image||(giftProduct.images&&giftProduct.images[0]))?'<img src="'+(giftProduct.image||giftProduct.images[0])+'" class="gift-strip-thumb" onerror="this.style.display=\'none\'"/>':'')+'<span>FREE: '+truncateWords(giftProduct.name, 5)+'</span>'+(giftExpiryMs?' <span class="countdown-badge" data-expiry="'+giftExpiryMs+'" style="font-size:0.56rem;margin-left:4px;">'+formatCountdown(giftExpiryMs - Date.now())+'</span>':'')+'</div>' : '')+
+        (p.promoVisible && isProductPromoActive(p) ? '<div style="margin-top:5px;background:linear-gradient(90deg,#e0f7e9,#eafff2);border:1px solid #2a9d50;border-radius:20px;padding:4px 9px;font-size:0.6rem;font-weight:800;color:#1b7d40;display:inline-flex;align-items:center;gap:4px;">🏷️ Save '+fmtPrice(p.promoDiscountAmount)+' with promo</div>' : '')+
         '<div class="product-card-stock '+stockCls+'">'+stockLabel+'</div>'+
         '<div class="tap-hint">Tap to view &amp; buy</div>'+
       '</div>';
@@ -1943,6 +1962,71 @@
     }
     if (n > 0) history.go(-n);
     if (typeof syncCartFabVisibility === 'function') syncCartFabVisibility();
+  }
+
+  // Clicking the logo always brings the client back to a clean home view — closes
+  // whatever's open (product page, cart, etc.) and scrolls to the very top. If they're
+  // already there with nothing open, it still scrolls to top, which reads as "refreshing"
+  // the home page without losing their cart or any in-progress order details.
+  // ── CHECKOUT "ARE YOU SURE YOU WANT TO LEAVE?" GUARD ──
+  // Armed the moment the customer heads to the order form (Proceed to Order / Buy Now /
+  // Place Your Order). If they press Back before actually submitting, we intercept it,
+  // remind them what they'd be giving up (their promo savings, if any), and let them
+  // choose to stay or leave for real.
+  var checkoutGuardArmed = false;
+  var orderJustSubmitted = false;
+
+  function armCheckoutGuard() {
+    if (checkoutGuardArmed) return; // already armed — don't stack extra history entries
+    checkoutGuardArmed = true;
+    orderJustSubmitted = false;
+    history.pushState({ checkoutGuard: true }, '');
+  }
+
+  function disarmCheckoutGuard() {
+    checkoutGuardArmed = false;
+  }
+
+  window.addEventListener('popstate', function(e){
+    if (!checkoutGuardArmed) return;
+    if (e.state && e.state.checkoutGuard) return; // moving forward within the guard, not leaving it
+    // We've just left the guarded state — the customer pressed Back mid-checkout.
+    checkoutGuardArmed = false;
+    if (orderJustSubmitted) return; // already completed — nothing to warn about
+
+    var savingsLine = '';
+    if (checkoutAppliedPromoDiscount > 0) {
+      savingsLine = 'You\'ll miss out on your promo code savings of ' + fmtPrice(checkoutAppliedPromoDiscount) + '!';
+    } else if (cart.some(function(c){ return c.promoApplied; })) {
+      savingsLine = 'You\'ll miss out on the promo code savings on your order!';
+    } else if (cart.length > 0) {
+      savingsLine = 'Your ' + cart.reduce(function(s,c){return s+c.qty;},0) + '-item order will be lost.';
+    }
+
+    var msgEl = document.getElementById('checkout-leave-message');
+    if (msgEl) msgEl.textContent = savingsLine || 'Your order details will be lost.';
+    var modal = document.getElementById('checkout-leave-warning-modal');
+    if (modal) modal.classList.add('open');
+  });
+
+  function checkoutLeaveConfirmed() {
+    var modal = document.getElementById('checkout-leave-warning-modal');
+    if (modal) modal.classList.remove('open');
+    // Navigation already happened (that's what triggered this warning) — nothing more to do.
+  }
+
+  function checkoutLeaveCancelled() {
+    var modal = document.getElementById('checkout-leave-warning-modal');
+    if (modal) modal.classList.remove('open');
+    armCheckoutGuard(); // re-arm — pushes a fresh guard state so the customer is back where they were
+  }
+
+  function goToHomePage() {
+    if (checkoutGuardArmed) { checkoutGuardArmed = false; history.back(); }
+    closeAllOverlays();
+    setTimeout(function(){
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 50);
   }
 
   var bodyScrollLockCount = 0;
@@ -2095,15 +2179,26 @@
     document.getElementById('pd-name').textContent = p.name;
     updatePdLikeDisplay();
 
-    // Promo code entry — hide entirely if this product has no code set
+    // Promo code entry — always available (a "secret" code still works if typed in),
+    // but only show the savings teaser when the admin/employee has switched it visible.
     var promoSection = document.getElementById('pd-promo-section');
     var promoInput = document.getElementById('pd-promo-input');
     var promoMsg = document.getElementById('pd-promo-message');
+    var promoTeaser = document.getElementById('pd-promo-teaser');
     if (promoSection) promoSection.style.display = 'block';
     if (promoInput) { promoInput.value = ''; promoInput.disabled = false; }
     if (promoMsg) { promoMsg.style.display = 'none'; promoMsg.textContent = ''; }
     var promoInputRow = document.getElementById('pd-promo-input-row');
     if (promoInputRow) promoInputRow.style.display = 'flex';
+    if (promoTeaser) {
+      if (p.promoVisible && isProductPromoActive(p)) {
+        promoTeaser.innerHTML = '🏷️ Apply a promo code to save <span style="color:#1b7d40;">' + fmtPrice(p.promoDiscountAmount) + '</span>!';
+        promoTeaser.style.display = 'flex';
+      } else {
+        promoTeaser.style.display = 'none';
+        promoTeaser.innerHTML = '';
+      }
+    }
 
     // Free gift with purchase
     var pdGiftBox = document.getElementById('pd-gift-box');
@@ -2917,6 +3012,7 @@
       document.getElementById('order').scrollIntoView({behavior:'smooth'});
       showOrderFormArrow();
       armOrderFieldValidation();
+      armCheckoutGuard();
       // Focus first empty field
       var nameField = document.getElementById('order-name');
       if (nameField && !nameField.value) { setTimeout(function(){ nameField.focus(); }, 600); }
@@ -3559,6 +3655,8 @@
     if (document.getElementById('order-payment')) document.getElementById('order-payment').value = '';
     if (document.getElementById('order-notes')) document.getElementById('order-notes').value = '';
     if (submitBtn){ submitBtn.textContent='Send Order'; submitBtn.disabled=false; }
+    orderJustSubmitted = true;
+    if (checkoutGuardArmed) { checkoutGuardArmed = false; history.back(); }
     openOverlayEl(document.getElementById('success-modal'));
   }
 
