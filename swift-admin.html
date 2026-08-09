@@ -411,8 +411,8 @@
 
     /* ── MODAL ── */
     .modal-overlay {
-      display: none; position: fixed; inset: 0; background: rgba(20,17,10,0.5);
-      backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
+      display: none; position: fixed; inset: 0; background: rgba(15,13,8,0.68);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
       z-index: 200; align-items: center; justify-content: center; padding: 16px;
     }
     .modal-overlay.open { display: flex; }
@@ -423,7 +423,7 @@
       border: 1px solid rgba(255,255,255,0.7);
       border-top: 1px solid rgba(255,255,255,0.95);
       border-radius: 18px; width: 100%; max-width: 560px;
-      max-height: 90vh; overflow-y: auto;
+      max-height: 90vh; overflow-y: auto; overflow-x: hidden;
       box-shadow: 0 25px 60px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.6);
       animation: slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1);
     }
@@ -440,9 +440,10 @@
     }
     .modal-hdr h3 { font-family: 'Inter', sans-serif; font-size: 1rem; font-weight: 800; }
     .modal-close-btn {
-      background: rgba(255,255,255,0.55); border: none; width: 30px; height: 30px;
+      background: rgba(255,255,255,0.7); border: none; width: 30px; height: 30px;
       border-radius: 50%; cursor: pointer; font-size: 0.9rem; display: flex;
-      align-items: center; justify-content: center;
+      align-items: center; justify-content: center; color: #222;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.35), 0 1px 3px rgba(0,0,0,0.25);
     }
     .modal-body { padding: 20px; }
     .form-group { margin-bottom: 14px; }
@@ -466,7 +467,7 @@
     #product-modal .modal-footer {
       position: sticky; bottom: 0; background: rgba(255,255,255,0.5);
       backdrop-filter: blur(24px) saturate(190%); -webkit-backdrop-filter: blur(24px) saturate(190%);
-      z-index: 5;
+      z-index: 5; border-radius: 0 0 18px 18px;
       box-shadow: 0 -4px 12px rgba(0,0,0,0.08);
     }
 
@@ -863,9 +864,10 @@
                 <button type="button" onclick="setGlobalPromoPreset(1,'days')" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+1 day</button>
                 <button type="button" onclick="setGlobalPromoPreset(7,'days')" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+7 days</button>
                 <button type="button" onclick="setGlobalPromoPreset(30,'days')" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+30 days</button>
-                <button type="button" onclick="document.getElementById('gp-expires').value=''" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#888;">✕ No timer</button>
+                <button type="button" onclick="document.getElementById('gp-expires').value=''; updateDMYPreview(document.getElementById('gp-expires'));" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#888;">✕ No timer</button>
               </div>
-              <input type="datetime-local" lang="en-GB" id="gp-expires" style="width:100%; padding:9px 11px; border:1.5px solid var(--border); border-radius:7px; font-size:0.82rem; font-family:'Inter',sans-serif; box-sizing:border-box; margin-bottom:10px;"/>
+              <input type="datetime-local" lang="en-GB" id="gp-expires" onchange="updateDMYPreview(this)" style="width:100%; padding:9px 11px; border:1.5px solid var(--border); border-radius:7px; font-size:0.82rem; font-family:'Inter',sans-serif; box-sizing:border-box; margin-bottom:4px;"/>
+              <div id="gp-expires-preview" style="font-size:0.72rem; font-weight:700; color:#2a7d52; min-height:1.2em; margin-bottom:6px;"></div>
               <button class="btn-gold" onclick="addGlobalPromoCode()" style="width:100%;">+ Add Code</button>
             </div>
           </div>
@@ -1365,7 +1367,8 @@
             <button type="button" onclick="setFreeGiftCountdownPreset(7,'days')" style="background:#fff; border:1.5px solid #c9bdec; border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+7 days</button>
             <button type="button" onclick="clearFreeGiftCountdown()" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#888;">✕ No timer</button>
           </div>
-          <input type="datetime-local" lang="en-GB" id="f-freegift-expires" style="width:100%; padding:9px 11px; border:1.5px solid #c9bdec; border-radius:7px; font-size:0.82rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box;"/>
+          <input type="datetime-local" lang="en-GB" id="f-freegift-expires" onchange="updateDMYPreview(this)" style="width:100%; padding:9px 11px; border:1.5px solid #c9bdec; border-radius:7px; font-size:0.82rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box;"/>
+          <div id="f-freegift-expires-preview" style="font-size:0.7rem; font-weight:700; color:#2a7d52; min-height:1.2em; margin-top:4px;"></div>
           <div style="font-size:0.66rem; color:#999; margin-top:4px;">Leave blank for a gift with no expiry. If set, the storefront shows a live "act fast" countdown and the gift automatically stops being offered once time runs out.</div>
         </div>
       </div>
@@ -1397,7 +1400,8 @@
             <button type="button" onclick="setProductPromoCountdownPreset(7,'days')" style="background:#fff; border:1.5px solid #a8dcc0; border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+7 days</button>
             <button type="button" onclick="clearProductPromoCountdown()" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#888;">✕ No timer</button>
           </div>
-          <input type="datetime-local" lang="en-GB" id="f-promo-expires" style="width:100%; padding:9px 11px; border:1.5px solid #a8dcc0; border-radius:7px; font-size:0.82rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box;"/>
+          <input type="datetime-local" lang="en-GB" id="f-promo-expires" onchange="updateDMYPreview(this)" style="width:100%; padding:9px 11px; border:1.5px solid #a8dcc0; border-radius:7px; font-size:0.82rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box;"/>
+          <div id="f-promo-expires-preview" style="font-size:0.7rem; font-weight:700; color:#2a7d52; min-height:1.2em; margin-top:4px;"></div>
           <div style="font-size:0.66rem; color:#999; margin-top:4px;">Leave blank for a code with no expiry. If set, the storefront shows a live countdown and the code stops working once time runs out.</div>
         </div>
       </div>
@@ -1580,6 +1584,20 @@
     if (timerSection) timerSection.style.display = 'block';
   }
 
+  // Native date/time pickers render using the browser's own locale — some browsers
+  // (notably Safari) largely ignore both the page's lang attribute and the OS locale
+  // setting for this. This readout is the one guaranteed-correct dd/mm/yyyy confirmation
+  // of whatever's actually selected, regardless of how the picker itself displays it.
+  function updateDMYPreview(input) {
+    if (!input) return;
+    const previewEl = document.getElementById(input.id + '-preview');
+    if (!previewEl) return;
+    if (!input.value) { previewEl.textContent = ''; return; }
+    const d = new Date(input.value);
+    if (isNaN(d.getTime())) { previewEl.textContent = ''; return; }
+    previewEl.textContent = '📅 Selected: ' + fmtDMY(d, true);
+  }
+
   function setFreeGiftCountdownPreset(amount, unit) {
     const input = document.getElementById('f-freegift-expires');
     if (!input) return;
@@ -1587,11 +1605,12 @@
     if (unit === 'hours') now.setHours(now.getHours() + amount);
     else if (unit === 'days') now.setDate(now.getDate() + amount);
     input.value = toDatetimeLocalValue(now);
+    updateDMYPreview(input);
   }
 
   function clearFreeGiftCountdown() {
     const input = document.getElementById('f-freegift-expires');
-    if (input) input.value = '';
+    if (input) { input.value = ''; updateDMYPreview(input); }
   }
 
   function setProductPromoCountdownPreset(amount, unit) {
@@ -1601,11 +1620,12 @@
     if (unit === 'hours') now.setHours(now.getHours() + amount);
     else if (unit === 'days') now.setDate(now.getDate() + amount);
     input.value = toDatetimeLocalValue(now);
+    updateDMYPreview(input);
   }
 
   function clearProductPromoCountdown() {
     const input = document.getElementById('f-promo-expires');
-    if (input) input.value = '';
+    if (input) { input.value = ''; updateDMYPreview(input); }
   }
 
   // ── CONFIG ──
@@ -2452,6 +2472,7 @@
     else if (unit === 'days') now.setDate(now.getDate() + amount);
     const pad = n => String(n).padStart(2, '0');
     input.value = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + 'T' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+    updateDMYPreview(input);
   }
 
   async function addGlobalPromoCode() {
@@ -4130,10 +4151,11 @@
     document.getElementById('f-bundle-image').value = '';
     document.getElementById('f-bundle-price').value = '';
     const giftExpiresAdd = document.getElementById('f-freegift-expires');
-    if (giftExpiresAdd) giftExpiresAdd.value = '';
+    if (giftExpiresAdd) { giftExpiresAdd.value = ''; updateDMYPreview(giftExpiresAdd); }
     document.getElementById('f-promocode').value = '';
     document.getElementById('f-promo-amount').value = '';
     document.getElementById('f-promo-expires').value = '';
+    updateDMYPreview(document.getElementById('f-promo-expires'));
     document.getElementById('images-list').innerHTML = '';
     addImageRow();
     document.getElementById('f-video').value = '';
@@ -4181,10 +4203,11 @@
     document.getElementById('f-bundle-image').value = p.bundleImage || '';
     document.getElementById('f-bundle-price').value = p.bundlePrice || '';
     const giftExpiresEdit = document.getElementById('f-freegift-expires');
-    if (giftExpiresEdit) giftExpiresEdit.value = p.freeGiftExpiresAt ? toDatetimeLocalValue(new Date(p.freeGiftExpiresAt)) : '';
+    if (giftExpiresEdit) { giftExpiresEdit.value = p.freeGiftExpiresAt ? toDatetimeLocalValue(new Date(p.freeGiftExpiresAt)) : ''; updateDMYPreview(giftExpiresEdit); }
     document.getElementById('f-promocode').value = p.promoCode || '';
     document.getElementById('f-promo-amount').value = p.promoDiscountAmount || '';
     document.getElementById('f-promo-expires').value = p.promoExpiresAt ? toDatetimeLocalValue(new Date(p.promoExpiresAt)) : '';
+    updateDMYPreview(document.getElementById('f-promo-expires'));
     document.getElementById('images-list').innerHTML = '';
     const images = p.images || (p.image ? [p.image] : []);
     if (images.length === 0) { addImageRow(); }
