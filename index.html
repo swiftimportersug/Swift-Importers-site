@@ -63,6 +63,9 @@
     .nav-search-wrap input:focus{border-color:var(--gold);}
     .nav-search-btn{position:absolute;right:3px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--gold);cursor:pointer;font-size:0.95rem;padding:7px 8px;display:flex;align-items:center;justify-content:center;}
     .cart-btn{background:linear-gradient(160deg,var(--gold-light),var(--gold));color:var(--black);border:none;padding:10px 18px;border-radius:6px;font-weight:700;font-size:0.9rem;letter-spacing:0.02em;cursor:pointer;display:flex;align-items:center;gap:6px;position:relative;overflow:hidden;box-shadow:0 2px 12px rgba(199,162,72,0.25);transition:box-shadow 0.25s,transform 0.25s;}
+    .account-btn{background:rgba(255,255,255,0.08);color:var(--white);border:1.5px solid rgba(255,255,255,0.18);padding:9px 14px;border-radius:6px;font-weight:600;font-size:0.82rem;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;transition:background 0.2s,border-color 0.2s;}
+    .account-btn:hover{background:rgba(255,255,255,0.14);border-color:var(--gold);}
+    .account-btn.account-btn-gold{background:linear-gradient(160deg,#fff3d6,#f0d68a);color:#5a4310;border:1.5px solid #d4af37;}
     .cart-btn::after{content:'';position:absolute;width:36px;height:200%;background:rgba(255,255,255,0.35);top:-50%;left:-60px;transform:skewX(-20deg);animation:cartShine 4.5s ease-in-out infinite;}
     @keyframes cartShine{0%{left:-60px;opacity:0;}8%{opacity:1;}30%{left:120%;opacity:0;}100%{left:120%;opacity:0;}}
     .cart-btn:hover{box-shadow:0 4px 18px rgba(199,162,72,0.4);transform:translateY(-1px);}
@@ -864,7 +867,7 @@
   <!-- Firebase -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, collection, doc, getDoc, updateDoc, addDoc, onSnapshot, getDocs, increment } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, doc, getDoc, updateDoc, addDoc, onSnapshot, getDocs, increment, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     const firebaseConfig = {
       apiKey: "AIzaSyDqOE4NDmp3xJrTf71MzlClTZ201Uhyk0Q",
       authDomain: "swift-importers.firebaseapp.com",
@@ -876,7 +879,7 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     window.fbDb = db;
-    window.fbFns = { collection, doc, getDoc, updateDoc, addDoc, onSnapshot, getDocs, increment };
+    window.fbFns = { collection, doc, getDoc, updateDoc, addDoc, onSnapshot, getDocs, increment, query, where };
     window.firebaseReady = true;
     window.dispatchEvent(new Event('firebaseReady'));
   </script>
@@ -910,6 +913,7 @@
     <li><a href="#footer">Contact</a></li>
   </ul>
   <div class="nav-right">
+    <button class="account-btn" id="nav-account-btn" onclick="openAccountEntry()" title="My Account">👤 <span id="nav-account-label">Account</span></button>
     <button class="cart-btn" onclick="openCart()">Cart <span id="cart-count">0</span></button>
   </div>
 </nav>
@@ -1325,7 +1329,6 @@
             <div class="pd-variant-btns" id="pd-variant-btns"></div>
             <select class="pd-variant-select" id="pd-variant-select" onchange="onPdVariantChange(this)" style="display:none;"></select>
           </div>
-          <div id="pd-condition-desktop-anchor"></div>
 
           <!-- BUNDLE PURCHASE -->
           <div id="pd-bundle-box" style="display:none;"></div>
@@ -1339,6 +1342,7 @@
               <span id="pd-qty-total" style="font-size:0.82rem;color:var(--grey);margin-left:4px;"></span>
             </div>
           </div>
+          <div id="pd-condition-desktop-anchor"></div>
           <div style="color:var(--gold);font-size:0.82rem;margin-bottom:10px;">&#9733;&#9733;&#9733;&#9733;&#9733; <span style="color:var(--grey);font-size:0.72rem;">Verified product</span></div>
           <div style="display:flex; align-items:center; gap:9px; margin-bottom:16px;">
             <button id="pd-like-btn" onclick="likeCurrentProduct(this)" title="Like this product" style="background:#fff; border:1.5px solid #f3c7d0; border-radius:50%; width:34px; height:34px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:transform 0.12s;">
@@ -1504,6 +1508,70 @@
 </div>
 
 <!-- CART MODAL -->
+<!-- MY ACCOUNT -->
+<div class="modal-overlay" id="account-modal">
+  <div class="modal" style="max-width:380px;">
+    <button class="modal-close" onclick="closeOverlayEl(document.getElementById('account-modal'))">X</button>
+
+    <!-- STEP 1: phone number -->
+    <div id="account-view-phone">
+      <h2>My Account</h2>
+      <p style="margin-bottom:16px;">Sign in or create a free account to track your orders and unlock member perks.</p>
+      <div class="form-group"><label>Phone Number</label><input type="tel" id="account-phone-input" placeholder="+256 7XX XXX XXX" onkeydown="if(event.key==='Enter'){event.preventDefault();accountPhoneSubmit();}"/></div>
+      <button class="submit-btn" onclick="accountPhoneSubmit()">Continue</button>
+      <div id="account-phone-msg" style="display:none;margin-top:10px;font-size:0.82rem;font-weight:700;color:var(--red);"></div>
+    </div>
+
+    <!-- STEP 2a: existing account — enter code -->
+    <div id="account-view-login" style="display:none;">
+      <h2>Welcome Back</h2>
+      <p id="account-login-name" style="margin-bottom:16px;font-weight:700;"></p>
+      <div class="form-group"><label>Your 4-Digit Code</label><input type="text" id="account-login-code" maxlength="4" inputmode="numeric" placeholder="••••" style="text-align:center;letter-spacing:0.4em;font-size:1.2rem;" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4);" onkeydown="if(event.key==='Enter'){event.preventDefault();accountLoginSubmit();}"/></div>
+      <button class="submit-btn" onclick="accountLoginSubmit()">Sign In</button>
+      <button onclick="accountBackToPhone()" style="width:100%;margin-top:8px;background:none;border:none;color:var(--grey);font-size:0.82rem;cursor:pointer;text-decoration:underline;">&larr; Use a different number</button>
+      <div id="account-login-msg" style="display:none;margin-top:10px;font-size:0.82rem;font-weight:700;color:var(--red);"></div>
+    </div>
+
+    <!-- STEP 2b: new account — name + choose a code -->
+    <div id="account-view-signup" style="display:none;">
+      <h2>Create Your Account</h2>
+      <p style="margin-bottom:16px;">First time ordering with this number — let's set you up.</p>
+      <div class="form-group"><label>Your Name</label><input type="text" id="account-signup-name" placeholder="e.g. David Okello"/></div>
+      <div class="form-group"><label>Choose a 4-Digit Code</label><input type="text" id="account-signup-code" maxlength="4" inputmode="numeric" placeholder="••••" style="text-align:center;letter-spacing:0.4em;font-size:1.2rem;" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4);"/></div>
+      <div style="font-size:0.72rem;color:var(--grey);margin-bottom:14px;">You'll use this code to sign in next time — pick something you'll remember, and don't share it with anyone.</div>
+      <button class="submit-btn" onclick="accountSignupSubmit()">Create Account</button>
+      <button onclick="accountBackToPhone()" style="width:100%;margin-top:8px;background:none;border:none;color:var(--grey);font-size:0.82rem;cursor:pointer;text-decoration:underline;">&larr; Use a different number</button>
+      <div id="account-signup-msg" style="display:none;margin-top:10px;font-size:0.82rem;font-weight:700;color:var(--red);"></div>
+    </div>
+
+    <!-- STEP 3: signed-in dashboard -->
+    <div id="account-view-dashboard" style="display:none;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+        <div style="width:52px;height:52px;border-radius:50%;background:var(--light);display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0;">👤</div>
+        <div>
+          <div id="account-dash-name" style="font-weight:800;font-size:1.05rem;"></div>
+          <div id="account-dash-tier" style="font-size:0.74rem;font-weight:700;margin-top:2px;"></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+        <div style="background:var(--light);border-radius:10px;padding:12px;text-align:center;">
+          <div id="account-dash-orders" style="font-size:1.3rem;font-weight:900;color:var(--black);"></div>
+          <div style="font-size:0.68rem;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Orders</div>
+        </div>
+        <div style="background:var(--light);border-radius:10px;padding:12px;text-align:center;">
+          <div id="account-dash-spent" style="font-size:1.05rem;font-weight:900;color:var(--black);"></div>
+          <div style="font-size:0.68rem;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Total Spent</div>
+        </div>
+      </div>
+      <div id="account-dash-gold-note" style="display:none;background:linear-gradient(160deg,#fff8e6,#f5e2a0);border:1.5px solid #d4af37;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:0.8rem;font-weight:700;color:#5a4310;">
+        🌟 Gold Member — you get an automatic 10% off every order, on top of any promo code!
+      </div>
+      <div id="account-dash-progress-note" style="display:none;font-size:0.76rem;color:var(--grey);margin-bottom:16px;line-height:1.5;"></div>
+      <button onclick="accountSignOut()" style="width:100%;background:var(--light);border:none;color:#777;padding:11px;border-radius:6px;font-size:0.85rem;font-weight:700;cursor:pointer;">Sign Out</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="cart-modal">
   <div class="modal">
     <button class="modal-close" onclick="closeCart()">X</button>
@@ -3234,18 +3302,32 @@
       }).join('');
     }
     var subtotal = cart.reduce(function(s,c){ return s + c.price * c.qty; }, 0);
-    var finalTotal = Math.max(0, subtotal - (checkoutAppliedPromoDiscount || 0));
+    var goldDiscount = getGoldDiscount(subtotal);
+    var finalTotal = Math.max(0, subtotal - (checkoutAppliedPromoDiscount || 0) - goldDiscount);
     if (totalEl) {
-      totalEl.innerHTML = checkoutAppliedPromoDiscount > 0
-        ? 'Subtotal: ' + fmtPrice(subtotal) + '<br>Promo (' + checkoutAppliedPromoCode + '): -' + fmtPrice(checkoutAppliedPromoDiscount) + '<br><span style="color:#2a9d50;">Total: ' + fmtPrice(finalTotal) + '</span>'
-        : 'Total: ' + fmtPrice(subtotal);
+      var lines = 'Subtotal: ' + fmtPrice(subtotal);
+      if (checkoutAppliedPromoDiscount > 0) lines += '<br>Promo (' + checkoutAppliedPromoCode + '): -' + fmtPrice(checkoutAppliedPromoDiscount);
+      if (goldDiscount > 0) lines += '<br>🌟 Gold Member (10%): -' + fmtPrice(goldDiscount);
+      lines += (checkoutAppliedPromoDiscount > 0 || goldDiscount > 0)
+        ? '<br><span style="color:#2a9d50;">Total: ' + fmtPrice(finalTotal) + '</span>'
+        : '';
+      totalEl.innerHTML = (checkoutAppliedPromoDiscount > 0 || goldDiscount > 0) ? lines : 'Total: ' + fmtPrice(subtotal);
     }
 
     var itemLines = cart.map(function(c){ return c.name + ' x' + c.qty + ' (' + fmtPrice(c.price * c.qty) + ')'; }).join('\n') +
       (checkoutAppliedPromoDiscount > 0 ? '\nSubtotal: ' + fmtPrice(subtotal) + '\nPromo (' + checkoutAppliedPromoCode + '): -' + fmtPrice(checkoutAppliedPromoDiscount) : '') +
+      (goldDiscount > 0 ? (checkoutAppliedPromoDiscount > 0 ? '' : '\nSubtotal: ' + fmtPrice(subtotal)) + '\n🌟 Gold Member (10%): -' + fmtPrice(goldDiscount) : '') +
       '\nTotal: ' + fmtPrice(finalTotal);
     if (hiddenField) hiddenField.value = itemLines;
     renderCheckoutFrequentlyBought();
+  }
+
+  // Gold Members get an automatic 10% off, independent of and stacking with any
+  // site-wide promo code — this is an account perk, not a "promo code" being entered,
+  // so it deliberately isn't subject to the one-code-per-order restriction.
+  function getGoldDiscount(subtotal) {
+    if (!currentAccount || currentAccount.tier !== 'gold') return 0;
+    return Math.round((subtotal || 0) * 0.1);
   }
 
   function renderCheckoutFrequentlyBought() {
@@ -3646,6 +3728,209 @@
     return /^\+256\d{9}$/.test(digits) || /^256\d{9}$/.test(digits) || /^0\d{9}$/.test(digits);
   }
 
+  // ── CUSTOMER ACCOUNTS (optional — guest checkout always stays available) ──
+  // NOTE ON SECURITY: this uses a simple phone+PIN check against Firestore, the same
+  // trust model already used for staff login in the admin/employee panels — not
+  // Firebase's SMS-verified phone auth (which needs paid SMS billing configured in the
+  // Firebase console). It's convenient and requires no extra setup, but it means a code
+  // isn't cryptographically verified the way a real SMS OTP would be — reasonable for a
+  // lightweight loyalty account, worth knowing if this ever needs to hold anything more
+  // sensitive than order history and a discount tier.
+  var GOLD_THRESHOLD = 500000;
+  var currentAccount = null;
+  var ACCOUNT_STORAGE_KEY = 'swift_account_session_v1';
+  var accountPendingPhone = null; // normalized phone currently being signed in/up
+
+  function normalizePhone(value) {
+    var digits = (value || '').replace(/[^\d+]/g, '');
+    if (digits.indexOf('+256') === 0) return '256' + digits.slice(4);
+    if (digits.indexOf('256') === 0) return digits;
+    if (digits.indexOf('0') === 0) return '256' + digits.slice(1);
+    return digits;
+  }
+
+  function accountShowView(viewName) {
+    ['phone','login','signup','dashboard'].forEach(function(v){
+      var el = document.getElementById('account-view-' + v);
+      if (el) el.style.display = (v === viewName) ? 'block' : 'none';
+    });
+  }
+
+  function openAccountEntry() {
+    if (currentAccount) {
+      renderAccountDashboard();
+      accountShowView('dashboard');
+    } else {
+      document.getElementById('account-phone-input').value = '';
+      document.getElementById('account-phone-msg').style.display = 'none';
+      accountShowView('phone');
+    }
+    openOverlayEl(document.getElementById('account-modal'));
+  }
+
+  function accountBackToPhone() {
+    accountPendingPhone = null;
+    accountShowView('phone');
+  }
+
+  async function accountPhoneSubmit() {
+    var input = document.getElementById('account-phone-input');
+    var msg = document.getElementById('account-phone-msg');
+    var val = input.value.trim();
+    if (!isValidUgandaPhone(val)) {
+      msg.textContent = 'Please enter a valid Ugandan phone number.';
+      msg.style.display = 'block';
+      return;
+    }
+    if (!window.fbDb || !window.fbFns) {
+      msg.textContent = 'Not connected. Check your internet connection.';
+      msg.style.display = 'block';
+      return;
+    }
+    msg.style.display = 'none';
+    var phone = normalizePhone(val);
+    accountPendingPhone = phone;
+    try {
+      var { collection, query, where, getDocs } = window.fbFns;
+      var q = query(collection(window.fbDb, 'customers'), where('phone', '==', phone));
+      var snap = await getDocs(q);
+      if (!snap.empty) {
+        var docSnap = snap.docs[0];
+        var acc = { fbDocId: docSnap.id, ...docSnap.data() };
+        accountPendingPhone = phone;
+        window._accountFoundRecord = acc;
+        document.getElementById('account-login-name').textContent = 'Hi ' + (acc.name || '') + ', enter your code to continue.';
+        document.getElementById('account-login-code').value = '';
+        document.getElementById('account-login-msg').style.display = 'none';
+        accountShowView('login');
+      } else {
+        document.getElementById('account-signup-name').value = '';
+        document.getElementById('account-signup-code').value = '';
+        document.getElementById('account-signup-msg').style.display = 'none';
+        accountShowView('signup');
+      }
+    } catch(e) {
+      msg.textContent = 'Something went wrong. Please try again.';
+      msg.style.display = 'block';
+      console.error(e);
+    }
+  }
+
+  function accountLoginSubmit() {
+    var msg = document.getElementById('account-login-msg');
+    var code = document.getElementById('account-login-code').value.trim();
+    var acc = window._accountFoundRecord;
+    if (!acc) { accountBackToPhone(); return; }
+    if (!code || code !== acc.code) {
+      msg.textContent = 'Incorrect code. Please try again.';
+      msg.style.display = 'block';
+      return;
+    }
+    currentAccount = acc;
+    persistAccountSession();
+    updateAccountNavLabel();
+    renderAccountDashboard();
+    accountShowView('dashboard');
+  }
+
+  async function accountSignupSubmit() {
+    var msg = document.getElementById('account-signup-msg');
+    var name = document.getElementById('account-signup-name').value.trim();
+    var code = document.getElementById('account-signup-code').value.trim();
+    if (!name) { msg.textContent = 'Please enter your name.'; msg.style.display = 'block'; return; }
+    if (!/^\d{4}$/.test(code)) { msg.textContent = 'Please choose a 4-digit code.'; msg.style.display = 'block'; return; }
+    if (!accountPendingPhone) { accountBackToPhone(); return; }
+    if (!window.fbDb || !window.fbFns) { msg.textContent = 'Not connected. Check your internet connection.'; msg.style.display = 'block'; return; }
+    msg.style.display = 'none';
+    try {
+      var { collection, addDoc } = window.fbFns;
+      var newAcc = {
+        phone: accountPendingPhone, name: name, code: code,
+        totalSpent: 0, orderCount: 0, tier: 'standard',
+        createdAt: new Date().toISOString()
+      };
+      var ref = await addDoc(collection(window.fbDb, 'customers'), newAcc);
+      currentAccount = { fbDocId: ref.id, ...newAcc };
+      persistAccountSession();
+      updateAccountNavLabel();
+      renderAccountDashboard();
+      accountShowView('dashboard');
+    } catch(e) {
+      msg.textContent = 'Error creating your account. Please try again.';
+      msg.style.display = 'block';
+      console.error(e);
+    }
+  }
+
+  function renderAccountDashboard() {
+    if (!currentAccount) return;
+    var isGold = currentAccount.tier === 'gold';
+    document.getElementById('account-dash-name').textContent = currentAccount.name || '';
+    var tierEl = document.getElementById('account-dash-tier');
+    tierEl.textContent = isGold ? '🌟 Gold Member' : 'Standard Member';
+    tierEl.style.color = isGold ? '#a3801a' : 'var(--grey)';
+    document.getElementById('account-dash-orders').textContent = currentAccount.orderCount || 0;
+    document.getElementById('account-dash-spent').textContent = fmtPrice(currentAccount.totalSpent || 0);
+    document.getElementById('account-dash-gold-note').style.display = isGold ? 'block' : 'none';
+    var progressNote = document.getElementById('account-dash-progress-note');
+    if (!isGold) {
+      var remaining = Math.max(0, GOLD_THRESHOLD - (currentAccount.totalSpent || 0));
+      progressNote.textContent = remaining > 0
+        ? 'Spend ' + fmtPrice(remaining) + ' more to unlock Gold Member status — automatic 10% off every order!'
+        : '';
+      progressNote.style.display = remaining > 0 ? 'block' : 'none';
+    } else {
+      progressNote.style.display = 'none';
+    }
+  }
+
+  function accountSignOut() {
+    currentAccount = null;
+    try { localStorage.removeItem(ACCOUNT_STORAGE_KEY); } catch(e) {}
+    updateAccountNavLabel();
+    closeOverlayEl(document.getElementById('account-modal'));
+  }
+
+  function persistAccountSession() {
+    try {
+      localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify({ phone: currentAccount.phone, code: currentAccount.code }));
+    } catch(e) {}
+  }
+
+  function updateAccountNavLabel() {
+    var btn = document.getElementById('nav-account-btn');
+    var label = document.getElementById('nav-account-label');
+    if (!btn || !label) return;
+    if (currentAccount) {
+      label.textContent = currentAccount.name ? currentAccount.name.split(' ')[0] : 'Account';
+      btn.classList.toggle('account-btn-gold', currentAccount.tier === 'gold');
+    } else {
+      label.textContent = 'Account';
+      btn.classList.remove('account-btn-gold');
+    }
+  }
+
+  async function tryAutoLoginAccount() {
+    var saved;
+    try { saved = JSON.parse(localStorage.getItem(ACCOUNT_STORAGE_KEY) || 'null'); } catch(e) { saved = null; }
+    if (!saved || !saved.phone || !saved.code) return;
+    if (!window.fbDb || !window.fbFns) return;
+    try {
+      var { collection, query, where, getDocs } = window.fbFns;
+      var q = query(collection(window.fbDb, 'customers'), where('phone', '==', saved.phone));
+      var snap = await getDocs(q);
+      if (!snap.empty) {
+        var docSnap = snap.docs[0];
+        var acc = { fbDocId: docSnap.id, ...docSnap.data() };
+        if (acc.code === saved.code) {
+          currentAccount = acc;
+          updateAccountNavLabel();
+        }
+      }
+    } catch(e) { /* silent — user can just sign in manually */ }
+  }
+  tryAutoLoginAccount();
+
   function validateOrderFieldsVisual() {
     if (!orderValidationArmed) return;
     ORDER_REQUIRED_FIELD_IDS.forEach(function(id){
@@ -3825,6 +4110,8 @@
     if (submitBtn){ submitBtn.textContent='Processing...'; submitBtn.disabled=true; }
     if (window.fbDb && window.fbFns) {
       var subtotalVal = cart.reduce(function(s,c){ return s + c.price * c.qty; }, 0);
+      var goldDiscountVal = getGoldDiscount(subtotalVal);
+      var orderTotalVal = Math.max(0, subtotalVal - (checkoutAppliedPromoDiscount || 0) - goldDiscountVal);
       var order = {
         customerName: nameVal, phone: phoneVal, deliveryArea: areaVal,
         exactLocation: (document.getElementById('exact-location') && document.getElementById('exact-location').value) || '',
@@ -3832,11 +4119,15 @@
         cartItems: cart.map(function(c){ return {id:c.id, name:c.name, qty:c.qty, price:c.price, cost:c.cost||0, variantIdx:c.variantIdx}; }),
         appliedPromoCode: checkoutAppliedPromoCode || null,
         promoDiscount: checkoutAppliedPromoDiscount || 0,
+        goldMemberDiscount: goldDiscountVal || 0,
+        accountId: currentAccount ? currentAccount.fbDocId : null,
         subtotal: subtotalVal,
-        orderTotal: Math.max(0, subtotalVal - (checkoutAppliedPromoDiscount || 0)),
+        orderTotal: orderTotalVal,
         status: 'pending', timestamp: new Date().toISOString()
       };
-      window.fbFns.addDoc(window.fbFns.collection(window.fbDb,'orders'), order).then(function(){}).catch(function(e){console.error(e);});
+      window.fbFns.addDoc(window.fbFns.collection(window.fbDb,'orders'), order).then(function(){
+        if (currentAccount) updateAccountAfterOrder(orderTotalVal);
+      }).catch(function(e){console.error(e);});
     }
     cart = []; updateCartCount();
     // Reset form
@@ -3851,6 +4142,29 @@
     orderJustSubmitted = true;
     if (checkoutGuardArmed) { checkoutGuardArmed = false; history.back(); }
     openOverlayEl(document.getElementById('success-modal'));
+  }
+
+  async function updateAccountAfterOrder(orderTotal) {
+    if (!currentAccount || !window.fbDb || !window.fbFns) return;
+    try {
+      var newTotalSpent = (currentAccount.totalSpent || 0) + orderTotal;
+      var newOrderCount = (currentAccount.orderCount || 0) + 1;
+      var newTier = newTotalSpent >= GOLD_THRESHOLD ? 'gold' : (currentAccount.tier || 'standard');
+      var { doc, updateDoc } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'customers', currentAccount.fbDocId), {
+        totalSpent: newTotalSpent, orderCount: newOrderCount, tier: newTier
+      });
+      var justWentGold = newTier === 'gold' && currentAccount.tier !== 'gold';
+      currentAccount.totalSpent = newTotalSpent;
+      currentAccount.orderCount = newOrderCount;
+      currentAccount.tier = newTier;
+      updateAccountNavLabel();
+      if (justWentGold) {
+        setTimeout(function(){
+          showAppAlert('🌟 Congratulations! You\'ve just been promoted to Gold Member status — you now get an automatic 10% off every order, on top of any promo code!');
+        }, 1200);
+      }
+    } catch(e) { console.error('[account] failed to update after order:', e); }
   }
 
   function toggleDescription() {
@@ -3991,7 +4305,7 @@
   }
 
   // Close on overlay click
-  ['returns-modal','track-order-modal','payment-guide-modal','delivery-info-modal','how-to-order-modal','cart-modal','success-modal','app-dialog-overlay','fbw-preview-modal'].forEach(function(id){
+  ['returns-modal','track-order-modal','payment-guide-modal','delivery-info-modal','how-to-order-modal','cart-modal','success-modal','app-dialog-overlay','fbw-preview-modal','account-modal'].forEach(function(id){
     var el=document.getElementById(id);
     if(el) el.addEventListener('click',function(e){ if(e.target===this){ if(id==='cart-modal'){closeCart();}else{closeOverlayEl(this);} } });
   });
