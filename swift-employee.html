@@ -1266,6 +1266,39 @@
         <div style="font-size:0.7rem; color:#888; margin-top:4px;">Where this item physically sits in the warehouse — shows up whenever staff search for this product, so anyone can find it fast.</div>
       </div>
 
+      <div class="form-group">
+        <label>📦 Warehouse Cover Photo (staff-only)</label>
+        <input type="text" id="f-warehouse-cover-image" placeholder="Image URL — what the box/item looks like in storage" oninput="updateWarehouseCoverPreview()"/>
+        <div style="font-size:0.7rem; color:#888; margin-top:4px;">Only visible to admin/staff when finding this product's location — never shown to customers. Helps whoever's fetching it recognize the box/packaging at a glance.</div>
+        <div id="f-warehouse-cover-preview" style="display:none; margin-top:8px;">
+          <img id="f-warehouse-cover-preview-img" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);" onerror="this.parentElement.style.display='none';"/>
+        </div>
+      </div>
+
+      <div class="form-row-2">
+        <div class="form-group">
+          <label>🏷️ Item Condition</label>
+          <select id="f-condition">
+            <option value="Brand New">Brand New</option>
+            <option value="Refurbished">Refurbished</option>
+            <option value="Used">Used</option>
+            <option value="UK Used">UK Used</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label style="display:flex; align-items:center; justify-content:space-between;">
+            <span>🎟️ Site-Wide Promo Eligible</span>
+          </label>
+          <div style="display:flex; align-items:center; gap:10px; padding:9px 0;">
+            <label style="position:relative; display:inline-block; width:46px; height:26px; flex-shrink:0;">
+              <input type="checkbox" id="f-promo-eligible" checked style="opacity:0; width:0; height:0;" onchange="updatePromoEligibleSliderStyle()"/>
+              <span id="f-promo-eligible-slider" style="position:absolute; cursor:pointer; inset:0; background:#2a9d50; border-radius:26px; transition:0.2s;"></span>
+            </label>
+            <span style="font-size:0.76rem; color:#888;">Off = site-wide codes won't apply to this item's price</span>
+          </div>
+        </div>
+      </div>
+
       <!-- PRODUCT IMAGES -->
       <div class="form-group">
         <label>Product Images (up to 10)</label>
@@ -2309,7 +2342,10 @@
     if (matches.length === 0) { results.innerHTML = '<div style="font-size:0.8rem; color:#999; padding:6px 0;">No matching products found.</div>'; return; }
     results.innerHTML = matches.map(p => `
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--light); border:1px solid var(--border); border-radius:8px; padding:12px 16px; margin-bottom:8px; flex-wrap:wrap;">
-        <div style="font-weight:700; font-size:0.85rem;">${p.name}</div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          ${p.warehouseCoverImage ? `<img src="${p.warehouseCoverImage}" style="width:44px;height:44px;object-fit:cover;border-radius:7px;border:1.5px solid var(--border);flex-shrink:0;" onerror="this.style.display='none';"/>` : ''}
+          <div style="font-weight:700; font-size:0.85rem;">${p.name}</div>
+        </div>
         ${p.warehouseLocation
           ? `<div style="background:#e8f4fd; border:1.5px solid #5aa9e6; color:#2166a3; font-weight:800; font-size:0.85rem; padding:7px 16px; border-radius:8px; white-space:nowrap;">📍 ${p.warehouseLocation}</div>`
           : `<div style="color:#bbb; font-size:0.78rem; font-style:italic; white-space:nowrap;">No location set</div>`
@@ -3050,12 +3086,14 @@
   async function markOrderBalancePaid(docId) {
     const o = orders.find(x => x.fbDocId === docId);
     if (!o) return;
-    showAppConfirm('Mark this order\'s outstanding balance of ' + fmt(o.balanceDue||0) + ' as fully paid?', async function(){
+    showAppConfirm('Mark this order\'s outstanding balance of ' + fmt(o.balanceDue||0) + ' as fully paid? This will move it to Closed Orders.', async function(){
       if (!window.fbDb || !window.fbFns) return;
       const { doc, updateDoc } = window.fbFns;
       const fullTotal = getOrderTotal(o);
       try {
         await updateDoc(doc(window.fbDb, 'orders', docId), { amountPaid: fullTotal, balanceDue: 0, paymentStatus: 'paid' });
+        await updateOrderStatus(docId, 'closed');
+        showOrderCompletedToast();
       } catch(e) { showAppAlert('Error updating order. Check your connection.'); console.error(e); }
     }, null, { icon: '💰', confirmText: 'Mark as Paid' });
   }
@@ -3641,6 +3679,11 @@
     document.getElementById('f-sku').value = '';
     document.getElementById('f-threshold').value = threshold;
     document.getElementById('f-warehouse-location').value = '';
+    document.getElementById('f-warehouse-cover-image').value = '';
+    updateWarehouseCoverPreview();
+    document.getElementById('f-condition').value = 'Brand New';
+    document.getElementById('f-promo-eligible').checked = true;
+    updatePromoEligibleSliderStyle();
     document.getElementById('f-description').value = '';
     var wc = document.getElementById('desc-word-count');
     if (wc) { wc.textContent = '0 words'; wc.style.color = 'var(--grey)'; }
@@ -3687,6 +3730,11 @@
     document.getElementById('f-sku').value = p.sku || '';
     document.getElementById('f-threshold').value = p.threshold || threshold;
     document.getElementById('f-warehouse-location').value = p.warehouseLocation || '';
+    document.getElementById('f-warehouse-cover-image').value = p.warehouseCoverImage || '';
+    updateWarehouseCoverPreview();
+    document.getElementById('f-condition').value = p.condition || 'Brand New';
+    document.getElementById('f-promo-eligible').checked = p.promoEligible !== false;
+    updatePromoEligibleSliderStyle();
     document.getElementById('f-description').value = p.description || '';
     updateDescWordCount(document.getElementById('f-description'));
     document.getElementById('f-hotdeal').checked = !!p.hotDeal;
@@ -4004,6 +4052,26 @@
     slider.appendChild(knob);
   }
 
+  function updatePromoEligibleSliderStyle() {
+    const on = document.getElementById('f-promo-eligible').checked;
+    const slider = document.getElementById('f-promo-eligible-slider');
+    slider.style.background = on ? '#2a9d50' : '#ccc';
+    slider.innerHTML = '';
+    const knob = document.createElement('span');
+    knob.style.cssText = 'position:absolute; height:20px; width:20px; left:' + (on ? '23px' : '3px') + '; top:3px; background:#fff; border-radius:50%; transition:0.2s; box-shadow:0 1px 3px rgba(0,0,0,0.3);';
+    slider.appendChild(knob);
+  }
+
+  function updateWarehouseCoverPreview() {
+    const input = document.getElementById('f-warehouse-cover-image');
+    const wrap = document.getElementById('f-warehouse-cover-preview');
+    const img = document.getElementById('f-warehouse-cover-preview-img');
+    if (!input || !wrap || !img) return;
+    const url = input.value.trim();
+    if (url) { img.src = url; wrap.style.display = 'block'; }
+    else { wrap.style.display = 'none'; }
+  }
+
   function updatePromoCodeVisibleSliderStyle() {
     const on = document.getElementById('f-promo-code-visible').checked;
     const slider = document.getElementById('f-promo-code-visible-slider');
@@ -4064,6 +4132,9 @@
       threshold: parseInt(p.threshold) || 0,
       hotDeal: !!p.hotDeal,
       warehouseLocation: p.warehouseLocation || '',
+      warehouseCoverImage: p.warehouseCoverImage || '',
+      condition: p.condition || 'Brand New',
+      promoEligible: p.promoEligible !== false,
       promoCode: p.promoCode || '',
       promoDiscountAmount: parseInt(p.promoDiscountAmount) || 0,
       promoVisible: !!p.promoVisible,
@@ -4131,6 +4202,9 @@
     const threshold_ = parseInt(document.getElementById('f-threshold').value) || threshold;
     const video = document.getElementById('f-video').value.trim();
     const warehouseLocation = document.getElementById('f-warehouse-location').value.trim();
+    const warehouseCoverImage = document.getElementById('f-warehouse-cover-image').value.trim();
+    const condition = document.getElementById('f-condition').value;
+    const promoEligible = document.getElementById('f-promo-eligible').checked;
     const promoCode = document.getElementById('f-promocode').value.trim().toUpperCase();
     const promoDiscountAmount = parseInt(document.getElementById('f-promo-amount').value) || 0;
     const promoVisible = document.getElementById('f-promo-visible').checked;
@@ -4149,8 +4223,8 @@
 
     // Build the full candidate product object (used for both change-detection and saving)
     const candidateProduct = editingId
-      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 }
-      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
+      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', condition: condition || 'Brand New', promoEligible: promoEligible, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 }
+      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', condition: condition || 'Brand New', promoEligible: promoEligible, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
 
     // If editing an existing product and nothing actually changed, skip the save entirely
     if (editingId && editingOriginalSnapshot && productSignature(editingOriginalSnapshot) === productSignature(candidateProduct)) {
@@ -4162,14 +4236,14 @@
     if (editingId) {
       const idx = products.findIndex(p => p.id === editingId);
       if (idx > -1) {
-        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
+        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', condition: condition || 'Brand New', promoEligible: promoEligible, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
       }
     } else {
       products.push({
         id: candidateProduct.id,
         name, category: cat, store, sku,
         threshold: threshold_,
-        variants, hotDeal, warehouseLocation: warehouseLocation || '', promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0
+        variants, hotDeal, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', condition: condition || 'Brand New', promoEligible: promoEligible, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0
       });
     }
 
@@ -5239,7 +5313,7 @@
       productsWanted: itemsSummary,
       paymentMethod: 'Cash Sale (In-Person)',
       notes: 'Recorded via Employee Panel by ' + (currentEmployeeName || 'Unknown Employee') + '.',
-      status: 'closed',
+      status: balanceDue > 0 ? 'confirmed' : 'closed',
       timestamp: new Date().toISOString(),
       cartItems: cartItems,
       delivery: deliveryInfo,
@@ -5255,9 +5329,9 @@
 
     Promise.all(saveOps).then(() => {
       closeCashSaleModal();
-      showPage('closed-orders');
+      showPage(balanceDue > 0 ? 'open-orders' : 'closed-orders');
       showAppAlert(balanceDue > 0
-        ? '✅ Cash sale recorded! Balance of ' + fmt(balanceDue) + ' still owed by ' + customerName + '.'
+        ? '✅ Cash sale recorded! Balance of ' + fmt(balanceDue) + ' still owed by ' + customerName + ' — order will stay in Open Orders until it\'s fully paid.'
         : '✅ Cash sale recorded! Stock updated and order added to Closed Orders.');
     }).catch(err => {
       showAppAlert('Error recording cash sale: ' + (err && err.message ? err.message : 'Unknown error.'));

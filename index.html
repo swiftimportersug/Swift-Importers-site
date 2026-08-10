@@ -1305,6 +1305,7 @@
     <div class="pd-content" id="pd-content">
       <div class="pd-body">
         <div class="pd-category" id="pd-category"></div>
+        <span id="pd-condition-badge" style="display:none; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.05em; padding:3px 9px; border-radius:20px; margin-bottom:6px;"></span>
         <div class="pd-name" id="pd-name"></div>
 
         <!-- PRICE & STOCK -->
@@ -1952,7 +1953,8 @@
     div.appendChild(imgDiv);
     div.innerHTML += '<div class="product-card-info">'+
         '<div class="product-card-name">'+p.name+'</div>'+
-        '<div class="product-card-price">'+priceDisplay+(anyDiscount?' <span style="color:var(--grey);font-weight:600;font-size:0.75em;text-decoration:line-through;">'+fmtPrice(cheapestDiscounted.sell)+'</span>':'')+'</div>'+
+        (p.condition && p.condition !== 'Brand New' ? '<div style="display:inline-block;font-size:0.56rem;font-weight:800;text-transform:uppercase;letter-spacing:0.04em;padding:2px 7px;border-radius:10px;margin-top:2px;background:#f0f0f0;color:#666;">'+p.condition+'</div>' : '')+
+        '<div class="product-card-price">'+priceDisplay+(anyDiscount?' <span style="color:var(--grey);font-weight:600;font-size:0.75em;text-decoration:line-through;">'+fmtPrice(cheapestDiscounted.sell)+'</span>':'')+(p.promoEligible!==false?' <span style="font-size:0.56rem;font-weight:800;color:#2a9d50;vertical-align:middle;">🎟️ Promo Eligible</span>':'')+'</div>'+
         (soonestExp !== null ? '<div style="margin-top:4px;"><span class="countdown-badge" data-expiry="'+soonestExp+'" style="font-size:0.6rem;">'+formatCountdown(soonestExp - Date.now())+'</span></div>' : '')+
         (minP!==maxP?'<div class="product-card-price-range">Multiple variants</div>':'')+
         (giftProduct ? '<div class="gift-strip"><span class="gift-strip-icon">🎁</span>'+((giftProduct.image||(giftProduct.images&&giftProduct.images[0]))?'<img src="'+(giftProduct.image||giftProduct.images[0])+'" class="gift-strip-thumb" onerror="this.style.display=\'none\'"/>':'')+'<span>FREE: '+truncateWords(giftProduct.name, 5)+'</span>'+(giftExpiryMs?' <span class="countdown-badge" data-expiry="'+giftExpiryMs+'" style="font-size:0.56rem;margin-left:4px;">'+formatCountdown(giftExpiryMs - Date.now())+'</span>':'')+'</div>' : '')+
@@ -2230,6 +2232,30 @@
     pdAppliedPromoDiscount = 0;
     document.getElementById('pd-breadcrumb').textContent = p.category;
     document.getElementById('pd-category').textContent = p.category;
+    var condBadge = document.getElementById('pd-condition-badge');
+    if (condBadge) {
+      if (p.condition && p.condition !== 'Brand New') {
+        var condColors = {
+          'Refurbished': { bg:'#e0f0fd', text:'#2166a3', border:'#a9d1f0' },
+          'Used': { bg:'#fff3e0', text:'#b87d12', border:'#f0cf94' },
+          'UK Used': { bg:'#f3f0ff', text:'#5b3fa8', border:'#c9bdec' }
+        };
+        var cc = condColors[p.condition] || { bg:'#f0f0f0', text:'#555', border:'#ccc' };
+        condBadge.textContent = p.condition;
+        condBadge.style.background = cc.bg;
+        condBadge.style.color = cc.text;
+        condBadge.style.border = '1px solid ' + cc.border;
+        condBadge.style.display = 'inline-block';
+      } else if (p.condition === 'Brand New') {
+        condBadge.textContent = 'Brand New';
+        condBadge.style.background = '#e0f7e9';
+        condBadge.style.color = '#1b7d40';
+        condBadge.style.border = '1px solid #a8dcc0';
+        condBadge.style.display = 'inline-block';
+      } else {
+        condBadge.style.display = 'none';
+      }
+    }
     document.getElementById('pd-name').textContent = p.name;
     updatePdLikeDisplay();
 
@@ -2845,7 +2871,7 @@
         countdownRow.style.display = 'none';
         countdownRow.innerHTML = '';
       }
-      document.getElementById('pd-price').innerHTML = priceHtml;
+      document.getElementById('pd-price').innerHTML = priceHtml + (p.promoEligible!==false ? ' <span style="font-size:0.6rem;font-weight:800;color:#2a9d50;vertical-align:middle;">🎟️ Promo Eligible</span>' : '');
       document.getElementById('pd-btn-cart').classList.remove('pd-btn-notready');
       document.getElementById('pd-btn-buy').classList.remove('pd-btn-notready');
       if (stock===0) {
@@ -3339,6 +3365,14 @@
     showAddToCartToast();
   }
 
+  function cartEligibleSubtotal() {
+    return cart.reduce(function(s,c){
+      var prod = products.find(function(x){ return x.id === c.id; });
+      var eligible = !prod || prod.promoEligible !== false; // unknown product = don't block
+      return s + (eligible ? c.price * c.qty : 0);
+    }, 0);
+  }
+
   function applyCheckoutPromoCode() {
     var input = document.getElementById('checkout-promo-input');
     var msg = document.getElementById('checkout-promo-message');
@@ -3347,6 +3381,7 @@
     var entered = input.value.trim().toUpperCase();
     if (!entered) return;
     var subtotal = cart.reduce(function(s,c){ return s + c.price * c.qty; }, 0);
+    var eligibleSubtotal = cartEligibleSubtotal();
 
     if (cart.some(function(c){ return c.promoApplied; })) {
       checkoutAppliedPromoCode = null;
@@ -3354,6 +3389,16 @@
       msg.style.display = 'block';
       msg.style.color = 'var(--red)';
       msg.textContent = '✕ One or more items in your cart already have their own promo code applied. Only one promo code can apply per order.';
+      renderOrderItemsSummary();
+      return;
+    }
+
+    if (eligibleSubtotal <= 0) {
+      checkoutAppliedPromoCode = null;
+      checkoutAppliedPromoDiscount = 0;
+      msg.style.display = 'block';
+      msg.style.color = 'var(--red)';
+      msg.textContent = '✕ None of the items in your cart qualify for site-wide promo codes.';
       renderOrderItemsSummary();
       return;
     }
@@ -3372,20 +3417,22 @@
       return;
     }
     var minOrder = parseInt(match.minOrderValue) || 0;
-    if (subtotal < minOrder) {
+    if (eligibleSubtotal < minOrder) {
       checkoutAppliedPromoCode = null;
       checkoutAppliedPromoDiscount = 0;
       msg.style.display = 'block';
       msg.style.color = 'var(--red)';
-      msg.textContent = '✕ This code needs an order of ' + fmtPrice(minOrder) + ' or more (yours is ' + fmtPrice(subtotal) + ').';
+      msg.textContent = '✕ This code needs ' + fmtPrice(minOrder) + ' or more in promo-eligible items (yours is ' + fmtPrice(eligibleSubtotal) + (eligibleSubtotal < subtotal ? ', since some items in your cart don\'t qualify' : '') + ').';
       renderOrderItemsSummary();
       return;
     }
     checkoutAppliedPromoCode = entered;
-    checkoutAppliedPromoDiscount = parseInt(match.discountAmount) || 0;
+    // Never discount more than the eligible portion of the order — ineligible items
+    // always ring up at full price.
+    checkoutAppliedPromoDiscount = Math.min(parseInt(match.discountAmount) || 0, eligibleSubtotal);
     msg.style.display = 'block';
     msg.style.color = '#2a9d50';
-    msg.textContent = '✓ Promo applied — ' + fmtPrice(checkoutAppliedPromoDiscount) + ' off your order!';
+    msg.textContent = '✓ Promo applied — ' + fmtPrice(checkoutAppliedPromoDiscount) + ' off' + (eligibleSubtotal < subtotal ? ' the eligible items in' : '') + ' your order!';
     if (inputRow) inputRow.style.display = 'none';
     renderOrderItemsSummary();
   }
