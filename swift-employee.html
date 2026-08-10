@@ -1403,12 +1403,22 @@
         </div>
         <div id="f-promo-visible-toggle-wrap" style="display:none; margin-top:12px; background:rgba(255,255,255,0.6); border:1.5px solid #a8dcc0; border-radius:8px; padding:10px 12px; align-items:center; justify-content:space-between; gap:10px;">
           <div>
-            <div style="font-size:0.78rem; font-weight:800; color:#2a7d52;">👁️ Show On Product Page</div>
-            <div style="font-size:0.68rem; color:#888; margin-top:2px; max-width:320px;">Off = a "secret" code — still works if a client enters it (great for WhatsApp/Facebook deals), but nothing shows on the product page. On = the savings show right on the product for everyone to see.</div>
+            <div style="font-size:0.78rem; font-weight:800; color:#2a7d52;">👁️ Show Savings (code stays hidden)</div>
+            <div style="font-size:0.68rem; color:#888; margin-top:2px; max-width:320px;">Off = a fully "secret" code — still works if a client enters it (great for WhatsApp/Facebook deals), but nothing shows on the product page. On = shows "Save UGX X with a promo code!" in green, without revealing the actual code.</div>
           </div>
           <label style="position:relative; display:inline-block; width:46px; height:26px; flex-shrink:0;">
             <input type="checkbox" id="f-promo-visible" style="opacity:0; width:0; height:0;" onchange="updatePromoVisibleSliderStyle()"/>
             <span id="f-promo-visible-slider" style="position:absolute; cursor:pointer; inset:0; background:#ccc; border-radius:26px; transition:0.2s;"></span>
+          </label>
+        </div>
+        <div id="f-promo-code-visible-toggle-wrap" style="display:none; margin-top:10px; background:rgba(255,255,255,0.6); border:1.5px solid #a8dcc0; border-radius:8px; padding:10px 12px; align-items:center; justify-content:space-between; gap:10px;">
+          <div>
+            <div style="font-size:0.78rem; font-weight:800; color:#2166a3;">🏷️ Show The Actual Code</div>
+            <div style="font-size:0.68rem; color:#888; margin-top:2px; max-width:320px;">On = the code itself is shown on the product page in a tap-to-copy box, so clients can grab and apply it themselves. Works independently of the toggle above.</div>
+          </div>
+          <label style="position:relative; display:inline-block; width:46px; height:26px; flex-shrink:0;">
+            <input type="checkbox" id="f-promo-code-visible" style="opacity:0; width:0; height:0;" onchange="updatePromoCodeVisibleSliderStyle()"/>
+            <span id="f-promo-code-visible-slider" style="position:absolute; cursor:pointer; inset:0; background:#ccc; border-radius:26px; transition:0.2s;"></span>
           </label>
         </div>
         <div style="margin-top:12px; padding-top:12px; border-top:1px solid #a8dcc0;">
@@ -3642,6 +3652,8 @@
     updateDMYPreview(document.getElementById('f-promo-expires'));
     document.getElementById('f-promo-visible').checked = false;
     updatePromoVisibleSliderStyle();
+    document.getElementById('f-promo-code-visible').checked = false;
+    updatePromoCodeVisibleSliderStyle();
     refreshPromoVisibleToggleWrap();
     const bundleSelAdd = document.getElementById('f-bundle-product');
     if (bundleSelAdd) { bundleSelAdd.innerHTML = bundleOptionsHtml(null, ''); updateBundlePreview(); }
@@ -3685,6 +3697,8 @@
     updateDMYPreview(document.getElementById('f-promo-expires'));
     document.getElementById('f-promo-visible').checked = !!p.promoVisible;
     updatePromoVisibleSliderStyle();
+    document.getElementById('f-promo-code-visible').checked = !!p.promoCodeVisible;
+    updatePromoCodeVisibleSliderStyle();
     refreshPromoVisibleToggleWrap();
     const bundleSelEdit = document.getElementById('f-bundle-product');
     if (bundleSelEdit) { bundleSelEdit.innerHTML = bundleOptionsHtml(id, p.bundleProductId || ''); updateBundlePreview(); }
@@ -3990,11 +4004,24 @@
     slider.appendChild(knob);
   }
 
+  function updatePromoCodeVisibleSliderStyle() {
+    const on = document.getElementById('f-promo-code-visible').checked;
+    const slider = document.getElementById('f-promo-code-visible-slider');
+    slider.style.background = on ? '#2166a3' : '#ccc';
+    slider.innerHTML = '';
+    const knob = document.createElement('span');
+    knob.style.cssText = 'position:absolute; height:20px; width:20px; left:' + (on ? '23px' : '3px') + '; top:3px; background:#fff; border-radius:50%; transition:0.2s; box-shadow:0 1px 3px rgba(0,0,0,0.3);';
+    slider.appendChild(knob);
+  }
+
   function refreshPromoVisibleToggleWrap() {
     const codeInput = document.getElementById('f-promocode');
     const wrap = document.getElementById('f-promo-visible-toggle-wrap');
-    if (!codeInput || !wrap) return;
-    wrap.style.display = codeInput.value.trim() ? 'flex' : 'none';
+    const codeWrap = document.getElementById('f-promo-code-visible-toggle-wrap');
+    if (!codeInput) return;
+    const show = codeInput.value.trim() ? 'flex' : 'none';
+    if (wrap) wrap.style.display = show;
+    if (codeWrap) codeWrap.style.display = show;
   }
 
   function bundleOptionsHtml(excludeId, selected) {
@@ -4040,6 +4067,7 @@
       promoCode: p.promoCode || '',
       promoDiscountAmount: parseInt(p.promoDiscountAmount) || 0,
       promoVisible: !!p.promoVisible,
+      promoCodeVisible: !!p.promoCodeVisible,
       promoExpiresAt: p.promoExpiresAt || '',
       bundleProductId: p.bundleProductId || '',
       bundleImage: p.bundleImage || '',
@@ -4106,6 +4134,7 @@
     const promoCode = document.getElementById('f-promocode').value.trim().toUpperCase();
     const promoDiscountAmount = parseInt(document.getElementById('f-promo-amount').value) || 0;
     const promoVisible = document.getElementById('f-promo-visible').checked;
+    const promoCodeVisible = document.getElementById('f-promo-code-visible').checked;
     const promoExpiresRaw = document.getElementById('f-promo-expires').value;
     let promoExpiresAt = '';
     if (promoExpiresRaw) {
@@ -4120,8 +4149,8 @@
 
     // Build the full candidate product object (used for both change-detection and saving)
     const candidateProduct = editingId
-      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 }
-      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
+      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 }
+      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
 
     // If editing an existing product and nothing actually changed, skip the save entirely
     if (editingId && editingOriginalSnapshot && productSignature(editingOriginalSnapshot) === productSignature(candidateProduct)) {
@@ -4133,14 +4162,14 @@
     if (editingId) {
       const idx = products.findIndex(p => p.id === editingId);
       if (idx > -1) {
-        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
+        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
       }
     } else {
       products.push({
         id: candidateProduct.id,
         name, category: cat, store, sku,
         threshold: threshold_,
-        variants, hotDeal, warehouseLocation: warehouseLocation || '', promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0
+        variants, hotDeal, warehouseLocation: warehouseLocation || '', promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0
       });
     }
 

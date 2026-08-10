@@ -359,7 +359,6 @@
         position:sticky;
         top:64px;
         overflow:hidden;
-        min-height:calc(100vh - 64px);
         align-self:start;
         border-radius:16px;
         box-shadow:0 8px 18px rgba(0,0,0,0.09), 0 2px 6px rgba(0,0,0,0.05);
@@ -1495,7 +1494,7 @@
       <div class="hto-option" id="del-opt-2"><div class="hto-num">&#127960;&#65039;</div><div class="hto-content"><div class="hto-title">Kampala &amp; Suburbs Coverage</div><p>We deliver across <strong>Kampala and its major suburbs</strong>, including Munyonyo, Buziga, Bweyogerere, Ntinda, Ggaba, Makindye, Makerere, and many more.</p></div></div>
       <div class="hto-option" id="del-opt-3"><div class="hto-num">&#128172;</div><div class="hto-content"><div class="hto-title">Add Detailed Directions</div><p>Include clear landmark-based directions in your order notes. For example: "Behind Shell Kireka, second gray gate on the left" or "Makerere, Ham Towers near the main gate."</p></div></div>
       <div class="hto-option" id="del-opt-4"><div class="hto-num">&#9201;&#65039;</div><div class="hto-content"><div class="hto-title">Delivery Times</div><p>Same-day delivery for orders placed before <strong>6:00 PM</strong> within Kampala. You can expect your items within <strong>20-40 minutes</strong> after order confirmation for most Kampala suburbs. For Jinja - same day via taxi. For Lira City - bus parcel, next morning pickup. Fees UGX 5,000-20,000.</p></div></div>
-      <div class="hto-footer-btn" id="del-footer-btn"><a href="#order" onclick="closeAllOverlays();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();armCheckoutGuard();},200)" class="btn-primary" style="display:block;text-align:center;margin-top:8px;text-decoration:none;">Place Your Order Now</a></div>
+      <div class="hto-footer-btn" id="del-footer-btn"><a href="#order" onclick="captureCheckoutOrigin();closeAllOverlays();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();armCheckoutGuard();},200)" class="btn-primary" style="display:block;text-align:center;margin-top:8px;text-decoration:none;">Place Your Order Now</a></div>
     </div>
   </div>
 </div>
@@ -1510,7 +1509,7 @@
     <div class="cart-total" id="cart-total-row" style="display:none;">
       <span>Total</span><span id="cart-total-val"></span>
     </div>
-    <button class="submit-btn" onclick="closeAllOverlays();renderOrderItemsSummary();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();armCheckoutGuard();}, 50);">Proceed to Order</button>
+    <button class="submit-btn" onclick="captureCheckoutOrigin();closeAllOverlays();renderOrderItemsSummary();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();armCheckoutGuard();}, 50);">Proceed to Order</button>
   </div>
 </div>
 
@@ -1682,6 +1681,35 @@
     if (n >= 1000000) return (n/1000000).toFixed(n % 1000000 === 0 ? 0 : 1) + 'M';
     if (n >= 1000) return (n/1000).toFixed(n % 1000 === 0 ? 0 : 1) + 'K';
     return String(n);
+  }
+
+  function copyPdPromoCode(code, card) {
+    var finish = function(){
+      if (card) {
+        var hint = card.querySelector('.pd-promo-copy-hint');
+        var originalText = hint ? hint.textContent : '';
+        if (hint) hint.textContent = '✓ Copied!';
+        setTimeout(function(){ if (hint) hint.textContent = originalText || '📋 Copy'; }, 1800);
+      }
+      // Auto-fill (but don't auto-apply) so the customer just taps "Apply" next.
+      var input = document.getElementById('pd-promo-input');
+      if (input) input.value = code;
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(code).then(finish).catch(function(){
+        var ta = document.createElement('textarea');
+        ta.value = code; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); } catch(e) {}
+        document.body.removeChild(ta);
+        finish();
+      });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = code; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch(e) {}
+      document.body.removeChild(ta);
+      finish();
+    }
   }
 
   function copyPromoCode(code, card) {
@@ -1975,6 +2003,25 @@
   // choose to stay or leave for real.
   var checkoutGuardArmed = false;
   var orderJustSubmitted = false;
+  var checkoutOriginProductId = null;
+  var checkoutOriginScrollY = 0;
+
+  // Snapshot exactly where the customer was BEFORE we start closing overlays to enter
+  // checkout — closeAllOverlays() deliberately unwinds the whole overlay stack (product
+  // view, cart, etc.), which also means the browser's own history no longer points back
+  // to "the product they were looking at" — it points to whatever's under all of that.
+  // So instead of relying on browser history to know where to return them, we remember
+  // it ourselves and restore it directly if they choose to leave.
+  function captureCheckoutOrigin() {
+    var pdOverlay = document.getElementById('pd-overlay');
+    if (pdOverlay && pdOverlay.classList.contains('open') && pdCurrentProduct) {
+      checkoutOriginProductId = pdCurrentProduct.id;
+      checkoutOriginScrollY = 0;
+    } else {
+      checkoutOriginProductId = null;
+      checkoutOriginScrollY = window.scrollY;
+    }
+  }
 
   function armCheckoutGuard() {
     if (checkoutGuardArmed) return; // already armed — don't stack extra history entries
@@ -2012,7 +2059,14 @@
   function checkoutLeaveConfirmed() {
     var modal = document.getElementById('checkout-leave-warning-modal');
     if (modal) modal.classList.remove('open');
-    // Navigation already happened (that's what triggered this warning) — nothing more to do.
+    // Restore exactly where they were before checkout — the product they were viewing,
+    // or their scroll position on the page — rather than leaving them stranded wherever
+    // closeAllOverlays() happened to land when checkout began.
+    if (checkoutOriginProductId) {
+      openProductDetail(checkoutOriginProductId);
+    } else {
+      window.scrollTo({ top: checkoutOriginScrollY, behavior: 'smooth' });
+    }
   }
 
   function checkoutLeaveCancelled() {
@@ -2191,7 +2245,18 @@
     var promoInputRow = document.getElementById('pd-promo-input-row');
     if (promoInputRow) promoInputRow.style.display = 'flex';
     if (promoTeaser) {
-      if (p.promoVisible && isProductPromoActive(p)) {
+      if (p.promoCodeVisible && isProductPromoActive(p)) {
+        var safeCode = String(p.promoCode).replace(/'/g,"\\'");
+        promoTeaser.innerHTML =
+          '<div onclick="copyPdPromoCode(\''+safeCode+'\', this)" style="display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; cursor:pointer; background:linear-gradient(90deg,#e8f9ee,#f2fff7); border:1.5px dashed #2a9d50; border-radius:10px; padding:9px 12px;">' +
+            '<div>' +
+              '<div style="font-family:\'Inter\',sans-serif; font-weight:900; letter-spacing:0.06em; color:#1b7d40; font-size:0.92rem;">'+p.promoCode+'</div>' +
+              '<div style="font-size:0.68rem; color:#2a9d50; font-weight:700;">Save '+fmtPrice(p.promoDiscountAmount)+' — tap to copy</div>' +
+            '</div>' +
+            '<span class="pd-promo-copy-hint" style="font-size:0.7rem; font-weight:800; color:#1b7d40; white-space:nowrap;">📋 Copy</span>' +
+          '</div>';
+        promoTeaser.style.display = 'flex';
+      } else if (p.promoVisible && isProductPromoActive(p)) {
         promoTeaser.innerHTML = '🏷️ Apply a promo code to save <span style="color:#1b7d40;">' + fmtPrice(p.promoDiscountAmount) + '</span>!';
         promoTeaser.style.display = 'flex';
       } else {
@@ -3004,6 +3069,7 @@
   }
 
   function pdBuyNow() {
+    captureCheckoutOrigin();
     if (!pdAddToCart()) return;
     renderOrderItemsSummary();
     // Close modal and scroll to form
