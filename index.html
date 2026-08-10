@@ -657,6 +657,7 @@
       .wa-popup.shift-up{ bottom:128px; }
     }
     .pd-variant-label{font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#444;margin-bottom:8px;transition:color 0.2s;}
+    #pd-condition-desktop-anchor + #pd-condition-badge{ margin-top:12px; }
     .pd-glass-box{
       background:linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(248,247,243,0.85) 100%);
       backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%);
@@ -1305,6 +1306,7 @@
     <div class="pd-content" id="pd-content">
       <div class="pd-body">
         <div class="pd-category" id="pd-category"></div>
+        <div id="pd-condition-mobile-anchor"></div>
         <span id="pd-condition-badge" style="display:none; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.05em; padding:3px 9px; border-radius:20px; margin-bottom:6px;"></span>
         <div class="pd-name" id="pd-name"></div>
 
@@ -1323,6 +1325,7 @@
             <div class="pd-variant-btns" id="pd-variant-btns"></div>
             <select class="pd-variant-select" id="pd-variant-select" onchange="onPdVariantChange(this)" style="display:none;"></select>
           </div>
+          <div id="pd-condition-desktop-anchor"></div>
 
           <!-- BUNDLE PURCHASE -->
           <div id="pd-bundle-box" style="display:none;"></div>
@@ -2221,9 +2224,29 @@
     closeOverlayEl(document.getElementById('pd-overlay'));
   }
 
+  // ── BROWSING HISTORY (used to personalize "You might also like") ──
+  var PD_BROWSING_HISTORY_KEY = 'swift_browsing_history_v1';
+
+  function getBrowsingHistory() {
+    try {
+      var raw = localStorage.getItem(PD_BROWSING_HISTORY_KEY);
+      var arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch(e) { return []; }
+  }
+
+  function recordBrowsingHistory(productId) {
+    try {
+      var hist = getBrowsingHistory().filter(function(id){ return id !== productId; });
+      hist.unshift(productId);
+      localStorage.setItem(PD_BROWSING_HISTORY_KEY, JSON.stringify(hist.slice(0, 25)));
+    } catch(e) { /* storage unavailable — recommendations just fall back to non-personalized signals */ }
+  }
+
   function renderProductDetailContent(productId) {
     var p = products.find(function(x){ return x.id===productId; });
     if (!p) return;
+    recordBrowsingHistory(productId);
     pdCurrentProduct = p;
     pdCurrentVariantIdx = null;
     pdQty = 1;
@@ -2798,16 +2821,73 @@
     pdRelatedResizeTimer = setTimeout(positionRelatedSection, 200);
   });
 
+  // Condition badge (Brand New / Refurbished / Used / UK Used) stays right where it
+  // was on mobile — next to the product name — but on desktop moves down to sit right
+  // below the variant selector, where it's easier to notice before buying.
+  function positionConditionBadge() {
+    var badge = document.getElementById('pd-condition-badge');
+    if (!badge) return;
+    var isDesktop = window.innerWidth >= 1024;
+    if (isDesktop) {
+      var desktopAnchor = document.getElementById('pd-condition-desktop-anchor');
+      if (desktopAnchor && badge.previousElementSibling !== desktopAnchor) {
+        desktopAnchor.parentNode.insertBefore(badge, desktopAnchor.nextSibling);
+      }
+    } else {
+      var mobileAnchor = document.getElementById('pd-condition-mobile-anchor');
+      if (mobileAnchor && badge.previousElementSibling !== mobileAnchor) {
+        mobileAnchor.parentNode.insertBefore(badge, mobileAnchor.nextSibling);
+      }
+    }
+  }
+  positionConditionBadge();
+  var pdConditionResizeTimer = null;
+  window.addEventListener('resize', function(){
+    clearTimeout(pdConditionResizeTimer);
+    pdConditionResizeTimer = setTimeout(positionConditionBadge, 200);
+  });
+
+  var RELATED_STOPWORDS = {'the':1,'a':1,'an':1,'for':1,'with':1,'and':1,'of':1,'to':1,'in':1,'pro':1,'new':1};
+
+  // Scores how good a "you might also like" suggestion `candidate` is, given the
+  // product the customer is currently viewing and their recent browsing history.
+  // This is a rules-based approximation of a recommendation engine — no server-side
+  // ML involved, but it combines enough signals (bundle/FBW relationships, category,
+  // shared keywords, past browsing, popularity, stock) to feel personalized without
+  // needing every one of hundreds/thousands of products to be manually cross-linked.
+  function scoreRelatedProduct(candidate, current, browsingHistory) {
+    var score = 0;
+    if (current.bundleProductId === candidate.id || candidate.bundleProductId === current.id) score += 100;
+    if (Array.isArray(current.frequentlyBoughtWith) && current.frequentlyBoughtWith.indexOf(candidate.id) !== -1) score += 80;
+    if (Array.isArray(candidate.frequentlyBoughtWith) && candidate.frequentlyBoughtWith.indexOf(current.id) !== -1) score += 80;
+    if (candidate.category === current.category) score += 40;
+
+    var curWords = (current.name||'').toLowerCase().split(/\s+/).filter(function(w){ return w.length>2 && !RELATED_STOPWORDS[w]; });
+    var candWords = (candidate.name||'').toLowerCase().split(/\s+/).filter(function(w){ return w.length>2 && !RELATED_STOPWORDS[w]; });
+    curWords.forEach(function(w){ if (candWords.indexOf(w) !== -1) score += 6; });
+
+    var histIdx = browsingHistory.indexOf(candidate.id);
+    if (histIdx !== -1) score += Math.max(15 - histIdx, 3); // more recently viewed = bigger boost
+
+    score += Math.min((parseInt(candidate.likes)||0) / 5, 20);
+
+    var hasStock = candidate.variants && candidate.variants.some(function(v){ return (parseInt(v.stock)||0) > 0; });
+    score += hasStock ? 8 : -25;
+
+    score += Math.random() * 4; // small jitter so results don't feel robotically identical every visit
+    return score;
+  }
+
   function renderRelated(p) {
     var w = document.getElementById('pd-related');
     var s = document.getElementById('pd-related-scroll');
     if (!w||!s) return;
-    var related = products.filter(function(x){ return x.id!==p.id; }).sort(function(a,b){
-      var aSameCat = a.category === p.category ? 1 : 0;
-      var bSameCat = b.category === p.category ? 1 : 0;
-      if (aSameCat !== bSameCat) return bSameCat - aSameCat; // same-category items first
-      return (parseInt(b.likes)||0) - (parseInt(a.likes)||0); // then most-liked first
-    }).slice(0,8);
+    var browsingHistory = getBrowsingHistory();
+    var related = products.filter(function(x){ return x.id!==p.id; })
+      .map(function(x){ return { product:x, score: scoreRelatedProduct(x, p, browsingHistory) }; })
+      .sort(function(a,b){ return b.score - a.score; })
+      .slice(0,8)
+      .map(function(x){ return x.product; });
     if (related.length===0){ w.style.display='none'; return; }
     w.style.display='block';
     s.innerHTML = '';
