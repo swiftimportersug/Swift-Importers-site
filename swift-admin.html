@@ -1269,6 +1269,25 @@
             <div id="customer-search-results" style="margin-top:14px; display:flex; flex-wrap:wrap; gap:12px;"></div>
           </div>
         </div>
+
+        <div class="admin-3d-box">
+          <div onclick="toggleReviewsSection()" class="admin-3d-header">
+            <div class="admin-3d-title"><span class="admin-3d-icon">⭐</span> Product Reviews</div>
+            <span id="reviews-section-arrow" class="admin-3d-arrow">▸</span>
+          </div>
+          <div id="reviews-section-body" style="display:none; padding:0 20px 20px;">
+            <div style="display:flex; gap:8px; margin-bottom:14px;">
+              <input type="text" id="reviews-filter-input" placeholder="Filter by product or customer name..." oninput="renderAdminReviews()"
+                style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:0.84rem; font-family:'Inter',sans-serif;"/>
+              <select id="reviews-filter-visibility" onchange="renderAdminReviews()" style="padding:9px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:0.84rem; font-family:'Inter',sans-serif;">
+                <option value="all">All reviews</option>
+                <option value="visible">Visible only</option>
+                <option value="hidden">Hidden only</option>
+              </select>
+            </div>
+            <div id="admin-reviews-list"></div>
+          </div>
+        </div>
       </div>
 
       <!-- MESSAGES PAGE -->
@@ -1982,6 +2001,79 @@
     const isOpen = body.style.display !== 'none';
     body.style.display = isOpen ? 'none' : 'block';
     arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+  }
+
+  // ── PRODUCT REVIEWS (moderation) ──
+  let allReviews = [];
+  let unsubscribeReviews = null;
+
+  function toggleReviewsSection() {
+    const body = document.getElementById('reviews-section-body');
+    const arrow = document.getElementById('reviews-section-arrow');
+    const isOpen = body.style.display !== 'none';
+    body.style.display = isOpen ? 'none' : 'block';
+    arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+    if (!isOpen) fbListenReviews();
+  }
+
+  function fbListenReviews() {
+    if (!window.fbDb || !window.fbFns) return;
+    const { collection, onSnapshot } = window.fbFns;
+    if (unsubscribeReviews) unsubscribeReviews();
+    unsubscribeReviews = onSnapshot(collection(window.fbDb, 'reviews'), (snapshot) => {
+      allReviews = snapshot.docs.map(d => ({ fbDocId: d.id, ...d.data() }));
+      allReviews.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+      renderAdminReviews();
+    });
+  }
+
+  function renderAdminReviews() {
+    const list = document.getElementById('admin-reviews-list');
+    if (!list) return;
+    const filterText = (document.getElementById('reviews-filter-input').value || '').toLowerCase();
+    const filterVis = document.getElementById('reviews-filter-visibility').value;
+    let filtered = allReviews.filter(r => {
+      if (filterVis === 'visible' && r.hidden) return false;
+      if (filterVis === 'hidden' && !r.hidden) return false;
+      if (!filterText) return true;
+      const product = products.find(p => p.id === r.productId);
+      const productName = (product ? product.name : '').toLowerCase();
+      return productName.includes(filterText) || (r.customerName||'').toLowerCase().includes(filterText);
+    });
+    if (filtered.length === 0) { list.innerHTML = '<div style="padding:16px; font-size:0.82rem; color:#999;">No reviews found.</div>'; return; }
+    list.innerHTML = filtered.map(r => {
+      const product = products.find(p => p.id === r.productId);
+      const productName = product ? product.name : '(deleted product)';
+      let stars = '';
+      for (let i = 1; i <= 5; i++) stars += i <= r.rating ? '★' : '☆';
+      return `
+        <div style="background:${r.hidden ? '#faf5f5' : 'var(--light)'}; border:1px solid ${r.hidden ? '#e0b8b8' : 'var(--border)'}; border-radius:10px; padding:12px 16px; margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:800; font-size:0.85rem;">${productName}</div>
+              <div style="font-size:0.78rem; color:#666; margin-top:2px;">${r.customerName || 'Customer'} &middot; <span style="color:var(--gold);">${stars}</span> &middot; ${fmtOrderTime(r.timestamp)}</div>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center;">
+              ${r.hidden ? '<span style="background:var(--red); color:#fff; font-size:0.65rem; font-weight:800; padding:3px 9px; border-radius:20px;">HIDDEN</span>' : ''}
+              <button onclick="toggleReviewVisibility('${r.fbDocId}', ${!r.hidden})" style="background:${r.hidden ? '#2a9d50' : '#fff'}; color:${r.hidden ? '#fff' : '#c0392b'}; border:1.5px solid ${r.hidden ? '#2a9d50' : '#c0392b'}; padding:6px 12px; border-radius:6px; font-size:0.74rem; font-weight:700; cursor:pointer;">${r.hidden ? '✅ Unhide' : '🚫 Hide'}</button>
+            </div>
+          </div>
+          ${r.text ? `<div style="font-size:0.82rem; color:#444; margin-top:8px; line-height:1.5;">${r.text.replace(/</g,'&lt;')}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function toggleReviewVisibility(reviewId, hide) {
+    if (!window.fbDb || !window.fbFns) return;
+    try {
+      const { doc, updateDoc } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'reviews', reviewId), { hidden: hide });
+      showSuccessToast(hide ? '✅ Review hidden from customers.' : '✅ Review is visible again.');
+    } catch(e) {
+      showAppAlert('Error updating review. Check your connection.');
+      console.error(e);
+    }
   }
 
   // ── CUSTOMER SEARCH & CODE RESET ──

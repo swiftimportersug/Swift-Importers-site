@@ -1462,6 +1462,8 @@
           <button id="pd-read-more-btn" onclick="toggleDescription()" style="display:none; margin-top:10px; background:none; border:none; color:var(--gold-dark); font-size:0.82rem; font-weight:700; cursor:pointer; font-family:'Inter',sans-serif; padding:0; text-decoration:underline; text-underline-offset:3px;"></button>
         </div>
 
+        <div id="pd-reviews-section" class="pd-glass-box" style="display:none;"></div>
+
         <!-- Anchor point: on mobile, JS moves #pd-related to right here (after the
              description). On desktop it lives outside the grid entirely instead — see
              #pd-related-desktop-anchor below the whole two-column layout. -->
@@ -1659,6 +1661,21 @@
       <input type="text" id="message-input" placeholder="Type a message..." style="flex:1; min-width:0; padding:11px 14px; border:1.5px solid var(--border); border-radius:20px; font-size:0.85rem; font-family:'Inter',sans-serif; outline:none;" onkeydown="if(event.key==='Enter'){event.preventDefault();sendCustomerMessage();}"/>
       <button onclick="sendCustomerMessage()" style="background:var(--black); color:#fff; border:none; width:42px; height:42px; border-radius:50%; cursor:pointer; font-size:1rem; flex-shrink:0;">&#10148;</button>
     </div>
+  </div>
+</div>
+
+<!-- LEAVE A REVIEW -->
+<div class="modal-overlay" id="review-modal">
+  <div class="modal" style="max-width:420px; text-align:left;">
+    <button class="modal-close" onclick="closeOverlayEl(document.getElementById('review-modal'))">X</button>
+    <h2>Leave a Review</h2>
+    <div id="review-product-name" style="font-size:0.85rem; font-weight:700; color:var(--gold-dark); margin:6px 0 16px;"></div>
+    <div style="text-align:center; margin-bottom:18px;">
+      <div id="review-stars" style="font-size:2rem; letter-spacing:6px; cursor:pointer;"></div>
+    </div>
+    <textarea id="review-text" rows="4" placeholder="What did you think of this product? (optional)" style="width:100%; box-sizing:border-box; padding:11px 13px; border:1.5px solid var(--border); border-radius:8px; font-size:0.85rem; font-family:'Inter',sans-serif; resize:vertical; margin-bottom:16px;"></textarea>
+    <button class="submit-btn" onclick="submitReview()">Submit Review</button>
+    <div id="review-msg" style="display:none; margin-top:10px; font-size:0.82rem; font-weight:700; text-align:center;"></div>
   </div>
 </div>
 
@@ -2424,6 +2441,7 @@
     var p = products.find(function(x){ return x.id===productId; });
     if (!p) return;
     recordBrowsingHistory(productId);
+    loadAndRenderProductReviews(productId);
     pdCurrentProduct = p;
     pdCurrentVariantIdx = null;
     pdQty = 1;
@@ -4059,6 +4077,7 @@
     openOverlayEl(document.getElementById('messages-modal'));
     renderMessagesThread();
     markAdminMessagesRead();
+    checkPendingReviewReminder();
   }
 
   function renderMessagesThread() {
@@ -4124,6 +4143,146 @@
         await updateDoc(doc(window.fbDb, 'messages', unread[i].fbDocId), { read: true });
       }
     } catch(e) { console.error('[messages] failed to mark read:', e); }
+  }
+
+  // ── REVIEWS ──
+  var reviewedOrderItemKeys = null; // cached set of "orderId::productId" the account has already reviewed
+  var pendingReviewTarget = null; // {productId, productName, orderId} — the most recent un-reviewed completed purchase
+  var reviewStarsSelected = 0;
+
+  async function checkPendingReviewReminder() {
+    var reminderEl = document.getElementById('messages-review-reminder');
+    if (!currentAccount || !window.fbDb || !window.fbFns || !reminderEl) return;
+    try {
+      var { collection, query, where, getDocs } = window.fbFns;
+      var ordersQ = query(collection(window.fbDb, 'orders'), where('accountId', '==', currentAccount.fbDocId));
+      var ordersSnap = await getDocs(ordersQ);
+      var closedOrders = ordersSnap.docs
+        .map(function(d){ return { fbDocId: d.id, ...d.data() }; })
+        .filter(function(o){ return o.status === 'closed'; })
+        .sort(function(a,b){ return new Date(b.timestamp) - new Date(a.timestamp); });
+      if (closedOrders.length === 0) { reminderEl.style.display = 'none'; return; }
+
+      var reviewsQ = query(collection(window.fbDb, 'reviews'), where('customerId', '==', currentAccount.fbDocId));
+      var reviewsSnap = await getDocs(reviewsQ);
+      var reviewedKeys = {};
+      reviewsSnap.docs.forEach(function(d){ var r = d.data(); reviewedKeys[r.orderId + '::' + r.productId] = true; });
+
+      pendingReviewTarget = null;
+      for (var i = 0; i < closedOrders.length && !pendingReviewTarget; i++) {
+        var o = closedOrders[i];
+        var items = o.cartItems || [];
+        for (var j = 0; j < items.length; j++) {
+          var key = o.fbDocId + '::' + items[j].id;
+          if (!reviewedKeys[key]) {
+            pendingReviewTarget = { productId: items[j].id, productName: items[j].name, orderId: o.fbDocId };
+            break;
+          }
+        }
+      }
+
+      if (pendingReviewTarget) {
+        reminderEl.innerHTML = '⭐ How was your <strong>' + pendingReviewTarget.productName + '</strong>? <button onclick="openReviewModal(\''+pendingReviewTarget.productId+'\',\''+pendingReviewTarget.productName.replace(/'/g,"\\'")+'\',\''+pendingReviewTarget.orderId+'\')" style="display:block; margin-top:8px; background:var(--black); color:#fff; border:none; padding:8px 16px; border-radius:6px; font-size:0.78rem; font-weight:700; cursor:pointer;">Leave a Review</button>';
+        reminderEl.style.display = 'block';
+      } else {
+        reminderEl.style.display = 'none';
+      }
+    } catch(e) { console.error('[reviews] failed to check pending review:', e); }
+  }
+
+  function openReviewModal(productId, productName, orderId) {
+    document.getElementById('review-product-name').textContent = productName;
+    document.getElementById('review-text').value = '';
+    document.getElementById('review-msg').style.display = 'none';
+    reviewStarsSelected = 0;
+    renderReviewStars();
+    window._pendingReviewSubmit = { productId: productId, orderId: orderId };
+    openOverlayEl(document.getElementById('review-modal'));
+  }
+
+  function renderReviewStars() {
+    var wrap = document.getElementById('review-stars');
+    wrap.innerHTML = '';
+    for (var i = 1; i <= 5; i++) {
+      var star = document.createElement('span');
+      star.textContent = i <= reviewStarsSelected ? '★' : '☆';
+      star.style.color = i <= reviewStarsSelected ? 'var(--gold)' : '#ccc';
+      star.onclick = (function(n){ return function(){ reviewStarsSelected = n; renderReviewStars(); }; })(i);
+      wrap.appendChild(star);
+    }
+  }
+
+  async function submitReview() {
+    var target = window._pendingReviewSubmit;
+    var msg = document.getElementById('review-msg');
+    if (!target || !currentAccount) return;
+    if (reviewStarsSelected === 0) {
+      msg.textContent = 'Please select a star rating.';
+      msg.style.color = 'var(--red)';
+      msg.style.display = 'block';
+      return;
+    }
+    if (!window.fbDb || !window.fbFns) return;
+    try {
+      await window.fbFns.addDoc(window.fbFns.collection(window.fbDb, 'reviews'), {
+        productId: target.productId,
+        orderId: target.orderId,
+        customerId: currentAccount.fbDocId,
+        customerName: currentAccount.name || 'Customer',
+        rating: reviewStarsSelected,
+        text: document.getElementById('review-text').value.trim(),
+        timestamp: new Date().toISOString(),
+        hidden: false
+      });
+      msg.textContent = '✓ Thank you for your review!';
+      msg.style.color = '#2a9d50';
+      msg.style.display = 'block';
+      setTimeout(function(){
+        closeOverlayEl(document.getElementById('review-modal'));
+        checkPendingReviewReminder();
+      }, 1200);
+    } catch(e) {
+      msg.textContent = 'Something went wrong. Please try again.';
+      msg.style.color = 'var(--red)';
+      msg.style.display = 'block';
+      console.error(e);
+    }
+  }
+
+  async function loadAndRenderProductReviews(productId) {
+    var section = document.getElementById('pd-reviews-section');
+    if (!section || !window.fbDb || !window.fbFns) return;
+    section.style.display = 'none';
+    try {
+      var { collection, query, where, getDocs } = window.fbFns;
+      var q = query(collection(window.fbDb, 'reviews'), where('productId', '==', productId));
+      var snap = await getDocs(q);
+      var reviews = snap.docs.map(function(d){ return d.data(); }).filter(function(r){ return !r.hidden; });
+      if (reviews.length === 0) { section.style.display = 'none'; return; }
+      reviews.sort(function(a,b){ return new Date(b.timestamp) - new Date(a.timestamp); });
+      var avg = reviews.reduce(function(s,r){ return s + (r.rating||0); }, 0) / reviews.length;
+      var starsHtml = '';
+      for (var i = 1; i <= 5; i++) starsHtml += i <= Math.round(avg) ? '★' : '☆';
+      var listHtml = reviews.slice(0, 10).map(function(r){
+        var rStars = '';
+        for (var i = 1; i <= 5; i++) rStars += i <= r.rating ? '★' : '☆';
+        return '<div style="padding:10px 0; border-bottom:1px solid var(--border);">' +
+          '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+            '<span style="font-weight:700; font-size:0.82rem;">'+escapeHtml(r.customerName||'Customer')+'</span>' +
+            '<span style="color:var(--gold); font-size:0.85rem;">'+rStars+'</span>' +
+          '</div>' +
+          (r.text ? '<div style="font-size:0.8rem; color:#555; margin-top:4px; line-height:1.4;">'+escapeHtml(r.text)+'</div>' : '') +
+        '</div>';
+      }).join('');
+      section.innerHTML =
+        '<div style="font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#444;margin-bottom:10px;">⭐ Customer Reviews</div>' +
+        '<div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">' +
+          '<span style="font-size:1.5rem; font-weight:900;">'+avg.toFixed(1)+'</span>' +
+          '<div><div style="color:var(--gold); font-size:1.1rem; letter-spacing:2px;">'+starsHtml+'</div><div style="font-size:0.72rem; color:var(--grey);">'+reviews.length+' review'+(reviews.length===1?'':'s')+'</div></div>' +
+        '</div>' +
+        listHtml;
+      section.style.display = 'block';
+    } catch(e) { console.error('[reviews] failed to load:', e); }
   }
 
   function openSavedPage() {
@@ -4761,7 +4920,7 @@
   }
 
   // Close on overlay click
-  ['returns-modal','track-order-modal','payment-guide-modal','delivery-info-modal','how-to-order-modal','cart-modal','success-modal','app-dialog-overlay','fbw-preview-modal','account-modal','saved-modal','messages-modal'].forEach(function(id){
+  ['returns-modal','track-order-modal','payment-guide-modal','delivery-info-modal','how-to-order-modal','cart-modal','success-modal','app-dialog-overlay','fbw-preview-modal','account-modal','saved-modal','messages-modal','review-modal'].forEach(function(id){
     var el=document.getElementById(id);
     if(el) el.addEventListener('click',function(e){ if(e.target===this){ if(id==='cart-modal'){closeCart();}else{closeOverlayEl(this);} } });
   });
