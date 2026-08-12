@@ -3467,6 +3467,19 @@
     return diffDays + ' days ago';
   }
 
+  function tierIconAdmin(tier) {
+    if (tier === 'platinum') return '💎';
+    if (tier === 'gold') return '🥇';
+    if (tier === 'silver') return '🥈';
+    return '';
+  }
+  function tierNameAdmin(tier) {
+    if (tier === 'platinum') return 'Platinum';
+    if (tier === 'gold') return 'Gold';
+    if (tier === 'silver') return 'Silver';
+    return 'Standard';
+  }
+
   function renderOrderCard(o, isClosed) {
     const statusMap = {
       pending: '<span class="order-status-badge status-pending">⏳ Pending</span>',
@@ -3556,6 +3569,20 @@
               Subtotal ${fmt(o.pricing.subtotal)}${o.pricing.discount ? ' &minus; discount ' + fmt(o.pricing.discount) : ''}${o.pricing.otherFees ? ' + fees ' + fmt(o.pricing.otherFees) : ''} = <strong>${fmt(o.pricing.total)}</strong>
             </div>
           ` : ''}
+          ${o.appliedPromoCode && o.promoDiscount > 0 ? `
+            <div style="width:100%; margin-top:6px; background:#e8f4fd; border:1px solid #5aa9e6; border-radius:8px; padding:6px 10px; font-size:0.76rem; color:#2166a3; font-weight:700;">
+              🏷️ Promo code <strong>${o.appliedPromoCode}</strong> applied: &minus;${fmt(o.promoDiscount)}
+            </div>
+          ` : ''}
+          ${o.memberDiscount > 0 ? `
+            <div style="width:100%; margin-top:6px; background:#f3f0ff; border:1px solid #8a6fd6; border-radius:8px; padding:6px 10px; font-size:0.76rem; color:#5b3fa8; font-weight:700;">
+              ${tierIconAdmin(o.memberTier)} ${tierNameAdmin(o.memberTier)} Member discount applied: &minus;${fmt(o.memberDiscount)}
+            </div>
+          ` : (o.memberTier && o.memberTier !== 'standard' ? `
+            <div style="width:100%; margin-top:6px; font-size:0.72rem; color:#999;">
+              ${tierIconAdmin(o.memberTier)} ${tierNameAdmin(o.memberTier)} Member — no additional member discount on this order (promo code used instead, or item already had its own promo).
+            </div>
+          ` : '')}
           ${o.balanceDue > 0 ? `
             <div style="width:100%; margin-top:6px; background:#fdecea; border:1.5px solid var(--red); border-radius:8px; padding:8px 10px; font-size:0.8rem; color:var(--red); font-weight:800; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
               <span>⚠️ Balance owed: ${fmt(o.balanceDue)} (paid ${fmt(o.amountPaid||0)} of ${fmt(getOrderTotal(o))})</span>
