@@ -68,9 +68,9 @@
     .mobile-bottom-nav{display:none;}
     @media(max-width:768px){
       .mobile-bottom-nav{
-        display:flex; position:fixed; bottom:12px; left:12px; right:12px; z-index:600;
+        display:flex; position:fixed; bottom:0; left:12px; right:12px; z-index:600;
         background:rgba(20,20,20,0.92); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%);
-        border-radius:20px; border:1px solid rgba(255,255,255,0.1);
+        border-radius:20px 20px 0 0; border:1px solid rgba(255,255,255,0.1); border-bottom:none;
         box-shadow:0 10px 30px rgba(0,0,0,0.35);
         padding:8px 6px; justify-content:space-around;
         transition:transform 0.25s ease, opacity 0.25s ease;
@@ -226,10 +226,14 @@
       position:absolute; top:42px; right:8px; z-index:3;
       background:rgba(255,255,255,0.92); border:none; border-radius:50%;
       width:28px; height:28px; display:flex; align-items:center; justify-content:center;
-      cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.15); transition:transform 0.12s; font-size:0.9rem;
+      cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.15); transition:transform 0.12s, filter 0.15s, opacity 0.15s; font-size:0.9rem;
+      filter:grayscale(1); opacity:0.55;
     }
     .card-fav-btn:hover{ transform:scale(1.1); }
+    .card-fav-btn.is-saved{ filter:none; opacity:1; background:#fff8e6; }
     .card-fav-btn.fav-pop{ animation: heartPop 0.5s cubic-bezier(0.34,1.56,0.64,1); }
+    #pd-fav-btn{ filter:grayscale(1); }
+    #pd-fav-btn.is-saved{ filter:none; background:#fff8e6 !important; border-color:var(--gold) !important; color:#8a6d1a !important; }
     .fbw-card-add.added{ background:#2a9d50; }
     #fbw-preview-box{
       box-shadow:0 24px 60px rgba(0,0,0,0.3), 0 8px 20px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.6);
@@ -1408,7 +1412,7 @@
               <span id="pd-like-heart" style="font-size:1.05rem; display:inline-block;">🤍</span>
             </button>
             <span id="pd-like-text" style="font-size:0.8rem; color:var(--grey); font-weight:700;"></span>
-            <button id="pd-fav-btn" onclick="togglePdFavorite()" style="background:#fff; border:1.5px solid var(--border); border-radius:20px; padding:7px 14px; cursor:pointer; font-size:0.78rem; font-weight:700; color:#555; margin-left:auto; transition:transform 0.12s;">📑 Save</button>
+            <button id="pd-fav-btn" onclick="togglePdFavorite()" style="background:#fff; border:1.5px solid var(--border); border-radius:20px; padding:7px 14px; cursor:pointer; font-size:0.78rem; font-weight:700; color:#555; margin-left:auto; transition:transform 0.12s, opacity 0.12s;">🔖 Save</button>
           </div>
         </div>
 
@@ -2160,10 +2164,11 @@
     likeBtn.setAttribute('onclick', "likeProductFromCard('" + String(p.id).replace(/'/g,"\\'") + "', event, this)");
     imgDiv.appendChild(likeBtn);
     var favBtn = document.createElement('button');
-    favBtn.className = 'card-fav-btn';
+    var isFavCard = currentAccount && currentAccount.favoriteProductIds && currentAccount.favoriteProductIds.indexOf(p.id) !== -1;
+    favBtn.className = 'card-fav-btn' + (isFavCard ? ' is-saved' : '');
     favBtn.type = 'button';
     favBtn.title = 'Save to favorites';
-    favBtn.innerHTML = (currentAccount && currentAccount.favoriteProductIds && currentAccount.favoriteProductIds.indexOf(p.id) !== -1) ? '🔖' : '📑';
+    favBtn.innerHTML = '🔖';
     favBtn.setAttribute('onclick', "toggleFavoriteFromCard('" + String(p.id).replace(/'/g,"\\'") + "', event, this)");
     imgDiv.appendChild(favBtn);
     div.appendChild(imgDiv);
@@ -2501,7 +2506,8 @@
     var pdFavBtnInit = document.getElementById('pd-fav-btn');
     if (pdFavBtnInit) {
       var isFavInit = currentAccount && currentAccount.favoriteProductIds && currentAccount.favoriteProductIds.indexOf(p.id) !== -1;
-      pdFavBtnInit.innerHTML = isFavInit ? '🔖 Saved' : '📑 Save';
+      pdFavBtnInit.innerHTML = isFavInit ? '🔖 Saved' : '🔖 Save';
+      pdFavBtnInit.classList.toggle('is-saved', !!isFavInit);
     }
 
     // Promo code entry — always available (a "secret" code still works if typed in),
@@ -2855,12 +2861,14 @@
         currentAccount.favoriteProductIds.push(productId);
       }
       if (btn) {
-        btn.innerHTML = isFav ? '📑' : '🔖';
+        btn.innerHTML = '🔖';
+        btn.classList.toggle('is-saved', !isFav);
         btn.classList.remove('fav-pop'); void btn.offsetWidth; btn.classList.add('fav-pop');
       }
       var pdFavBtn = document.getElementById('pd-fav-btn');
       if (pdFavBtn && pdCurrentProduct && pdCurrentProduct.id === productId) {
-        pdFavBtn.innerHTML = isFav ? '📑 Save' : '🔖 Saved';
+        pdFavBtn.innerHTML = isFav ? '🔖 Save' : '🔖 Saved';
+        pdFavBtn.classList.toggle('is-saved', !isFav);
       }
       if (!isFav) showFavoriteToast();
     } catch(e) { console.error('[account] failed to toggle favorite:', e); }
@@ -3600,14 +3608,17 @@
     platinumThreshold: 1500000, platinumOrderCutoff: 250000, platinumRateLow: 15, platinumRateHigh: 20
   };
   async function fetchTierSettings() {
-    if (!window.fbDb || !window.fbFns) return;
     try {
       var { doc, getDoc } = window.fbFns;
       var snap = await getDoc(doc(window.fbDb, 'config', 'loyaltyTiers'));
       if (snap.exists()) tierSettings = { ...tierSettings, ...snap.data() };
     } catch(e) { /* falls back to defaults above */ }
   }
-  fetchTierSettings();
+  if (window.firebaseReady) {
+    fetchTierSettings();
+  } else {
+    window.addEventListener('firebaseReady', fetchTierSettings, { once: true });
+  }
 
   function renderCheckoutFrequentlyBought() {
     var section = document.getElementById('checkout-fbw-section');
@@ -4553,7 +4564,7 @@
       var snap = await getDocs(q);
       var ords = snap.docs.map(function(d){ return d.data(); }).sort(function(a,b){ return new Date(b.timestamp) - new Date(a.timestamp); });
       if (ords.length === 0) {
-        body.innerHTML = '<div style="font-size:0.8rem;color:var(--grey);text-align:center;padding:10px;">No orders yet.</div>';
+        body.innerHTML = '<div style="font-size:0.8rem;color:var(--grey);text-align:center;padding:10px;">No orders yet. Buy something to show purchase history!</div>';
         return;
       }
       var statusLabels = { pending:'⏳ Pending', confirmed:'✅ Confirmed', closed:'✔ Completed' };
@@ -4569,7 +4580,7 @@
         '</div>';
       }).join('');
     } catch(e) {
-      body.innerHTML = '<div style="font-size:0.8rem;color:var(--red);text-align:center;padding:10px;">Error loading orders.</div>';
+      body.innerHTML = '<div style="font-size:0.8rem;color:var(--grey);text-align:center;padding:10px;">No orders yet. Buy something to show purchase history!</div>';
       console.error(e);
     }
   }
@@ -4643,7 +4654,6 @@
     var saved;
     try { saved = JSON.parse(localStorage.getItem(ACCOUNT_STORAGE_KEY) || 'null'); } catch(e) { saved = null; }
     if (!saved || !saved.phone || !saved.code) return;
-    if (!window.fbDb || !window.fbFns) return;
     try {
       var { collection, query, where, getDocs } = window.fbFns;
       var q = query(collection(window.fbDb, 'customers'), where('phone', '==', saved.phone));
@@ -4659,7 +4669,16 @@
       }
     } catch(e) { /* silent — user can just sign in manually */ }
   }
-  tryAutoLoginAccount();
+  // Firebase initializes in a separate <script type="module"> that runs asynchronously —
+  // by the time this line executes, window.fbDb may or may not exist yet depending on
+  // load timing. Rather than silently giving up when it's not ready (which was causing
+  // "remembered" logins to randomly fail to restore), wait for the firebaseReady event
+  // if it hasn't fired yet.
+  if (window.firebaseReady) {
+    tryAutoLoginAccount();
+  } else {
+    window.addEventListener('firebaseReady', tryAutoLoginAccount, { once: true });
+  }
 
   function validateOrderFieldsVisual() {
     if (!orderValidationArmed) return;
