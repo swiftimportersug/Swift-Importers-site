@@ -1293,6 +1293,8 @@
 <!-- ADDED TO CART CONFIRMATION TOAST -->
 <div class="add-to-cart-toast" id="add-to-cart-toast"><span class="atc-check">✅</span><span>Added To Cart!</span></div>
 
+<div class="add-to-cart-toast" id="add-to-fav-toast"><span class="atc-check">🔖</span><span>Added To Favorites!</span></div>
+
 <!-- FLOATING "SCROLL DOWN TO ORDER FORM" ARROW (shown briefly after Proceed to Order) -->
 <div class="order-form-arrow" id="order-form-arrow" onclick="jumpToOrderForm()" role="button" title="Go to the order form" style="cursor:pointer;">
   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 9L12 17L20 9" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -1627,6 +1629,26 @@
         🌟 Gold Member — you get an automatic 10% off every order, on top of any promo code!
       </div>
       <div id="account-dash-progress-note" style="display:none;font-size:0.76rem;color:var(--grey);margin-bottom:16px;line-height:1.5;"></div>
+
+      <div style="margin-bottom:10px;">
+        <button onclick="toggleAccountSection('purchases')" style="width:100%;text-align:left;background:var(--light);border:none;padding:12px 14px;border-radius:8px;font-size:0.85rem;font-weight:700;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-family:'Inter',sans-serif;">
+          <span>📦 Purchase History</span><span id="account-purchases-arrow">▸</span>
+        </button>
+        <div id="account-purchases-body" style="display:none;padding:10px 2px 0;max-height:260px;overflow-y:auto;"></div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <button onclick="toggleAccountSection('changecode')" style="width:100%;text-align:left;background:var(--light);border:none;padding:12px 14px;border-radius:8px;font-size:0.85rem;font-weight:700;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-family:'Inter',sans-serif;">
+          <span>🔐 Change My Code</span><span id="account-changecode-arrow">▸</span>
+        </button>
+        <div id="account-changecode-body" style="display:none;padding:12px 2px 0;">
+          <input type="text" id="account-current-code" placeholder="Current code" maxlength="4" inputmode="numeric" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;margin-bottom:8px;font-family:'Inter',sans-serif;letter-spacing:0.3em;text-align:center;" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4);"/>
+          <input type="text" id="account-new-code" placeholder="New 4-digit code" maxlength="4" inputmode="numeric" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;margin-bottom:10px;font-family:'Inter',sans-serif;letter-spacing:0.3em;text-align:center;" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4);"/>
+          <button onclick="changeMyAccountCode()" class="submit-btn" style="padding:10px;">Update Code</button>
+          <div id="account-change-code-msg" style="display:none;margin-top:8px;font-size:0.78rem;font-weight:700;"></div>
+        </div>
+      </div>
+
       <button onclick="accountSignOut()" style="width:100%;background:var(--light);border:none;color:#777;padding:11px;border-radius:6px;font-size:0.85rem;font-weight:700;cursor:pointer;">Sign Out</button>
     </div>
   </div>
@@ -2840,6 +2862,7 @@
       if (pdFavBtn && pdCurrentProduct && pdCurrentProduct.id === productId) {
         pdFavBtn.innerHTML = isFav ? '📑 Save' : '🔖 Saved';
       }
+      if (!isFav) showFavoriteToast();
     } catch(e) { console.error('[account] failed to toggle favorite:', e); }
   }
 
@@ -3981,6 +4004,16 @@
     showAddToCartToast._timer = setTimeout(function(){ toast.classList.remove('show'); }, 4000);
   }
 
+  function showFavoriteToast() {
+    var toast = document.getElementById('add-to-fav-toast');
+    if (!toast) return;
+    clearTimeout(showFavoriteToast._timer);
+    toast.classList.remove('show');
+    void toast.offsetWidth;
+    toast.classList.add('show');
+    showFavoriteToast._timer = setTimeout(function(){ toast.classList.remove('show'); }, 4000);
+  }
+
   // ── ORDER FORM FIELD VALIDATION STYLING ──
   // Stays quiet until the person signals intent to submit (Proceed to Order, or a failed
   // Send Order attempt) — only then do empty required fields get the animated red border,
@@ -4469,6 +4502,15 @@
     document.getElementById('account-dash-orders').textContent = currentAccount.orderCount || 0;
     document.getElementById('account-dash-spent').textContent = fmtPrice(spent);
 
+    var purchasesBody = document.getElementById('account-purchases-body');
+    var purchasesArrow = document.getElementById('account-purchases-arrow');
+    if (purchasesBody) { purchasesBody.style.display = 'none'; purchasesArrow.textContent = '▸'; }
+    var codeBody = document.getElementById('account-changecode-body');
+    var codeArrow = document.getElementById('account-changecode-arrow');
+    if (codeBody) { codeBody.style.display = 'none'; codeArrow.textContent = '▸'; }
+    var codeMsg = document.getElementById('account-change-code-msg');
+    if (codeMsg) codeMsg.style.display = 'none';
+
     var goldNote = document.getElementById('account-dash-gold-note');
     var progressNote = document.getElementById('account-dash-progress-note');
     if (tier !== 'standard') {
@@ -4489,6 +4531,82 @@
         ? 'Spend ' + fmtPrice(remaining) + ' more to unlock ' + nextTierName + ' Member status!'
         : '';
       progressNote.style.display = remaining > 0 ? 'block' : 'none';
+    }
+  }
+
+  function toggleAccountSection(name) {
+    var body = document.getElementById('account-' + name + '-body');
+    var arrow = document.getElementById('account-' + name + '-arrow');
+    var isOpen = body.style.display !== 'none';
+    body.style.display = isOpen ? 'none' : 'block';
+    arrow.textContent = isOpen ? '▸' : '▾';
+    if (!isOpen && name === 'purchases') renderPurchaseHistory();
+  }
+
+  async function renderPurchaseHistory() {
+    var body = document.getElementById('account-purchases-body');
+    if (!currentAccount || !window.fbDb || !window.fbFns || !body) return;
+    body.innerHTML = '<div style="font-size:0.8rem;color:var(--grey);text-align:center;padding:10px;">Loading...</div>';
+    try {
+      var { collection, query, where, getDocs } = window.fbFns;
+      var q = query(collection(window.fbDb, 'orders'), where('accountId', '==', currentAccount.fbDocId));
+      var snap = await getDocs(q);
+      var ords = snap.docs.map(function(d){ return d.data(); }).sort(function(a,b){ return new Date(b.timestamp) - new Date(a.timestamp); });
+      if (ords.length === 0) {
+        body.innerHTML = '<div style="font-size:0.8rem;color:var(--grey);text-align:center;padding:10px;">No orders yet.</div>';
+        return;
+      }
+      var statusLabels = { pending:'⏳ Pending', confirmed:'✅ Confirmed', closed:'✔ Completed' };
+      body.innerHTML = ords.map(function(o){
+        var items = (o.cartItems || []).map(function(c){ return c.name + ' x' + c.qty; }).join(', ');
+        return '<div style="border-bottom:1px solid var(--border); padding:8px 0;">' +
+          '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">' +
+            '<span style="font-size:0.78rem; font-weight:700;">' + fmtMessageTime(o.timestamp) + '</span>' +
+            '<span style="font-size:0.7rem; font-weight:800; color:' + (o.status==='closed'?'#2a9d50':'var(--gold-dark)') + ';">' + (statusLabels[o.status]||o.status) + '</span>' +
+          '</div>' +
+          '<div style="font-size:0.78rem; color:#555; margin-top:2px;">' + items + '</div>' +
+          '<div style="font-size:0.8rem; font-weight:800; margin-top:2px;">' + fmtPrice(o.orderTotal || o.subtotal || 0) + '</div>' +
+        '</div>';
+      }).join('');
+    } catch(e) {
+      body.innerHTML = '<div style="font-size:0.8rem;color:var(--red);text-align:center;padding:10px;">Error loading orders.</div>';
+      console.error(e);
+    }
+  }
+
+  async function changeMyAccountCode() {
+    var currentInput = document.getElementById('account-current-code');
+    var newInput = document.getElementById('account-new-code');
+    var msg = document.getElementById('account-change-code-msg');
+    if (!currentAccount) return;
+    if (currentInput.value !== currentAccount.code) {
+      msg.textContent = 'Current code is incorrect.';
+      msg.style.color = 'var(--red)';
+      msg.style.display = 'block';
+      return;
+    }
+    if (!/^\d{4}$/.test(newInput.value)) {
+      msg.textContent = 'New code must be exactly 4 digits.';
+      msg.style.color = 'var(--red)';
+      msg.style.display = 'block';
+      return;
+    }
+    if (!window.fbDb || !window.fbFns) return;
+    try {
+      var { doc, updateDoc } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'customers', currentAccount.fbDocId), { code: newInput.value });
+      currentAccount.code = newInput.value;
+      persistAccountSession();
+      currentInput.value = '';
+      newInput.value = '';
+      msg.textContent = '✓ Code updated! Use your new code next time you sign in.';
+      msg.style.color = '#2a9d50';
+      msg.style.display = 'block';
+    } catch(e) {
+      msg.textContent = 'Something went wrong. Please try again.';
+      msg.style.color = 'var(--red)';
+      msg.style.display = 'block';
+      console.error(e);
     }
   }
 
