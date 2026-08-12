@@ -1630,6 +1630,20 @@
   </div>
 </div>
 
+<!-- SAVED (Liked + Favorites) -->
+<div class="modal-overlay" id="saved-modal">
+  <div class="modal" style="max-width:600px; text-align:left;">
+    <button class="modal-close" onclick="closeOverlayEl(document.getElementById('saved-modal'))">X</button>
+    <h2>Saved Items</h2>
+    <div style="display:flex; gap:8px; margin:14px 0 16px; border-bottom:1.5px solid var(--border);">
+      <button id="saved-tab-liked" onclick="switchSavedTab('liked')" style="background:none; border:none; padding:9px 4px; font-size:0.85rem; font-weight:800; color:var(--black); border-bottom:2.5px solid var(--gold); cursor:pointer; font-family:'Inter',sans-serif;">❤️ Liked</button>
+      <button id="saved-tab-fav" onclick="switchSavedTab('favorites')" style="background:none; border:none; padding:9px 4px; font-size:0.85rem; font-weight:800; color:var(--grey); border-bottom:2.5px solid transparent; cursor:pointer; font-family:'Inter',sans-serif;">🔖 Favorites</button>
+    </div>
+    <div id="saved-grid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px; max-height:60vh; overflow-y:auto;"></div>
+    <div id="saved-empty" style="display:none; text-align:center; padding:30px 10px; color:var(--grey); font-size:0.85rem;"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="cart-modal">
   <div class="modal">
     <button class="modal-close" onclick="closeCart()">X</button>
@@ -2765,10 +2779,17 @@
     if (!window.fbDb || !window.fbFns || !window.fbFns.arrayUnion) return;
     var isFav = currentAccount.favoriteProductIds && currentAccount.favoriteProductIds.indexOf(productId) !== -1;
     try {
-      var { doc, updateDoc, arrayUnion, arrayRemove } = window.fbFns;
+      var { doc, updateDoc, arrayUnion, arrayRemove, increment } = window.fbFns;
       await updateDoc(doc(window.fbDb, 'customers', currentAccount.fbDocId), {
         favoriteProductIds: isFav ? arrayRemove(productId) : arrayUnion(productId)
       });
+      // Product-level counter, same pattern as "likes" — scales fine at volume since it's
+      // one atomic increment, not a query across every customer's favorites list.
+      if (increment) {
+        updateDoc(doc(window.fbDb, 'products', productId), { favoritesCount: increment(isFav ? -1 : 1) }).catch(function(){});
+      }
+      var prodRef = products.find(function(x){ return x.id === productId; });
+      if (prodRef) prodRef.favoritesCount = Math.max(0, (parseInt(prodRef.favoritesCount)||0) + (isFav ? -1 : 1));
       if (!currentAccount.favoriteProductIds) currentAccount.favoriteProductIds = [];
       if (isFav) {
         currentAccount.favoriteProductIds = currentAccount.favoriteProductIds.filter(function(id){ return id !== productId; });
@@ -3981,6 +4002,61 @@
     openOverlayEl(document.getElementById('account-modal'));
   }
 
+  var savedActiveTab = 'liked';
+
+  function openSavedPage() {
+    if (!currentAccount) {
+      openAccountEntry();
+      return;
+    }
+    savedActiveTab = 'liked';
+    renderSavedGrid();
+    openOverlayEl(document.getElementById('saved-modal'));
+  }
+
+  function switchSavedTab(tab) {
+    savedActiveTab = tab;
+    var likedTab = document.getElementById('saved-tab-liked');
+    var favTab = document.getElementById('saved-tab-fav');
+    likedTab.style.borderBottomColor = tab === 'liked' ? 'var(--gold)' : 'transparent';
+    likedTab.style.color = tab === 'liked' ? 'var(--black)' : 'var(--grey)';
+    favTab.style.borderBottomColor = tab === 'favorites' ? 'var(--gold)' : 'transparent';
+    favTab.style.color = tab === 'favorites' ? 'var(--black)' : 'var(--grey)';
+    renderSavedGrid();
+  }
+
+  function renderSavedGrid() {
+    var grid = document.getElementById('saved-grid');
+    var empty = document.getElementById('saved-empty');
+    if (!grid || !currentAccount) return;
+    var ids = savedActiveTab === 'liked' ? (currentAccount.likedProductIds || []) : (currentAccount.favoriteProductIds || []);
+    var items = ids.map(function(id){ return products.find(function(p){ return p.id === id; }); }).filter(Boolean);
+    if (items.length === 0) {
+      grid.style.display = 'none';
+      empty.style.display = 'block';
+      empty.textContent = savedActiveTab === 'liked'
+        ? 'You haven\'t liked any products yet — tap the heart on a product to save it here.'
+        : 'You haven\'t saved any favorites yet — tap the bookmark icon on a product to save it here.';
+      return;
+    }
+    grid.style.display = 'grid';
+    empty.style.display = 'none';
+    grid.innerHTML = items.map(function(p){
+      var v = p.variants && p.variants[0];
+      var price = v ? effectivePrice(v) : 0;
+      var img = p.image || (p.images && p.images[0]) || '';
+      return '<div onclick="closeOverlayEl(document.getElementById(\'saved-modal\'));setTimeout(function(){openProductDetail(\''+p.id+'\');},250);" style="cursor:pointer; border:1px solid var(--border); border-radius:10px; overflow:hidden; background:#fff;">' +
+        '<div style="width:100%; aspect-ratio:1; background:var(--light); overflow:hidden;">' +
+          (img ? '<img src="'+img+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display=\'none\'"/>' : '') +
+        '</div>' +
+        '<div style="padding:8px 10px;">' +
+          '<div style="font-size:0.76rem; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'+p.name+'</div>' +
+          '<div style="font-size:0.78rem; font-weight:800; color:var(--gold-dark); margin-top:2px;">'+fmtPrice(price)+'</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
   function accountBackToPhone() {
     accountPendingPhone = null;
     accountShowView('phone');
@@ -4559,7 +4635,7 @@
   }
 
   // Close on overlay click
-  ['returns-modal','track-order-modal','payment-guide-modal','delivery-info-modal','how-to-order-modal','cart-modal','success-modal','app-dialog-overlay','fbw-preview-modal','account-modal'].forEach(function(id){
+  ['returns-modal','track-order-modal','payment-guide-modal','delivery-info-modal','how-to-order-modal','cart-modal','success-modal','app-dialog-overlay','fbw-preview-modal','account-modal','saved-modal'].forEach(function(id){
     var el=document.getElementById(id);
     if(el) el.addEventListener('click',function(e){ if(e.target===this){ if(id==='cart-modal'){closeCart();}else{closeOverlayEl(this);} } });
   });

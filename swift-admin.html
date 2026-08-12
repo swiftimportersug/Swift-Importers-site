@@ -4390,6 +4390,7 @@
                 ${p.store ? '<br/><span style="font-size:0.68rem;color:var(--gold-dark);font-weight:700;">🏬 '+storeDisplayLabel(p.store)+'</span>' : ''}
                 ${p.warehouseLocation ? '<br/><span style="font-size:0.68rem;color:#2166a3;font-weight:700;">📍 '+p.warehouseLocation+'</span>' : ''}
                 ${timedEventBadges(p)}
+                ${(parseInt(p.likes)||0) > 0 || (parseInt(p.favoritesCount)||0) > 0 ? '<br/><span style="font-size:0.68rem;color:#888;font-weight:700;">'+((parseInt(p.likes)||0) > 0 ? '❤️ '+(parseInt(p.likes)||0)+' like'+(p.likes===1?'':'s')+' ' : '')+((parseInt(p.favoritesCount)||0) > 0 ? '🔖 '+(parseInt(p.favoritesCount)||0)+' favorite'+(p.favoritesCount===1?'':'s') : '')+'</span>' : ''}
                 ${p.sku ? '<br/><span style="font-size:0.7rem;color:var(--grey);">SKU: '+p.sku+'</span>' : ''}
                 <br/>
                 <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
