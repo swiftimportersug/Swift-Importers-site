@@ -65,6 +65,34 @@
     .cart-btn{background:linear-gradient(160deg,var(--gold-light),var(--gold));color:var(--black);border:none;padding:10px 18px;border-radius:6px;font-weight:700;font-size:0.9rem;letter-spacing:0.02em;cursor:pointer;display:flex;align-items:center;gap:6px;position:relative;overflow:hidden;box-shadow:0 2px 12px rgba(199,162,72,0.25);transition:box-shadow 0.25s,transform 0.25s;}
     .account-btn{background:rgba(255,255,255,0.08);color:var(--white);border:1.5px solid rgba(255,255,255,0.18);padding:9px 14px;border-radius:6px;font-weight:600;font-size:0.82rem;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;transition:background 0.2s,border-color 0.2s;}
     .account-btn:hover{background:rgba(255,255,255,0.14);border-color:var(--gold);}
+    .mobile-bottom-nav{display:none;}
+    @media(max-width:768px){
+      .mobile-bottom-nav{
+        display:flex; position:fixed; bottom:12px; left:12px; right:12px; z-index:600;
+        background:rgba(20,20,20,0.92); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%);
+        border-radius:20px; border:1px solid rgba(255,255,255,0.1);
+        box-shadow:0 10px 30px rgba(0,0,0,0.35);
+        padding:8px 6px; justify-content:space-around;
+        transition:transform 0.25s ease, opacity 0.25s ease;
+      }
+      .mobile-bottom-nav.hide-for-pd{ transform:translateY(90px); opacity:0; pointer-events:none; }
+      .mbn-item{
+        background:none; border:none; color:rgba(255,255,255,0.7);
+        display:flex; flex-direction:column; align-items:center; gap:2px;
+        padding:6px 10px; cursor:pointer; position:relative;
+        font-family:'Inter',sans-serif;
+      }
+      .mbn-item:active{ color:var(--gold); }
+      .mbn-icon{ font-size:1.15rem; }
+      .mbn-label{ font-size:0.6rem; font-weight:700; }
+      .mbn-badge{
+        position:absolute; top:0; right:2px;
+        background:var(--red); color:#fff; font-size:0.55rem; font-weight:800;
+        min-width:14px; height:14px; border-radius:20px;
+        display:flex; align-items:center; justify-content:center; padding:0 3px;
+        border:1.5px solid #141414;
+      }
+    }
     .account-btn.account-btn-gold{background:linear-gradient(160deg,#fff3d6,#f0d68a);color:#5a4310;border:1.5px solid #d4af37;}
     .account-btn.account-btn-silver{background:linear-gradient(160deg,#f2f2f2,#d8d8d8);color:#444;border:1.5px solid #a8a8a8;}
     .account-btn.account-btn-platinum{background:linear-gradient(160deg,#ede8fb,#cfc2f0);color:#3d2f70;border:1.5px solid #6a5acd;}
@@ -194,6 +222,14 @@
     }
     .card-like-btn:hover{ transform:scale(1.1); }
     .card-like-btn.liked-pop{ animation: heartPop 0.5s cubic-bezier(0.34,1.56,0.64,1); }
+    .card-fav-btn{
+      position:absolute; top:42px; right:8px; z-index:3;
+      background:rgba(255,255,255,0.92); border:none; border-radius:50%;
+      width:28px; height:28px; display:flex; align-items:center; justify-content:center;
+      cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.15); transition:transform 0.12s; font-size:0.9rem;
+    }
+    .card-fav-btn:hover{ transform:scale(1.1); }
+    .card-fav-btn.fav-pop{ animation: heartPop 0.5s cubic-bezier(0.34,1.56,0.64,1); }
     .fbw-card-add.added{ background:#2a9d50; }
     #fbw-preview-box{
       box-shadow:0 24px 60px rgba(0,0,0,0.3), 0 8px 20px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.6);
@@ -827,6 +863,8 @@
       .nav-search-wrap{order:5;flex:1 1 100%;max-width:100%;margin:2px 0 0;}
       .swift-logo{padding:7px 12px 6px;border-width:2px;border-radius:7px;width:fit-content;max-width:100%;box-sizing:border-box;}
       .nav-right{flex-shrink:0;margin-left:14px;}
+      #nav-account-btn{display:none;} /* replaced on mobile by the floating bottom nav */
+      body{padding-bottom:64px;}
       .cart-btn{padding:11px 20px;font-size:0.95rem;white-space:nowrap;border-radius:6px;font-weight:700;}
       .hero{grid-template-columns:1fr;padding:32px 4vw 40px;min-height:unset;}
       .hero-visual{margin-top:28px;}
@@ -869,7 +907,7 @@
   <!-- Firebase -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, collection, doc, getDoc, updateDoc, addDoc, onSnapshot, getDocs, increment, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, doc, getDoc, updateDoc, addDoc, onSnapshot, getDocs, increment, query, where, arrayUnion, arrayRemove, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     const firebaseConfig = {
       apiKey: "AIzaSyDqOE4NDmp3xJrTf71MzlClTZ201Uhyk0Q",
       authDomain: "swift-importers.firebaseapp.com",
@@ -881,7 +919,7 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     window.fbDb = db;
-    window.fbFns = { collection, doc, getDoc, updateDoc, addDoc, onSnapshot, getDocs, increment, query, where };
+    window.fbFns = { collection, doc, getDoc, updateDoc, addDoc, onSnapshot, getDocs, increment, query, where, arrayUnion, arrayRemove, orderBy };
     window.firebaseReady = true;
     window.dispatchEvent(new Event('firebaseReady'));
   </script>
@@ -1235,6 +1273,23 @@
   <span class="cart-fab-badge" id="floating-cart-fab-count">0</span>
 </button>
 
+<!-- MOBILE BOTTOM NAV -->
+<div class="mobile-bottom-nav" id="mobile-bottom-nav">
+  <button class="mbn-item" onclick="goToHomePage()">
+    <span class="mbn-icon">🏠</span><span class="mbn-label">Home</span>
+  </button>
+  <button class="mbn-item" onclick="openSavedPage()">
+    <span class="mbn-icon">🔖</span><span class="mbn-label">Saved</span>
+  </button>
+  <button class="mbn-item" onclick="openMessagesPage()">
+    <span class="mbn-icon">💬</span><span class="mbn-label">Messages</span>
+    <span class="mbn-badge" id="mbn-messages-badge" style="display:none;"></span>
+  </button>
+  <button class="mbn-item" onclick="openAccountEntry()">
+    <span class="mbn-icon">👤</span><span class="mbn-label">Profile</span>
+  </button>
+</div>
+
 <!-- ADDED TO CART CONFIRMATION TOAST -->
 <div class="add-to-cart-toast" id="add-to-cart-toast"><span class="atc-check">✅</span><span>Added To Cart!</span></div>
 
@@ -1351,6 +1406,7 @@
               <span id="pd-like-heart" style="font-size:1.05rem; display:inline-block;">🤍</span>
             </button>
             <span id="pd-like-text" style="font-size:0.8rem; color:var(--grey); font-weight:700;"></span>
+            <button id="pd-fav-btn" onclick="togglePdFavorite()" style="background:#fff; border:1.5px solid var(--border); border-radius:20px; padding:7px 14px; cursor:pointer; font-size:0.78rem; font-weight:700; color:#555; margin-left:auto; transition:transform 0.12s;">📑 Save</button>
           </div>
         </div>
 
@@ -2032,6 +2088,13 @@
     // silently strip a JS-property event handler but preserves an inline attribute one.
     likeBtn.setAttribute('onclick', "likeProductFromCard('" + String(p.id).replace(/'/g,"\\'") + "', event, this)");
     imgDiv.appendChild(likeBtn);
+    var favBtn = document.createElement('button');
+    favBtn.className = 'card-fav-btn';
+    favBtn.type = 'button';
+    favBtn.title = 'Save to favorites';
+    favBtn.innerHTML = (currentAccount && currentAccount.favoriteProductIds && currentAccount.favoriteProductIds.indexOf(p.id) !== -1) ? '🔖' : '📑';
+    favBtn.setAttribute('onclick', "toggleFavoriteFromCard('" + String(p.id).replace(/'/g,"\\'") + "', event, this)");
+    imgDiv.appendChild(favBtn);
     div.appendChild(imgDiv);
     div.innerHTML += '<div class="product-card-info">'+
         '<div class="product-card-name">'+p.name+'</div>'+
@@ -2363,6 +2426,11 @@
     }
     document.getElementById('pd-name').textContent = p.name;
     updatePdLikeDisplay();
+    var pdFavBtnInit = document.getElementById('pd-fav-btn');
+    if (pdFavBtnInit) {
+      var isFavInit = currentAccount && currentAccount.favoriteProductIds && currentAccount.favoriteProductIds.indexOf(p.id) !== -1;
+      pdFavBtnInit.innerHTML = isFavInit ? '🔖 Saved' : '📑 Save';
+    }
 
     // Promo code entry — always available (a "secret" code still works if typed in),
     // but only show the savings teaser when the admin/employee has switched it visible.
@@ -2675,6 +2743,52 @@
     spawnHeartBurst(btn);
     if (pdCurrentProduct && pdCurrentProduct.id === productId) updatePdLikeDisplay();
     persistProductLike(productId);
+    recordAccountLike(productId);
+  }
+
+  async function recordAccountLike(productId) {
+    if (!currentAccount || !window.fbDb || !window.fbFns || !window.fbFns.arrayUnion) return;
+    try {
+      var { doc, updateDoc, arrayUnion } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'customers', currentAccount.fbDocId), { likedProductIds: arrayUnion(productId) });
+      if (!currentAccount.likedProductIds) currentAccount.likedProductIds = [];
+      if (currentAccount.likedProductIds.indexOf(productId) === -1) currentAccount.likedProductIds.push(productId);
+    } catch(e) { console.error('[account] failed to record like:', e); }
+  }
+
+  // Favorites are a separate, deliberate "save for later" list — distinct from a like
+  // (which is really just public feedback on the product). Requires an account, since
+  // there'd be nowhere to persist a guest's list.
+  async function toggleFavoriteFromCard(productId, evt, btn) {
+    if (evt) evt.stopPropagation();
+    if (!currentAccount) { openAccountEntry(); return; }
+    if (!window.fbDb || !window.fbFns || !window.fbFns.arrayUnion) return;
+    var isFav = currentAccount.favoriteProductIds && currentAccount.favoriteProductIds.indexOf(productId) !== -1;
+    try {
+      var { doc, updateDoc, arrayUnion, arrayRemove } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'customers', currentAccount.fbDocId), {
+        favoriteProductIds: isFav ? arrayRemove(productId) : arrayUnion(productId)
+      });
+      if (!currentAccount.favoriteProductIds) currentAccount.favoriteProductIds = [];
+      if (isFav) {
+        currentAccount.favoriteProductIds = currentAccount.favoriteProductIds.filter(function(id){ return id !== productId; });
+      } else {
+        currentAccount.favoriteProductIds.push(productId);
+      }
+      if (btn) {
+        btn.innerHTML = isFav ? '📑' : '🔖';
+        btn.classList.remove('fav-pop'); void btn.offsetWidth; btn.classList.add('fav-pop');
+      }
+      var pdFavBtn = document.getElementById('pd-fav-btn');
+      if (pdFavBtn && pdCurrentProduct && pdCurrentProduct.id === productId) {
+        pdFavBtn.innerHTML = isFav ? '📑 Save' : '🔖 Saved';
+      }
+    } catch(e) { console.error('[account] failed to toggle favorite:', e); }
+  }
+
+  function togglePdFavorite() {
+    if (!pdCurrentProduct) return;
+    toggleFavoriteFromCard(pdCurrentProduct.id, null, null);
   }
 
   function persistProductLike(productId) {
@@ -3777,6 +3891,21 @@
     var modalOpen = !!(cartModal && cartModal.classList.contains('open'));
     fab.classList.toggle('show', cart.length > 0 && !modalOpen);
   }
+
+  function syncMobileBottomNav() {
+    var bar = document.getElementById('mobile-bottom-nav');
+    if (!bar) return;
+    var pdOverlay = document.getElementById('pd-overlay');
+    var pdOpen = !!(pdOverlay && pdOverlay.classList.contains('open'));
+    bar.classList.toggle('hide-for-pd', pdOpen);
+  }
+
+  (function(){
+    var pdOverlayEl = document.getElementById('pd-overlay');
+    if (pdOverlayEl && window.MutationObserver) {
+      new MutationObserver(syncMobileBottomNav).observe(pdOverlayEl, { attributes: true, attributeFilter: ['class'] });
+    }
+  })();
 
   (function(){
     var cartModalEl = document.getElementById('cart-modal');
