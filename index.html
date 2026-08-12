@@ -2891,6 +2891,7 @@
     if (btn) { btn.classList.remove('liked-pop'); void btn.offsetWidth; btn.classList.add('liked-pop'); }
     spawnHeartBurst(btn);
     persistProductLike(p.id);
+    recordAccountLike(p.id);
   }
 
   function likeProductFromCard(productId, evt, btn) {
@@ -2957,7 +2958,7 @@
         pdFavBtn.innerHTML = favIconSvg(16) + '<span>' + (isFav ? 'Save' : 'Saved') + '</span>';
         pdFavBtn.classList.toggle('is-saved', !isFav);
       }
-      if (!isFav) showFavoriteToast();
+      showFavoriteToast(isFav);
     } catch(e) {
       console.error('[account] failed to toggle favorite:', e);
       showToastMessage('⚠️ Couldn\'t save this — check your connection.', '#c0392b');
@@ -4105,9 +4106,22 @@
     showAddToCartToast._timer = setTimeout(function(){ toast.classList.remove('show'); }, 4000);
   }
 
-  function showFavoriteToast() {
+  function showFavoriteToast(removed) {
     var toast = document.getElementById('add-to-fav-toast');
     if (!toast) return;
+    var icon = toast.querySelector('.atc-check');
+    var text = toast.querySelector('span:last-child');
+    if (removed) {
+      toast.style.background = '#c0392b';
+      toast.style.boxShadow = '0 10px 26px rgba(192,57,43,0.4)';
+      if (icon) icon.textContent = '🗑️';
+      if (text) text.textContent = 'Removed From Favorites!';
+    } else {
+      toast.style.background = '#2a9d50';
+      toast.style.boxShadow = '0 10px 26px rgba(42,157,80,0.4)';
+      if (icon) icon.textContent = '🔖';
+      if (text) text.textContent = 'Added To Favorites!';
+    }
     clearTimeout(showFavoriteToast._timer);
     toast.classList.remove('show');
     void toast.offsetWidth;
