@@ -787,6 +787,21 @@
     </div>
   </div>
 
+  <!-- RESET CUSTOMER CODE -->
+  <div class="modal-overlay" id="reset-customer-code-modal">
+    <div class="modal-box" style="max-width:380px; padding:24px;">
+      <div style="font-size:1rem; font-weight:800; margin-bottom:4px;">Reset Code</div>
+      <div id="reset-code-customer-name" style="font-size:0.82rem; color:#888; margin-bottom:14px;"></div>
+      <div style="font-size:0.76rem; color:#888; margin-bottom:14px; background:#fff3e0; border:1px solid #e8a020; border-radius:7px; padding:10px 12px;">⚠️ Only reset a code after verifying the customer's identity (name, a recent order, delivery address, etc).</div>
+      <label style="display:block; font-size:0.68rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:#555; margin-bottom:4px;">New 4-Digit Code</label>
+      <input type="text" id="reset-code-input" maxlength="4" inputmode="numeric" placeholder="••••" style="width:100%; text-align:center; letter-spacing:0.4em; font-size:1.2rem; padding:12px; border:1.5px solid var(--border); border-radius:8px; font-family:'Inter',sans-serif; box-sizing:border-box; margin-bottom:16px;" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4);"/>
+      <div style="display:flex; gap:10px;">
+        <button class="btn-cancel" style="flex:1;" onclick="closeOverlayEl(document.getElementById('reset-customer-code-modal'))">Cancel</button>
+        <button class="btn-gold" style="flex:1;" onclick="confirmResetCustomerCode()">Reset Code</button>
+      </div>
+    </div>
+  </div>
+
   <!-- CLOSE ORDER — payment confirmation -->
   <div class="modal-overlay" id="close-order-confirm-modal">
     <div class="modal-box" style="max-width:400px; text-align:center; padding:28px 24px;">
@@ -851,6 +866,9 @@
       </div>
       <div class="nav-item" onclick="showPage('closed-orders')">
         <span class="nav-icon">✅</span> Closed Orders
+      </div>
+      <div class="nav-item" onclick="showPage('customers')">
+        <span class="nav-icon">👥</span> Customers
       </div>
       <div class="nav-item" onclick="showPage('emp-performance')">
         <span class="nav-icon">📊</span> Employee Performance
@@ -1179,6 +1197,76 @@
         <div id="closed-orders-list"></div>
       </div>
 
+      <!-- CUSTOMERS PAGE -->
+      <div class="page" id="page-customers">
+        <div class="section-hdr">
+          <h2>👥 Customers</h2>
+        </div>
+
+        <div class="admin-3d-box">
+          <div onclick="toggleTierSettingsSection()" class="admin-3d-header">
+            <div class="admin-3d-title"><span class="admin-3d-icon">🎖️</span> Loyalty Tier Settings</div>
+            <span id="tier-settings-arrow" class="admin-3d-arrow">▸</span>
+          </div>
+          <div id="tier-settings-body" style="display:none; padding:0 20px 20px;">
+            <div style="font-size:0.76rem; color:#888; margin-bottom:14px;">These control when a customer is automatically promoted, and how much they save on items without their own discount already applied. Changes apply to future orders — customers already promoted keep their tier.</div>
+            <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
+              <thead>
+                <tr style="text-align:left; color:#888; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.04em;">
+                  <th style="padding:6px 8px;">Tier</th>
+                  <th style="padding:6px 8px;">Cumulative Spend to Unlock (UGX)</th>
+                  <th style="padding:6px 8px;">Discount</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="padding:6px 8px; font-weight:800; color:#8a8a8a;">🥈 Silver</td>
+                  <td style="padding:6px 8px;"><input type="number" id="tier-silver-threshold" min="0" style="width:130px; padding:7px 9px; border:1.5px solid var(--border); border-radius:6px; font-family:'Inter',sans-serif;"/></td>
+                  <td style="padding:6px 8px;"><input type="number" id="tier-silver-rate" min="0" max="100" style="width:70px; padding:7px 9px; border:1.5px solid var(--border); border-radius:6px; font-family:'Inter',sans-serif;"/> %</td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 8px; font-weight:800; color:#b8860b;">🥇 Gold</td>
+                  <td style="padding:6px 8px;"><input type="number" id="tier-gold-threshold" min="0" style="width:130px; padding:7px 9px; border:1.5px solid var(--border); border-radius:6px; font-family:'Inter',sans-serif;"/></td>
+                  <td style="padding:6px 8px;"><input type="number" id="tier-gold-rate" min="0" max="100" style="width:70px; padding:7px 9px; border:1.5px solid var(--border); border-radius:6px; font-family:'Inter',sans-serif;"/> %</td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 8px; font-weight:800; color:#6a5acd;">💎 Platinum</td>
+                  <td style="padding:6px 8px;"><input type="number" id="tier-platinum-threshold" min="0" style="width:130px; padding:7px 9px; border:1.5px solid var(--border); border-radius:6px; font-family:'Inter',sans-serif;"/></td>
+                  <td style="padding:6px 8px; font-size:0.76rem; color:#888;">Set below ↓</td>
+                </tr>
+              </tbody>
+            </table>
+            </div>
+            <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
+              <div style="font-size:0.76rem; font-weight:800; color:#555; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">💎 Platinum — rate depends on order size</div>
+              <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; font-size:0.82rem;">
+                <span>Orders up to UGX</span>
+                <input type="number" id="tier-platinum-order-cutoff" min="0" style="width:130px; padding:7px 9px; border:1.5px solid var(--border); border-radius:6px; font-family:'Inter',sans-serif;"/>
+                <span>get</span>
+                <input type="number" id="tier-platinum-rate-low" min="0" max="100" style="width:70px; padding:7px 9px; border:1.5px solid var(--border); border-radius:6px; font-family:'Inter',sans-serif;"/>
+                <span>% off — above that, they get</span>
+                <input type="number" id="tier-platinum-rate-high" min="0" max="100" style="width:70px; padding:7px 9px; border:1.5px solid var(--border); border-radius:6px; font-family:'Inter',sans-serif;"/>
+                <span>% off.</span>
+              </div>
+            </div>
+            <button class="btn-gold" style="margin-top:16px;" onclick="saveTierSettings()">💾 Save Tier Settings</button>
+          </div>
+        </div>
+
+        <div class="admin-3d-box">
+          <div class="admin-3d-header" style="cursor:default;">
+            <div class="admin-3d-title"><span class="admin-3d-icon">🔍</span> Find a Customer</div>
+          </div>
+          <div style="padding:0 20px 20px;">
+            <input type="text" id="customer-search-input" placeholder="Search by phone number or name..."
+              style="width:100%; box-sizing:border-box; padding:11px 14px; border:1.5px solid var(--border); border-radius:8px; font-size:0.88rem; font-family:'Inter',sans-serif;"
+              oninput="searchCustomers(this.value)"/>
+            <div id="customer-search-results" style="margin-top:14px; display:flex; flex-wrap:wrap; gap:12px;"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- EMPLOYEE PERFORMANCE PAGE -->
       <div class="page" id="page-emp-performance">
         <div class="section-hdr">
@@ -1445,6 +1533,17 @@
           <option value="">No free gift</option>
         </select>
         <div id="f-freegift-preview" style="display:none; align-items:center; gap:10px; margin-top:10px; background:#fff; border:1.5px solid #c9bdec; border-radius:8px; padding:8px 10px;"></div>
+
+        <div id="f-freegift-account-toggle-wrap" style="display:none; margin-top:10px; background:rgba(255,255,255,0.6); border:1.5px solid #c9bdec; border-radius:8px; padding:10px 12px; align-items:center; justify-content:space-between; gap:10px;">
+          <div>
+            <div style="font-size:0.78rem; font-weight:800; color:#5b3fa8;">🔐 Account Holders Only</div>
+            <div style="font-size:0.68rem; color:#888; margin-top:2px; max-width:320px;">Off = everyone gets the gift, with or without an account. On = only signed-in customers get it — guests see a "sign in to claim" prompt instead, encouraging them to create an account.</div>
+          </div>
+          <label style="position:relative; display:inline-block; width:46px; height:26px; flex-shrink:0;">
+            <input type="checkbox" id="f-freegift-account-only" style="opacity:0; width:0; height:0;" onchange="updateFreeGiftAccountOnlySliderStyle()"/>
+            <span id="f-freegift-account-only-slider" style="position:absolute; cursor:pointer; inset:0; background:#ccc; border-radius:26px; transition:0.2s;"></span>
+          </label>
+        </div>
 
         <div id="f-freegift-timer-section" style="display:none; margin-top:12px; padding-top:12px; border-top:1px solid #d9cdf2;">
           <div style="font-size:0.72rem; font-weight:800; color:#5b3fa8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">⏰ Gift Offer Timer (optional)</div>
@@ -1721,11 +1820,13 @@
     const sel = document.getElementById('f-freegift');
     const preview = document.getElementById('f-freegift-preview');
     const timerSection = document.getElementById('f-freegift-timer-section');
+    const accountToggleWrap = document.getElementById('f-freegift-account-toggle-wrap');
     if (!sel || !preview) return;
     const giftId = sel.value;
     if (!giftId) {
       preview.style.display = 'none'; preview.innerHTML = '';
       if (timerSection) timerSection.style.display = 'none';
+      if (accountToggleWrap) accountToggleWrap.style.display = 'none';
       return;
     }
     const gift = products.find(p => p.id === giftId);
@@ -1738,6 +1839,7 @@
       </div>
       <div style="font-size:0.8rem; font-weight:700; color:#5b3fa8;">🎁 This gift: ${gift.name}</div>
     `;
+    if (accountToggleWrap) accountToggleWrap.style.display = 'flex';
     if (timerSection) timerSection.style.display = 'block';
   }
 
@@ -1753,6 +1855,16 @@
     const d = new Date(input.value);
     if (isNaN(d.getTime())) { previewEl.textContent = ''; return; }
     previewEl.textContent = '📅 Selected: ' + fmtDMY(d, true);
+  }
+
+  function updateFreeGiftAccountOnlySliderStyle() {
+    const on = document.getElementById('f-freegift-account-only').checked;
+    const slider = document.getElementById('f-freegift-account-only-slider');
+    slider.style.background = on ? '#5b3fa8' : '#ccc';
+    slider.innerHTML = '';
+    const knob = document.createElement('span');
+    knob.style.cssText = 'position:absolute; height:20px; width:20px; left:' + (on ? '23px' : '3px') + '; top:3px; background:#fff; border-radius:50%; transition:0.2s; box-shadow:0 1px 3px rgba(0,0,0,0.3);';
+    slider.appendChild(knob);
   }
 
   function setFreeGiftCountdownPreset(amount, unit) {
@@ -1783,6 +1895,135 @@
   function clearProductPromoCountdown() {
     const input = document.getElementById('f-promo-expires');
     if (input) { input.value = ''; updateDMYPreview(input); }
+  }
+
+  // ── LOYALTY TIER SETTINGS ──
+  var tierSettings = {
+    silverThreshold: 500000, silverRate: 5,
+    goldThreshold: 800000, goldRate: 10,
+    platinumThreshold: 1500000, platinumOrderCutoff: 250000, platinumRateLow: 15, platinumRateHigh: 20
+  };
+  var tierSettingsLoaded = false;
+
+  async function fetchTierSettings() {
+    if (!window.fbDb || !window.fbFns) return;
+    try {
+      const { doc, getDoc } = window.fbFns;
+      const snap = await getDoc(doc(window.fbDb, 'config', 'loyaltyTiers'));
+      if (snap.exists()) {
+        tierSettings = { ...tierSettings, ...snap.data() };
+      }
+      tierSettingsLoaded = true;
+    } catch(e) { console.error('[tiers] failed to load:', e); }
+  }
+  fetchTierSettings();
+
+  function loadTierSettingsIntoForm() {
+    document.getElementById('tier-silver-threshold').value = tierSettings.silverThreshold;
+    document.getElementById('tier-silver-rate').value = tierSettings.silverRate;
+    document.getElementById('tier-gold-threshold').value = tierSettings.goldThreshold;
+    document.getElementById('tier-gold-rate').value = tierSettings.goldRate;
+    document.getElementById('tier-platinum-threshold').value = tierSettings.platinumThreshold;
+    document.getElementById('tier-platinum-order-cutoff').value = tierSettings.platinumOrderCutoff;
+    document.getElementById('tier-platinum-rate-low').value = tierSettings.platinumRateLow;
+    document.getElementById('tier-platinum-rate-high').value = tierSettings.platinumRateHigh;
+  }
+
+  async function saveTierSettings() {
+    const newSettings = {
+      silverThreshold: parseInt(document.getElementById('tier-silver-threshold').value) || 0,
+      silverRate: parseFloat(document.getElementById('tier-silver-rate').value) || 0,
+      goldThreshold: parseInt(document.getElementById('tier-gold-threshold').value) || 0,
+      goldRate: parseFloat(document.getElementById('tier-gold-rate').value) || 0,
+      platinumThreshold: parseInt(document.getElementById('tier-platinum-threshold').value) || 0,
+      platinumOrderCutoff: parseInt(document.getElementById('tier-platinum-order-cutoff').value) || 0,
+      platinumRateLow: parseFloat(document.getElementById('tier-platinum-rate-low').value) || 0,
+      platinumRateHigh: parseFloat(document.getElementById('tier-platinum-rate-high').value) || 0
+    };
+    if (!window.fbDb || !window.fbFns) { showAppAlert('Not connected. Check your internet connection.'); return; }
+    try {
+      const { doc, setDoc } = window.fbFns;
+      await setDoc(doc(window.fbDb, 'config', 'loyaltyTiers'), newSettings, { merge: true });
+      tierSettings = newSettings;
+      showSuccessToast('✅ Tier settings saved!');
+    } catch(e) {
+      showAppAlert('Error saving tier settings. Check your internet connection.');
+      console.error(e);
+    }
+  }
+
+  function toggleTierSettingsSection() {
+    const body = document.getElementById('tier-settings-body');
+    const arrow = document.getElementById('tier-settings-arrow');
+    const isOpen = body.style.display !== 'none';
+    body.style.display = isOpen ? 'none' : 'block';
+    arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+  }
+
+  // ── CUSTOMER SEARCH & CODE RESET ──
+  let resetCodeTargetDocId = null;
+
+  function tierBadgeHtml(tier) {
+    if (tier === 'platinum') return '<span style="background:#efe9fb;border:1.5px solid #6a5acd;color:#5a4bb0;font-weight:800;font-size:0.7rem;padding:2px 9px;border-radius:20px;">💎 Platinum</span>';
+    if (tier === 'gold') return '<span style="background:#fff8e6;border:1.5px solid #d4af37;color:#a3801a;font-weight:800;font-size:0.7rem;padding:2px 9px;border-radius:20px;">🥇 Gold</span>';
+    if (tier === 'silver') return '<span style="background:#f2f2f2;border:1.5px solid #a8a8a8;color:#666;font-weight:800;font-size:0.7rem;padding:2px 9px;border-radius:20px;">🥈 Silver</span>';
+    return '<span style="background:#f5f5f5;border:1.5px solid #ddd;color:#999;font-weight:700;font-size:0.7rem;padding:2px 9px;border-radius:20px;">Standard</span>';
+  }
+
+  async function searchCustomers(query) {
+    const results = document.getElementById('customer-search-results');
+    const q = query.trim();
+    if (!q) { results.innerHTML = '<div style="font-size:0.8rem; color:#999;">Start typing a phone number or name...</div>'; return; }
+    if (!window.fbDb || !window.fbFns) return;
+    try {
+      const { collection, getDocs } = window.fbFns;
+      const snap = await getDocs(collection(window.fbDb, 'customers'));
+      const qLower = q.toLowerCase();
+      const matches = snap.docs
+        .map(d => ({ fbDocId: d.id, ...d.data() }))
+        .filter(c => (c.phone||'').includes(q.replace(/[^\d]/g,'')) || (c.name||'').toLowerCase().includes(qLower))
+        .slice(0, 15);
+      if (matches.length === 0) { results.innerHTML = '<div style="font-size:0.8rem; color:#999;">No matching customers.</div>'; return; }
+      results.innerHTML = matches.map(c => `
+        <div style="width:260px; flex:0 0 260px; box-sizing:border-box; display:flex; flex-direction:column; gap:6px; background:var(--light); border:1px solid var(--border); border-radius:10px; padding:12px 14px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
+            <span style="font-weight:800; font-size:0.85rem;">${c.name || '(no name)'}</span>
+            ${tierBadgeHtml(c.tier)}
+          </div>
+          <div style="font-size:0.78rem; color:#666; font-family:'Inter',sans-serif;">📱 ${c.phone}</div>
+          <div style="display:flex; gap:10px; font-size:0.76rem; color:#888;">
+            <span>${c.orderCount||0} orders</span>
+            <span>${fmt(c.totalSpent||0)} spent</span>
+          </div>
+          <button onclick="openResetCustomerCode('${c.fbDocId}','${(c.name||'').replace(/'/g,"\\'")}','${c.phone}')" style="margin-top:4px; background:#fff; border:1.5px solid var(--border); color:#555; cursor:pointer; font-size:0.72rem; font-weight:700; padding:6px 10px; border-radius:6px;">🔑 Reset Code</button>
+        </div>
+      `).join('');
+    } catch(e) {
+      results.innerHTML = '<div style="font-size:0.8rem; color:var(--red);">Error searching customers.</div>';
+      console.error(e);
+    }
+  }
+
+  function openResetCustomerCode(docId, name, phone) {
+    resetCodeTargetDocId = docId;
+    document.getElementById('reset-code-customer-name').textContent = (name || 'This customer') + ' — ' + phone;
+    document.getElementById('reset-code-input').value = '';
+    document.getElementById('reset-customer-code-modal').classList.add('open');
+  }
+
+  async function confirmResetCustomerCode() {
+    const code = document.getElementById('reset-code-input').value.trim();
+    if (!/^\d{4}$/.test(code)) { showAppAlert('Please enter a 4-digit code.'); return; }
+    if (!resetCodeTargetDocId || !window.fbDb || !window.fbFns) return;
+    try {
+      const { doc, updateDoc } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'customers', resetCodeTargetDocId), { code: code });
+      document.getElementById('reset-customer-code-modal').classList.remove('open');
+      showSuccessToast('✅ Code reset! Give the customer their new code.');
+    } catch(e) {
+      showAppAlert('Error resetting code. Check your internet connection.');
+      console.error(e);
+    }
   }
 
   // ── CONFIG ──
@@ -2171,15 +2412,16 @@
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('page-' + name).classList.add('active');
     document.querySelectorAll('.nav-item').forEach(n => {
-      const label = name === 'dashboard' ? 'dashboard' : name === 'inventory' ? 'inventory' : name === 'alerts' ? 'alert' : name === 'profits' ? 'profit' : name === 'emp-performance' ? 'employee performance' : name === 'open-orders' ? 'open orders' : name === 'closed-orders' ? 'closed orders' : 'scanner';
+      const label = name === 'dashboard' ? 'dashboard' : name === 'inventory' ? 'inventory' : name === 'alerts' ? 'alert' : name === 'profits' ? 'profit' : name === 'emp-performance' ? 'employee performance' : name === 'open-orders' ? 'open orders' : name === 'closed-orders' ? 'closed orders' : name === 'customers' ? 'customers' : 'scanner';
       if (n.textContent.toLowerCase().includes(label)) {
         n.classList.add('active');
       }
     });
-    const titles = { dashboard:'📊 Dashboard', inventory:'📦 Inventory', alerts:'🔔 Stock Alerts', profits:'💰 Profits', 'open-orders':'📋 Open Orders', 'closed-orders':'✅ Closed Orders', 'emp-performance':'📊 Employee Performance', scanner:'📷 QR Scanner' };
+    const titles = { dashboard:'📊 Dashboard', inventory:'📦 Inventory', alerts:'🔔 Stock Alerts', profits:'💰 Profits', 'open-orders':'📋 Open Orders', 'closed-orders':'✅ Closed Orders', 'emp-performance':'📊 Employee Performance', customers:'👥 Customers', scanner:'📷 QR Scanner' };
     document.getElementById('page-title').textContent = titles[name] || name;
     if (name !== 'scanner') stopScanner();
     if (name === 'emp-performance') renderEmployeePerformance();
+    if (name === 'customers') { loadTierSettingsIntoForm(); }
     renderAll();
     closeSidebar();
   }
@@ -4328,6 +4570,8 @@
     document.getElementById('f-bundle-price').value = '';
     const giftExpiresAdd = document.getElementById('f-freegift-expires');
     if (giftExpiresAdd) { giftExpiresAdd.value = ''; updateDMYPreview(giftExpiresAdd); }
+    document.getElementById('f-freegift-account-only').checked = false;
+    updateFreeGiftAccountOnlySliderStyle();
     document.getElementById('f-promocode').value = '';
     document.getElementById('f-promo-amount').value = '';
     document.getElementById('f-promo-expires').value = '';
@@ -4390,6 +4634,8 @@
     document.getElementById('f-bundle-price').value = p.bundlePrice || '';
     const giftExpiresEdit = document.getElementById('f-freegift-expires');
     if (giftExpiresEdit) { giftExpiresEdit.value = p.freeGiftExpiresAt ? toDatetimeLocalValue(new Date(p.freeGiftExpiresAt)) : ''; updateDMYPreview(giftExpiresEdit); }
+    document.getElementById('f-freegift-account-only').checked = !!p.freeGiftAccountOnly;
+    updateFreeGiftAccountOnlySliderStyle();
     document.getElementById('f-promocode').value = p.promoCode || '';
     document.getElementById('f-promo-amount').value = p.promoDiscountAmount || '';
     document.getElementById('f-promo-expires').value = p.promoExpiresAt ? toDatetimeLocalValue(new Date(p.promoExpiresAt)) : '';
@@ -4685,6 +4931,7 @@
       featured: !!p.featured,
       freeGiftProductId: p.freeGiftProductId || '',
       freeGiftExpiresAt: p.freeGiftExpiresAt || '',
+      freeGiftAccountOnly: !!p.freeGiftAccountOnly,
       promoCode: p.promoCode || '',
       promoDiscountAmount: parseInt(p.promoDiscountAmount) || 0,
       promoExpiresAt: p.promoExpiresAt || '',
@@ -4755,6 +5002,7 @@
     const featured = document.getElementById('f-featured').checked;
     const freeGiftProductId = document.getElementById('f-freegift') ? document.getElementById('f-freegift').value : '';
     const freeGiftExpiresRaw = document.getElementById('f-freegift-expires') ? document.getElementById('f-freegift-expires').value : '';
+    const freeGiftAccountOnly = document.getElementById('f-freegift-account-only').checked;
     let freeGiftExpiresAt = '';
     if (freeGiftExpiresRaw) {
       const fgd = new Date(freeGiftExpiresRaw);
@@ -4787,8 +5035,8 @@
 
     // Build the full candidate product object (used for both change-detection and saving)
     const candidateProduct = editingId
-      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 }
-      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
+      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, freeGiftAccountOnly: freeGiftAccountOnly, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 }
+      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, freeGiftAccountOnly: freeGiftAccountOnly, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
 
     // If editing an existing product and nothing actually changed, skip the save entirely
     if (editingId && editingOriginalSnapshot && productSignature(editingOriginalSnapshot) === productSignature(candidateProduct)) {
@@ -4800,14 +5048,14 @@
     if (editingId) {
       const idx = products.findIndex(p => p.id === editingId);
       if (idx > -1) {
-        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
+        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, freeGiftAccountOnly: freeGiftAccountOnly, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
       }
     } else {
       products.push({
         id: candidateProduct.id,
         name, category: cat, store, sku,
         threshold: threshold_,
-        variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0
+        variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, freeGiftAccountOnly: freeGiftAccountOnly, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0
       });
     }
 
