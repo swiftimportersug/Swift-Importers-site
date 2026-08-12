@@ -1583,6 +1583,10 @@
     <div id="account-view-phone">
       <h2>My Account</h2>
       <p style="margin-bottom:16px;">Sign in or create a free account to track your orders and unlock member perks.</p>
+      <button id="account-biometric-login-btn" onclick="tryBiometricLogin()" style="display:none; width:100%; background:var(--black); color:#fff; border:none; padding:12px; border-radius:6px; font-size:0.88rem; font-weight:700; cursor:pointer; margin-bottom:14px; align-items:center; justify-content:center; gap:8px;">
+        <span style="font-size:1.1rem;">🔐</span> Sign In with Face/Touch ID
+      </button>
+      <div id="account-biometric-divider" style="display:none; text-align:center; font-size:0.72rem; color:var(--grey); margin-bottom:14px;">— or use your phone number —</div>
       <div class="form-group"><label>Phone Number</label><input type="tel" id="account-phone-input" placeholder="+256 7XX XXX XXX" onkeydown="if(event.key==='Enter'){event.preventDefault();accountPhoneSubmit();}"/></div>
       <button class="submit-btn" onclick="accountPhoneSubmit()">Continue</button>
       <div id="account-phone-msg" style="display:none;margin-top:10px;font-size:0.82rem;font-weight:700;color:var(--red);"></div>
@@ -1650,6 +1654,19 @@
           <input type="text" id="account-new-code" placeholder="New 4-digit code" maxlength="4" inputmode="numeric" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;margin-bottom:10px;font-family:'Inter',sans-serif;letter-spacing:0.3em;text-align:center;" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4);"/>
           <button onclick="changeMyAccountCode()" class="submit-btn" style="padding:10px;">Update Code</button>
           <div id="account-change-code-msg" style="display:none;margin-top:8px;font-size:0.78rem;font-weight:700;"></div>
+        </div>
+      </div>
+
+      <div id="account-biometric-section" style="display:none; margin-bottom:16px;">
+        <div style="background:var(--light);border-radius:8px;padding:12px 14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+            <div>
+              <div style="font-size:0.85rem; font-weight:700;">🔐 Face/Touch ID Sign-In</div>
+              <div id="account-biometric-status" style="font-size:0.72rem; color:var(--grey); margin-top:2px;"></div>
+            </div>
+            <button id="account-biometric-toggle-btn" onclick="handleBiometricToggle()" style="background:var(--black); color:#fff; border:none; padding:8px 14px; border-radius:6px; font-size:0.76rem; font-weight:700; cursor:pointer; white-space:nowrap;"></button>
+          </div>
+          <div id="account-biometric-msg" style="display:none; margin-top:8px; font-size:0.76rem; font-weight:700;"></div>
         </div>
       </div>
 
@@ -4053,6 +4070,135 @@
   // sensitive than order history and a discount tier.
   var currentAccount = null;
   var ACCOUNT_STORAGE_KEY = 'swift_account_session_v1';
+  var BIOMETRIC_STORAGE_KEY = 'swift_biometric_v1';
+
+  // ── BIOMETRIC SIGN-IN (fingerprint / Face ID via WebAuthn) ──
+  // IMPORTANT SECURITY NOTE: this uses the real WebAuthn API — the actual fingerprint/
+  // Face ID prompt is genuine, backed by the device's secure hardware. But properly
+  // verifying a WebAuthn signature requires a server to check it against the stored
+  // public key, and this project has no backend, only Firestore. So what's implemented
+  // here is: register a credential with the platform authenticator, store its ID, and on
+  // login, require the SAME successful authenticator prompt to have occurred before
+  // treating the device as recognized. That's a real biometric gate on the device itself,
+  // but — like the phone+PIN system already in place — it isn't cryptographically
+  // verified against a server, so it should be treated as a convenience layer rather than
+  // bank-grade security. Also requires HTTPS; won't work over plain http://.
+  function isWebAuthnSupported() {
+    return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create && window.isSecureContext);
+  }
+
+  function randomChallenge() {
+    var arr = new Uint8Array(32);
+    (window.crypto || window.msCrypto).getRandomValues(arr);
+    return arr;
+  }
+
+  function bufferToBase64Url(buf) {
+    var bytes = new Uint8Array(buf);
+    var str = '';
+    for (var i = 0; i < bytes.byteLength; i++) str += String.fromCharCode(bytes[i]);
+    return btoa(str).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }
+
+  function base64UrlToBuffer(b64url) {
+    var b64 = b64url.replace(/-/g,'+').replace(/_/g,'/');
+    while (b64.length % 4) b64 += '=';
+    var str = atob(b64);
+    var bytes = new Uint8Array(str.length);
+    for (var i = 0; i < str.length; i++) bytes[i] = str.charCodeAt(i);
+    return bytes.buffer;
+  }
+
+  async function enableBiometricLogin() {
+    var msg = document.getElementById('account-biometric-msg');
+    if (!currentAccount || !window.fbDb || !window.fbFns) return;
+    if (!isWebAuthnSupported()) {
+      if (msg) { msg.textContent = 'Biometric sign-in isn\'t available on this device or browser (needs HTTPS and a fingerprint/Face ID sensor).'; msg.style.color = 'var(--red)'; msg.style.display = 'block'; }
+      return;
+    }
+    try {
+      var challenge = randomChallenge();
+      var userId = new TextEncoder().encode(currentAccount.fbDocId);
+      var credential = await navigator.credentials.create({
+        publicKey: {
+          challenge: challenge,
+          rp: { name: 'Swift Importers' },
+          user: { id: userId, name: currentAccount.phone, displayName: currentAccount.name || currentAccount.phone },
+          pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
+          authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
+          timeout: 60000
+        }
+      });
+      var credentialId = bufferToBase64Url(credential.rawId);
+      var { doc, updateDoc } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'customers', currentAccount.fbDocId), { webauthnCredentialId: credentialId });
+      currentAccount.webauthnCredentialId = credentialId;
+      try { localStorage.setItem(BIOMETRIC_STORAGE_KEY, JSON.stringify({ phone: currentAccount.phone, credentialId: credentialId })); } catch(e) {}
+      if (msg) { msg.textContent = '✓ Biometric sign-in enabled on this device!'; msg.style.color = '#2a9d50'; msg.style.display = 'block'; }
+      renderAccountDashboard();
+    } catch(e) {
+      console.error('[biometric] enable failed:', e);
+      if (msg) { msg.textContent = e && e.name === 'NotAllowedError' ? 'Cancelled — you can try again anytime.' : 'Could not enable biometric sign-in on this device.'; msg.style.color = 'var(--red)'; msg.style.display = 'block'; }
+    }
+  }
+
+  async function disableBiometricLogin() {
+    if (!currentAccount || !window.fbDb || !window.fbFns) return;
+    try {
+      var { doc, updateDoc } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'customers', currentAccount.fbDocId), { webauthnCredentialId: null });
+      currentAccount.webauthnCredentialId = null;
+      try { localStorage.removeItem(BIOMETRIC_STORAGE_KEY); } catch(e) {}
+      renderAccountDashboard();
+    } catch(e) { console.error('[biometric] disable failed:', e); }
+  }
+
+  function hasBiometricLoginAvailable() {
+    if (!isWebAuthnSupported()) return false;
+    try {
+      var saved = JSON.parse(localStorage.getItem(BIOMETRIC_STORAGE_KEY) || 'null');
+      return !!(saved && saved.phone && saved.credentialId);
+    } catch(e) { return false; }
+  }
+
+  async function tryBiometricLogin() {
+    var saved;
+    try { saved = JSON.parse(localStorage.getItem(BIOMETRIC_STORAGE_KEY) || 'null'); } catch(e) { saved = null; }
+    if (!saved || !saved.credentialId || !isWebAuthnSupported()) return false;
+    var msg = document.getElementById('account-phone-msg');
+    try {
+      var challenge = randomChallenge();
+      var assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge: challenge,
+          allowCredentials: [{ id: base64UrlToBuffer(saved.credentialId), type: 'public-key' }],
+          userVerification: 'required',
+          timeout: 60000
+        }
+      });
+      if (!assertion) return false;
+      var { collection, query, where, getDocs } = window.fbFns;
+      var q = query(collection(window.fbDb, 'customers'), where('phone', '==', saved.phone));
+      var snap = await getDocs(q);
+      if (!snap.empty) {
+        var docSnap = snap.docs[0];
+        var acc = { fbDocId: docSnap.id, ...docSnap.data() };
+        if (acc.webauthnCredentialId === saved.credentialId) {
+          currentAccount = acc;
+          persistAccountSession();
+          updateAccountNavLabel();
+          startMessagesListener();
+          closeOverlayEl(document.getElementById('account-modal'));
+          refreshCurrentProductGiftBox();
+          return true;
+        }
+      }
+      if (msg) { msg.textContent = 'Biometric sign-in no longer matches this account. Please sign in with your code instead.'; msg.style.display = 'block'; }
+    } catch(e) {
+      console.error('[biometric] login failed or cancelled:', e);
+    }
+    return false;
+  }
   var accountPendingPhone = null; // normalized phone currently being signed in/up
 
   function normalizePhone(value) {
@@ -4078,6 +4224,11 @@
       document.getElementById('account-phone-input').value = '';
       document.getElementById('account-phone-msg').style.display = 'none';
       accountShowView('phone');
+      var bioBtn = document.getElementById('account-biometric-login-btn');
+      var bioDivider = document.getElementById('account-biometric-divider');
+      var showBio = hasBiometricLoginAvailable();
+      if (bioBtn) bioBtn.style.display = showBio ? 'flex' : 'none';
+      if (bioDivider) bioDivider.style.display = showBio ? 'block' : 'none';
     }
     openOverlayEl(document.getElementById('account-modal'));
   }
@@ -4542,6 +4693,33 @@
         ? 'Spend ' + fmtPrice(remaining) + ' more to unlock ' + nextTierName + ' Member status!'
         : '';
       progressNote.style.display = remaining > 0 ? 'block' : 'none';
+    }
+
+    var bioSection = document.getElementById('account-biometric-section');
+    if (bioSection) {
+      if (isWebAuthnSupported()) {
+        bioSection.style.display = 'block';
+        var bioStatus = document.getElementById('account-biometric-status');
+        var bioToggleBtn = document.getElementById('account-biometric-toggle-btn');
+        var bioMsg = document.getElementById('account-biometric-msg');
+        if (bioMsg) bioMsg.style.display = 'none';
+        var enabled = !!currentAccount.webauthnCredentialId;
+        bioStatus.textContent = enabled ? 'Enabled on this device' : 'Sign in faster next time, without typing your code';
+        bioToggleBtn.textContent = enabled ? 'Turn Off' : 'Enable';
+        bioToggleBtn.style.background = enabled ? 'var(--light)' : 'var(--black)';
+        bioToggleBtn.style.color = enabled ? '#c0392b' : '#fff';
+        bioToggleBtn.style.border = enabled ? '1.5px solid #c0392b' : 'none';
+      } else {
+        bioSection.style.display = 'none';
+      }
+    }
+  }
+
+  function handleBiometricToggle() {
+    if (currentAccount && currentAccount.webauthnCredentialId) {
+      disableBiometricLogin();
+    } else {
+      enableBiometricLogin();
     }
   }
 
