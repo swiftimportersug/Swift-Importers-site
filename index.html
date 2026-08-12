@@ -66,6 +66,8 @@
     .account-btn{background:rgba(255,255,255,0.08);color:var(--white);border:1.5px solid rgba(255,255,255,0.18);padding:9px 14px;border-radius:6px;font-weight:600;font-size:0.82rem;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;transition:background 0.2s,border-color 0.2s;}
     .account-btn:hover{background:rgba(255,255,255,0.14);border-color:var(--gold);}
     .account-btn.account-btn-gold{background:linear-gradient(160deg,#fff3d6,#f0d68a);color:#5a4310;border:1.5px solid #d4af37;}
+    .account-btn.account-btn-silver{background:linear-gradient(160deg,#f2f2f2,#d8d8d8);color:#444;border:1.5px solid #a8a8a8;}
+    .account-btn.account-btn-platinum{background:linear-gradient(160deg,#ede8fb,#cfc2f0);color:#3d2f70;border:1.5px solid #6a5acd;}
     .cart-btn::after{content:'';position:absolute;width:36px;height:200%;background:rgba(255,255,255,0.35);top:-50%;left:-60px;transform:skewX(-20deg);animation:cartShine 4.5s ease-in-out infinite;}
     @keyframes cartShine{0%{left:-60px;opacity:0;}8%{opacity:1;}30%{left:120%;opacity:0;}100%{left:120%;opacity:0;}}
     .cart-btn:hover{box-shadow:0 4px 18px rgba(199,162,72,0.4);transform:translateY(-1px);}
@@ -3324,33 +3326,94 @@
       }).join('');
     }
     var subtotal = cart.reduce(function(s,c){ return s + c.price * c.qty; }, 0);
-    var goldDiscount = getGoldDiscount(subtotal);
-    var finalTotal = Math.max(0, subtotal - (checkoutAppliedPromoDiscount || 0) - goldDiscount);
+    var totals = computeCheckoutTotals(subtotal);
     if (totalEl) {
       var lines = 'Subtotal: ' + fmtPrice(subtotal);
-      if (checkoutAppliedPromoDiscount > 0) lines += '<br>Promo (' + checkoutAppliedPromoCode + '): -' + fmtPrice(checkoutAppliedPromoDiscount);
-      if (goldDiscount > 0) lines += '<br>🌟 Gold Member (10%): -' + fmtPrice(goldDiscount);
-      lines += (checkoutAppliedPromoDiscount > 0 || goldDiscount > 0)
-        ? '<br><span style="color:#2a9d50;">Total: ' + fmtPrice(finalTotal) + '</span>'
+      if (totals.usedDiscountType === 'promo') {
+        lines += '<br>Promo (' + checkoutAppliedPromoCode + '): -' + fmtPrice(totals.finalDiscount);
+        if (totals.tierDiscountAmount > 0) lines += '<br><span style="color:#999;font-size:0.9em;">(Your ' + tierDisplayName(currentAccount.tier) + ' discount would have been ' + fmtPrice(totals.tierDiscountAmount) + ' — the promo code saves you more, so that\'s what\'s applied.)</span>';
+      } else if (totals.usedDiscountType === 'tier') {
+        lines += '<br>🎖️ ' + tierDisplayName(currentAccount.tier) + ' Member (' + Math.round(totals.tierRate*100) + '%): -' + fmtPrice(totals.finalDiscount);
+        if (totals.promoDiscountAmount > 0) lines += '<br><span style="color:#999;font-size:0.9em;">(Your promo code would have saved ' + fmtPrice(totals.promoDiscountAmount) + ' — your member discount saves you more, so that\'s what\'s applied.)</span>';
+      } else if (totals.hasItemPromo && currentAccount && !currentAccount.tier==='standard') {
+        lines += '<br><span style="color:#999;font-size:0.9em;">(An item in your cart already has its own promo code applied, so your member discount doesn\'t additionally apply to this order.)</span>';
+      }
+      lines += totals.finalDiscount > 0
+        ? '<br><span style="color:#2a9d50;">Total: ' + fmtPrice(totals.finalTotal) + '</span>'
         : '';
-      totalEl.innerHTML = (checkoutAppliedPromoDiscount > 0 || goldDiscount > 0) ? lines : 'Total: ' + fmtPrice(subtotal);
+      totalEl.innerHTML = totals.finalDiscount > 0 ? lines : 'Total: ' + fmtPrice(subtotal);
     }
 
     var itemLines = cart.map(function(c){ return c.name + ' x' + c.qty + ' (' + fmtPrice(c.price * c.qty) + ')'; }).join('\n') +
-      (checkoutAppliedPromoDiscount > 0 ? '\nSubtotal: ' + fmtPrice(subtotal) + '\nPromo (' + checkoutAppliedPromoCode + '): -' + fmtPrice(checkoutAppliedPromoDiscount) : '') +
-      (goldDiscount > 0 ? (checkoutAppliedPromoDiscount > 0 ? '' : '\nSubtotal: ' + fmtPrice(subtotal)) + '\n🌟 Gold Member (10%): -' + fmtPrice(goldDiscount) : '') +
-      '\nTotal: ' + fmtPrice(finalTotal);
+      '\nSubtotal: ' + fmtPrice(subtotal) +
+      (totals.usedDiscountType === 'promo' ? '\nPromo (' + checkoutAppliedPromoCode + '): -' + fmtPrice(totals.finalDiscount) : '') +
+      (totals.usedDiscountType === 'tier' ? '\n' + tierDisplayName(currentAccount.tier) + ' Member (' + Math.round(totals.tierRate*100) + '%): -' + fmtPrice(totals.finalDiscount) : '') +
+      '\nTotal: ' + fmtPrice(totals.finalTotal);
     if (hiddenField) hiddenField.value = itemLines;
     renderCheckoutFrequentlyBought();
   }
 
-  // Gold Members get an automatic 10% off, independent of and stacking with any
-  // site-wide promo code — this is an account perk, not a "promo code" being entered,
-  // so it deliberately isn't subject to the one-code-per-order restriction.
-  function getGoldDiscount(subtotal) {
-    if (!currentAccount || currentAccount.tier !== 'gold') return 0;
-    return Math.round((subtotal || 0) * 0.1);
+  function tierDisplayName(tier) {
+    if (tier === 'platinum') return 'Platinum';
+    if (tier === 'gold') return 'Gold';
+    if (tier === 'silver') return 'Silver';
+    return '';
   }
+
+  // The full three-tier discount engine. Tier discounts and promo codes (site-wide or
+  // per-item) are mutually exclusive — whichever gives the customer the better price is
+  // the one that's actually used, never both at once. A tier discount DOES still stack
+  // with an item's own markdown/sale price, since that's baked into `price` already and
+  // isn't a "promo code" in the sense this exclusivity rule is about.
+  function computeCheckoutTotals(subtotal) {
+    var hasItemPromo = cart.some(function(c){ return c.promoApplied; });
+    var tierRate = 0;
+    if (currentAccount && currentAccount.tier && currentAccount.tier !== 'standard') {
+      var tier = currentAccount.tier;
+      if (tier === 'silver') tierRate = (tierSettings.silverRate || 0) / 100;
+      else if (tier === 'gold') tierRate = (tierSettings.goldRate || 0) / 100;
+      else if (tier === 'platinum') {
+        tierRate = (subtotal <= (tierSettings.platinumOrderCutoff || 0) ? tierSettings.platinumRateLow : tierSettings.platinumRateHigh) / 100;
+      }
+    }
+    var tierDiscountAmount = hasItemPromo ? 0 : Math.round(subtotal * tierRate);
+    var promoDiscountAmount = checkoutAppliedPromoDiscount || 0;
+
+    var usedDiscountType = 'none';
+    var finalDiscount = 0;
+    if (!hasItemPromo && promoDiscountAmount > 0 && tierDiscountAmount > 0) {
+      if (promoDiscountAmount >= tierDiscountAmount) { usedDiscountType = 'promo'; finalDiscount = promoDiscountAmount; }
+      else { usedDiscountType = 'tier'; finalDiscount = tierDiscountAmount; }
+    } else if (!hasItemPromo && promoDiscountAmount > 0) {
+      usedDiscountType = 'promo'; finalDiscount = promoDiscountAmount;
+    } else if (!hasItemPromo && tierDiscountAmount > 0) {
+      usedDiscountType = 'tier'; finalDiscount = tierDiscountAmount;
+    }
+
+    return {
+      subtotal: subtotal, tierRate: tierRate, tierDiscountAmount: tierDiscountAmount,
+      promoDiscountAmount: promoDiscountAmount, hasItemPromo: hasItemPromo,
+      usedDiscountType: usedDiscountType, finalDiscount: finalDiscount,
+      finalTotal: Math.max(0, subtotal - finalDiscount)
+    };
+  }
+
+  // Tier settings mirror what's configured in the admin panel's Customers page —
+  // fetched once and cached; the storefront reads the same Firestore config doc.
+  var tierSettings = {
+    silverThreshold: 500000, silverRate: 5,
+    goldThreshold: 800000, goldRate: 10,
+    platinumThreshold: 1500000, platinumOrderCutoff: 250000, platinumRateLow: 15, platinumRateHigh: 20
+  };
+  async function fetchTierSettings() {
+    if (!window.fbDb || !window.fbFns) return;
+    try {
+      var { doc, getDoc } = window.fbFns;
+      var snap = await getDoc(doc(window.fbDb, 'config', 'loyaltyTiers'));
+      if (snap.exists()) tierSettings = { ...tierSettings, ...snap.data() };
+    } catch(e) { /* falls back to defaults above */ }
+  }
+  fetchTierSettings();
 
   function renderCheckoutFrequentlyBought() {
     var section = document.getElementById('checkout-fbw-section');
@@ -3758,7 +3821,6 @@
   // isn't cryptographically verified the way a real SMS OTP would be — reasonable for a
   // lightweight loyalty account, worth knowing if this ever needs to hold anything more
   // sensitive than order history and a discount tier.
-  var GOLD_THRESHOLD = 500000;
   var currentAccount = null;
   var ACCOUNT_STORAGE_KEY = 'swift_account_session_v1';
   var accountPendingPhone = null; // normalized phone currently being signed in/up
@@ -3893,25 +3955,52 @@
     }
   }
 
+  function calculateTierForSpend(totalSpent) {
+    if (totalSpent >= (tierSettings.platinumThreshold || Infinity)) return 'platinum';
+    if (totalSpent >= (tierSettings.goldThreshold || Infinity)) return 'gold';
+    if (totalSpent >= (tierSettings.silverThreshold || Infinity)) return 'silver';
+    return 'standard';
+  }
+
+  function tierIcon(tier) {
+    if (tier === 'platinum') return '💎';
+    if (tier === 'gold') return '🥇';
+    if (tier === 'silver') return '🥈';
+    return '';
+  }
+
   function renderAccountDashboard() {
     if (!currentAccount) return;
-    var isGold = currentAccount.tier === 'gold';
+    var tier = currentAccount.tier || 'standard';
+    var spent = currentAccount.totalSpent || 0;
     document.getElementById('account-dash-name').textContent = currentAccount.name || '';
     var tierEl = document.getElementById('account-dash-tier');
-    tierEl.textContent = isGold ? '🌟 Gold Member' : 'Standard Member';
-    tierEl.style.color = isGold ? '#a3801a' : 'var(--grey)';
+    var tierColors = { platinum:'#5a4bb0', gold:'#a3801a', silver:'#666', standard:'var(--grey)' };
+    tierEl.textContent = tier === 'standard' ? 'Standard Member' : (tierIcon(tier) + ' ' + tierDisplayName(tier) + ' Member');
+    tierEl.style.color = tierColors[tier] || 'var(--grey)';
     document.getElementById('account-dash-orders').textContent = currentAccount.orderCount || 0;
-    document.getElementById('account-dash-spent').textContent = fmtPrice(currentAccount.totalSpent || 0);
-    document.getElementById('account-dash-gold-note').style.display = isGold ? 'block' : 'none';
+    document.getElementById('account-dash-spent').textContent = fmtPrice(spent);
+
+    var goldNote = document.getElementById('account-dash-gold-note');
     var progressNote = document.getElementById('account-dash-progress-note');
-    if (!isGold) {
-      var remaining = Math.max(0, GOLD_THRESHOLD - (currentAccount.totalSpent || 0));
+    if (tier !== 'standard') {
+      var rate = tier === 'silver' ? tierSettings.silverRate : tier === 'gold' ? tierSettings.goldRate : ('up to ' + tierSettings.platinumRateHigh);
+      goldNote.innerHTML = tierIcon(tier) + ' ' + tierDisplayName(tier) + ' Member — you get an automatic ' + rate + '% off items without their own discount, on top of your existing savings on discounted items!';
+      goldNote.style.display = 'block';
+    } else {
+      goldNote.style.display = 'none';
+    }
+
+    if (tier === 'platinum') {
+      progressNote.style.display = 'none';
+    } else {
+      var nextThreshold = tier === 'standard' ? tierSettings.silverThreshold : tier === 'silver' ? tierSettings.goldThreshold : tierSettings.platinumThreshold;
+      var nextTierName = tier === 'standard' ? 'Silver' : tier === 'silver' ? 'Gold' : 'Platinum';
+      var remaining = Math.max(0, nextThreshold - spent);
       progressNote.textContent = remaining > 0
-        ? 'Spend ' + fmtPrice(remaining) + ' more to unlock Gold Member status — automatic 10% off every order!'
+        ? 'Spend ' + fmtPrice(remaining) + ' more to unlock ' + nextTierName + ' Member status!'
         : '';
       progressNote.style.display = remaining > 0 ? 'block' : 'none';
-    } else {
-      progressNote.style.display = 'none';
     }
   }
 
@@ -3932,12 +4021,14 @@
     var btn = document.getElementById('nav-account-btn');
     var label = document.getElementById('nav-account-label');
     if (!btn || !label) return;
+    btn.classList.remove('account-btn-gold', 'account-btn-silver', 'account-btn-platinum');
     if (currentAccount) {
-      label.textContent = currentAccount.name ? currentAccount.name.split(' ')[0] : 'Account';
-      btn.classList.toggle('account-btn-gold', currentAccount.tier === 'gold');
+      label.textContent = (tierIcon(currentAccount.tier) ? tierIcon(currentAccount.tier) + ' ' : '') + (currentAccount.name ? currentAccount.name.split(' ')[0] : 'Account');
+      if (currentAccount.tier === 'gold') btn.classList.add('account-btn-gold');
+      else if (currentAccount.tier === 'silver') btn.classList.add('account-btn-silver');
+      else if (currentAccount.tier === 'platinum') btn.classList.add('account-btn-platinum');
     } else {
       label.textContent = 'Account';
-      btn.classList.remove('account-btn-gold');
     }
   }
 
@@ -4141,23 +4232,23 @@
     if (submitBtn){ submitBtn.textContent='Processing...'; submitBtn.disabled=true; }
     if (window.fbDb && window.fbFns) {
       var subtotalVal = cart.reduce(function(s,c){ return s + c.price * c.qty; }, 0);
-      var goldDiscountVal = getGoldDiscount(subtotalVal);
-      var orderTotalVal = Math.max(0, subtotalVal - (checkoutAppliedPromoDiscount || 0) - goldDiscountVal);
+      var totalsVal = computeCheckoutTotals(subtotalVal);
       var order = {
         customerName: nameVal, phone: phoneVal, deliveryArea: areaVal,
         exactLocation: (document.getElementById('exact-location') && document.getElementById('exact-location').value) || '',
         products: productsVal, paymentMethod: paymentVal, notes: notesVal,
         cartItems: cart.map(function(c){ return {id:c.id, name:c.name, qty:c.qty, price:c.price, cost:c.cost||0, variantIdx:c.variantIdx}; }),
-        appliedPromoCode: checkoutAppliedPromoCode || null,
-        promoDiscount: checkoutAppliedPromoDiscount || 0,
-        goldMemberDiscount: goldDiscountVal || 0,
+        appliedPromoCode: totalsVal.usedDiscountType === 'promo' ? (checkoutAppliedPromoCode || null) : null,
+        promoDiscount: totalsVal.usedDiscountType === 'promo' ? totalsVal.finalDiscount : 0,
+        memberTier: currentAccount ? (currentAccount.tier || 'standard') : null,
+        memberDiscount: totalsVal.usedDiscountType === 'tier' ? totalsVal.finalDiscount : 0,
         accountId: currentAccount ? currentAccount.fbDocId : null,
         subtotal: subtotalVal,
-        orderTotal: orderTotalVal,
+        orderTotal: totalsVal.finalTotal,
         status: 'pending', timestamp: new Date().toISOString()
       };
       window.fbFns.addDoc(window.fbFns.collection(window.fbDb,'orders'), order).then(function(){
-        if (currentAccount) updateAccountAfterOrder(orderTotalVal);
+        if (currentAccount) updateAccountAfterOrder(totalsVal.finalTotal);
       }).catch(function(e){console.error(e);});
     }
     cart = []; updateCartCount();
@@ -4180,19 +4271,22 @@
     try {
       var newTotalSpent = (currentAccount.totalSpent || 0) + orderTotal;
       var newOrderCount = (currentAccount.orderCount || 0) + 1;
-      var newTier = newTotalSpent >= GOLD_THRESHOLD ? 'gold' : (currentAccount.tier || 'standard');
+      var oldTier = currentAccount.tier || 'standard';
+      var computedTier = calculateTierForSpend(newTotalSpent);
+      var tierRank = { standard:0, silver:1, gold:2, platinum:3 };
+      var newTier = (tierRank[computedTier] > tierRank[oldTier]) ? computedTier : oldTier; // promotions only, never auto-downgrade
       var { doc, updateDoc } = window.fbFns;
       await updateDoc(doc(window.fbDb, 'customers', currentAccount.fbDocId), {
         totalSpent: newTotalSpent, orderCount: newOrderCount, tier: newTier
       });
-      var justWentGold = newTier === 'gold' && currentAccount.tier !== 'gold';
+      var justPromoted = newTier !== oldTier;
       currentAccount.totalSpent = newTotalSpent;
       currentAccount.orderCount = newOrderCount;
       currentAccount.tier = newTier;
       updateAccountNavLabel();
-      if (justWentGold) {
+      if (justPromoted) {
         setTimeout(function(){
-          showAppAlert('🌟 Congratulations! You\'ve just been promoted to Gold Member status — you now get an automatic 10% off every order, on top of any promo code!');
+          showAppAlert(tierIcon(newTier) + ' Congratulations! You\'ve just been promoted to ' + tierDisplayName(newTier) + ' Member status — you now get an automatic discount on items without their own markdown, on every order!');
         }, 1200);
       }
     } catch(e) { console.error('[account] failed to update after order:', e); }
