@@ -223,17 +223,17 @@
     .card-like-btn:hover{ transform:scale(1.1); }
     .card-like-btn.liked-pop{ animation: heartPop 0.5s cubic-bezier(0.34,1.56,0.64,1); }
     .card-fav-btn{
-      position:absolute; top:42px; right:8px; z-index:3;
+      position:absolute; top:44px; right:8px; z-index:3;
       background:rgba(255,255,255,0.92); border:none; border-radius:50%;
-      width:28px; height:28px; display:flex; align-items:center; justify-content:center;
-      cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.15); transition:transform 0.12s, filter 0.15s, opacity 0.15s; font-size:0.9rem;
-      filter:grayscale(1); opacity:0.55;
+      width:32px; height:32px; display:flex; align-items:center; justify-content:center;
+      cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.15); transition:transform 0.12s, color 0.15s;
+      color:#aaa;
     }
     .card-fav-btn:hover{ transform:scale(1.1); }
-    .card-fav-btn.is-saved{ filter:none; opacity:1; background:#fff8e6; }
+    .card-fav-btn.is-saved{ color:#e0362e; background:#fff0ef; }
     .card-fav-btn.fav-pop{ animation: heartPop 0.5s cubic-bezier(0.34,1.56,0.64,1); }
-    #pd-fav-btn{ filter:grayscale(1); }
-    #pd-fav-btn.is-saved{ filter:none; background:#fff8e6 !important; border-color:var(--gold) !important; color:#8a6d1a !important; }
+    #pd-fav-btn{ color:#999; display:inline-flex; align-items:center; gap:6px; }
+    #pd-fav-btn.is-saved{ color:#e0362e !important; background:#fff0ef !important; border-color:#e0362e !important; }
     .fbw-card-add.added{ background:#2a9d50; }
     #fbw-preview-box{
       box-shadow:0 24px 60px rgba(0,0,0,0.3), 0 8px 20px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.6);
@@ -1299,6 +1299,8 @@
 
 <div class="add-to-cart-toast" id="add-to-fav-toast"><span class="atc-check">🔖</span><span>Added To Favorites!</span></div>
 
+<div class="add-to-cart-toast" id="generic-toast"><span class="atc-check" id="generic-toast-icon">⚠️</span><span id="generic-toast-text"></span></div>
+
 <!-- FLOATING "SCROLL DOWN TO ORDER FORM" ARROW (shown briefly after Proceed to Order) -->
 <div class="order-form-arrow" id="order-form-arrow" onclick="jumpToOrderForm()" role="button" title="Go to the order form" style="cursor:pointer;">
   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 9L12 17L20 9" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -1412,7 +1414,7 @@
               <span id="pd-like-heart" style="font-size:1.05rem; display:inline-block;">🤍</span>
             </button>
             <span id="pd-like-text" style="font-size:0.8rem; color:var(--grey); font-weight:700;"></span>
-            <button id="pd-fav-btn" onclick="togglePdFavorite()" style="background:#fff; border:1.5px solid var(--border); border-radius:20px; padding:7px 14px; cursor:pointer; font-size:0.78rem; font-weight:700; color:#555; margin-left:auto; transition:transform 0.12s, opacity 0.12s;">🔖 Save</button>
+            <button id="pd-fav-btn" onclick="togglePdFavorite()" style="background:#fff; border:1.5px solid var(--border); border-radius:20px; padding:7px 14px; cursor:pointer; font-size:0.78rem; font-weight:700; color:#555; margin-left:auto; transition:transform 0.12s, opacity 0.12s;">Save</button>
           </div>
         </div>
 
@@ -1961,6 +1963,11 @@
   }
 
 
+  function favIconSvg(size) {
+    size = size || 18;
+    return '<svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'" style="display:block;"><path fill="currentColor" d="M6 2a2 2 0 0 0-2 2v18l8-5.333L20 22V4a2 2 0 0 0-2-2H6z"/></svg>';
+  }
+
   function truncateWords(text, n) {
     if (!text) return '';
     var words = text.trim().split(/\s+/);
@@ -2185,7 +2192,7 @@
     favBtn.className = 'card-fav-btn' + (isFavCard ? ' is-saved' : '');
     favBtn.type = 'button';
     favBtn.title = 'Save to favorites';
-    favBtn.innerHTML = '🔖';
+    favBtn.innerHTML = favIconSvg(17);
     favBtn.setAttribute('onclick', "toggleFavoriteFromCard('" + String(p.id).replace(/'/g,"\\'") + "', event, this)");
     imgDiv.appendChild(favBtn);
     div.appendChild(imgDiv);
@@ -2523,7 +2530,7 @@
     var pdFavBtnInit = document.getElementById('pd-fav-btn');
     if (pdFavBtnInit) {
       var isFavInit = currentAccount && currentAccount.favoriteProductIds && currentAccount.favoriteProductIds.indexOf(p.id) !== -1;
-      pdFavBtnInit.innerHTML = isFavInit ? '🔖 Saved' : '🔖 Save';
+      pdFavBtnInit.innerHTML = favIconSvg(16) + '<span>' + (isFavInit ? 'Saved' : 'Save') + '</span>';
       pdFavBtnInit.classList.toggle('is-saved', !!isFavInit);
     }
 
@@ -2848,7 +2855,10 @@
       await updateDoc(doc(window.fbDb, 'customers', currentAccount.fbDocId), { likedProductIds: arrayUnion(productId) });
       if (!currentAccount.likedProductIds) currentAccount.likedProductIds = [];
       if (currentAccount.likedProductIds.indexOf(productId) === -1) currentAccount.likedProductIds.push(productId);
-    } catch(e) { console.error('[account] failed to record like:', e); }
+    } catch(e) {
+      console.error('[account] failed to record like:', e);
+      showToastMessage('⚠️ Couldn\'t save this to your account — check your connection.', '#c0392b');
+    }
   }
 
   // Favorites are a separate, deliberate "save for later" list — distinct from a like
@@ -2878,17 +2888,20 @@
         currentAccount.favoriteProductIds.push(productId);
       }
       if (btn) {
-        btn.innerHTML = '🔖';
+        btn.innerHTML = favIconSvg(17);
         btn.classList.toggle('is-saved', !isFav);
         btn.classList.remove('fav-pop'); void btn.offsetWidth; btn.classList.add('fav-pop');
       }
       var pdFavBtn = document.getElementById('pd-fav-btn');
       if (pdFavBtn && pdCurrentProduct && pdCurrentProduct.id === productId) {
-        pdFavBtn.innerHTML = isFav ? '🔖 Save' : '🔖 Saved';
+        pdFavBtn.innerHTML = favIconSvg(16) + '<span>' + (isFav ? 'Save' : 'Saved') + '</span>';
         pdFavBtn.classList.toggle('is-saved', !isFav);
       }
       if (!isFav) showFavoriteToast();
-    } catch(e) { console.error('[account] failed to toggle favorite:', e); }
+    } catch(e) {
+      console.error('[account] failed to toggle favorite:', e);
+      showToastMessage('⚠️ Couldn\'t save this — check your connection.', '#c0392b');
+    }
   }
 
   function togglePdFavorite() {
@@ -4042,6 +4055,19 @@
     showFavoriteToast._timer = setTimeout(function(){ toast.classList.remove('show'); }, 4000);
   }
 
+  function showToastMessage(text, bgColor) {
+    var toast = document.getElementById('generic-toast');
+    if (!toast) return;
+    document.getElementById('generic-toast-text').textContent = text;
+    toast.style.background = bgColor || '#2a9d50';
+    toast.style.boxShadow = '0 10px 26px ' + (bgColor || '#2a9d50') + '66';
+    clearTimeout(showToastMessage._timer);
+    toast.classList.remove('show');
+    void toast.offsetWidth;
+    toast.classList.add('show');
+    showToastMessage._timer = setTimeout(function(){ toast.classList.remove('show'); }, 4000);
+  }
+
   // ── ORDER FORM FIELD VALIDATION STYLING ──
   // Stays quiet until the person signals intent to submit (Proceed to Order, or a failed
   // Send Order attempt) — only then do empty required fields get the animated red border,
@@ -4239,14 +4265,46 @@
   var customerMessages = [];
   var unsubscribeMessages = null;
 
+  var messagesFirstSnapshotSeen = false;
+  var lastKnownUnreadMsgCount = 0;
+
+  function playMessageAlertSound() {
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      var playTone = function(freq, startTime, duration, peakGain) {
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(peakGain, startTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+      };
+      var now = ctx.currentTime;
+      playTone(880, now, 0.16, 0.22);        // pleasant two-note "ding-dong" chime
+      playTone(1318.51, now + 0.11, 0.28, 0.18);
+    } catch(e) { /* Web Audio unavailable/blocked — fail silently, badge still shows */ }
+  }
+
   function startMessagesListener() {
     if (!currentAccount || !window.fbDb || !window.fbFns || !window.fbFns.query || !window.fbFns.where) return;
     if (unsubscribeMessages) { unsubscribeMessages(); unsubscribeMessages = null; }
+    messagesFirstSnapshotSeen = false;
     var { collection, query, where, onSnapshot } = window.fbFns;
     var q = query(collection(window.fbDb, 'messages'), where('customerId', '==', currentAccount.fbDocId));
     unsubscribeMessages = onSnapshot(q, function(snapshot){
       customerMessages = snapshot.docs.map(function(d){ return { fbDocId: d.id, ...d.data() }; });
       customerMessages.sort(function(a,b){ return new Date(a.timestamp) - new Date(b.timestamp); });
+      var newUnread = customerMessages.filter(function(m){ return m.sender === 'admin' && !m.read; }).length;
+      if (messagesFirstSnapshotSeen && newUnread > lastKnownUnreadMsgCount) {
+        playMessageAlertSound();
+      }
+      lastKnownUnreadMsgCount = newUnread;
+      messagesFirstSnapshotSeen = true;
       updateMessagesBadge();
       var modal = document.getElementById('messages-modal');
       if (modal && modal.classList.contains('open')) renderMessagesThread();
@@ -4256,6 +4314,8 @@
   function stopMessagesListener() {
     if (unsubscribeMessages) { unsubscribeMessages(); unsubscribeMessages = null; }
     customerMessages = [];
+    messagesFirstSnapshotSeen = false;
+    lastKnownUnreadMsgCount = 0;
     updateMessagesBadge();
   }
 
