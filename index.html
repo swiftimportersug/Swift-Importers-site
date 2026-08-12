@@ -64,6 +64,22 @@
     .nav-search-btn{position:absolute;right:3px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--gold);cursor:pointer;font-size:0.95rem;padding:7px 8px;display:flex;align-items:center;justify-content:center;}
     .cart-btn{background:linear-gradient(160deg,var(--gold-light),var(--gold));color:var(--black);border:none;padding:10px 18px;border-radius:6px;font-weight:700;font-size:0.9rem;letter-spacing:0.02em;cursor:pointer;display:flex;align-items:center;gap:6px;position:relative;overflow:hidden;box-shadow:0 2px 12px rgba(199,162,72,0.25);transition:box-shadow 0.25s,transform 0.25s;}
     .account-btn{background:rgba(255,255,255,0.08);color:var(--white);border:1.5px solid rgba(255,255,255,0.18);padding:9px 14px;border-radius:6px;font-weight:600;font-size:0.82rem;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;transition:background 0.2s,border-color 0.2s;}
+    .nav-account-dropdown{
+      display:none; position:absolute; top:calc(100% + 8px); right:0;
+      background:#1a1a1a; border:1px solid rgba(255,255,255,0.12); border-radius:10px;
+      min-width:180px; padding:6px; box-shadow:0 12px 30px rgba(0,0,0,0.45); z-index:200;
+    }
+    .nav-account-dropdown.open{ display:block; }
+    .nav-account-dropdown button{
+      display:flex; align-items:center; gap:9px; width:100%; box-sizing:border-box;
+      background:none; border:none; color:#eee; padding:10px 12px; border-radius:7px;
+      font-size:0.84rem; font-weight:600; cursor:pointer; text-align:left; font-family:'Inter',sans-serif;
+    }
+    .nav-account-dropdown button:hover{ background:rgba(255,255,255,0.08); }
+    .nav-dropdown-badge{
+      background:var(--red); color:#fff; font-size:0.6rem; font-weight:800;
+      min-width:16px; height:16px; border-radius:20px; display:flex; align-items:center; justify-content:center; padding:0 4px;
+    }
     .account-btn:hover{background:rgba(255,255,255,0.14);border-color:var(--gold);}
     .mobile-bottom-nav{display:none;}
     @media(max-width:768px){
@@ -830,6 +846,27 @@
     .modal h2{font-family:var(--serif);font-size:1.5rem;font-weight:600;margin-bottom:8px;}
     .modal p{color:#555;font-size:0.9rem;margin-bottom:20px;}
     .modal-close{position:absolute;top:16px;right:16px;background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--grey);}
+    @media(max-width:768px){
+      #account-modal.open, #saved-modal.open, #messages-modal.open{
+        align-items:stretch !important; justify-content:stretch !important; padding:0 !important;
+      }
+      #account-modal .modal, #saved-modal .modal, #messages-modal .modal{
+        width:100% !important; max-width:100% !important; height:100vh !important; height:100dvh !important;
+        max-height:100vh !important; max-height:100dvh !important; border-radius:0 !important; margin:0 !important;
+        overflow-y:auto; padding-top:56px !important; box-sizing:border-box;
+      }
+      #account-modal .modal-close, #saved-modal .modal-close, #messages-modal .modal-close{
+        position:fixed !important; top:0 !important; left:0 !important; right:0 !important; margin:0; z-index:20;
+        background:var(--white); width:100%; height:52px;
+        display:flex; align-items:center; padding:0 16px; box-sizing:border-box;
+        border-bottom:1px solid var(--border); font-size:0;
+      }
+      #account-modal .modal-close::before, #saved-modal .modal-close::before, #messages-modal .modal-close::before{
+        content:'\2039 Back'; font-size:0.95rem; font-weight:700; color:var(--black);
+      }
+      #messages-modal .modal{ padding-top:0 !important; }
+      #messages-modal .modal > div:first-child{ padding-top:66px !important; }
+    }
     .hto-modal{max-width:520px;max-height:88vh;overflow-y:auto;padding:0;border-radius:12px;animation:slideUpModal 0.35s cubic-bezier(0.34,1.56,0.64,1);}
     .hto-close-bar{position:sticky;top:0;z-index:10;background:var(--white);display:flex;align-items:center;justify-content:space-between;padding:14px 20px 10px;border-bottom:1px solid var(--border);border-radius:12px 12px 0 0;}
     .hto-close-bar span{font-family:'Inter',sans-serif;font-weight:800;font-size:1rem;color:var(--black);}
@@ -867,7 +904,7 @@
       .nav-search-wrap{order:5;flex:1 1 100%;max-width:100%;margin:2px 0 0;}
       .swift-logo{padding:7px 12px 6px;border-width:2px;border-radius:7px;width:fit-content;max-width:100%;box-sizing:border-box;}
       .nav-right{flex-shrink:0;margin-left:14px;}
-      #nav-account-btn{display:none;} /* replaced on mobile by the floating bottom nav */
+      #nav-account-btn, .nav-account-dropdown{display:none !important;} /* replaced on mobile by the floating bottom nav */
       body{padding-bottom:64px;}
       .cart-btn{padding:11px 20px;font-size:0.95rem;white-space:nowrap;border-radius:6px;font-weight:700;}
       .hero{grid-template-columns:1fr;padding:32px 4vw 40px;min-height:unset;}
@@ -957,7 +994,14 @@
     <li><a href="#footer">Contact</a></li>
   </ul>
   <div class="nav-right">
-    <button class="account-btn" id="nav-account-btn" onclick="openAccountEntry()" title="My Account">👤 <span id="nav-account-label">Account</span></button>
+    <div class="nav-account-wrap" style="position:relative;">
+      <button class="account-btn" id="nav-account-btn" onclick="toggleAccountDropdown(event)" title="My Account">👤 <span id="nav-account-label">Account</span> <span style="font-size:0.6rem;">&#9662;</span></button>
+      <div id="nav-account-dropdown" class="nav-account-dropdown">
+        <button onclick="closeAccountDropdown();openAccountEntry();">👤 <span>Profile</span></button>
+        <button onclick="closeAccountDropdown();openSavedPage();">🔖 <span>Saved</span></button>
+        <button onclick="closeAccountDropdown();openMessagesPage();">💬 <span style="flex:1;">Messages</span><span id="nav-dropdown-messages-badge" class="nav-dropdown-badge" style="display:none;"></span></button>
+      </div>
+    </div>
     <button class="cart-btn" onclick="openCart()">Cart <span id="cart-count">0</span></button>
   </div>
 </nav>
@@ -1619,12 +1663,18 @@
     <!-- STEP 3: signed-in dashboard -->
     <div id="account-view-dashboard" style="display:none;">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-        <div style="width:52px;height:52px;border-radius:50%;background:var(--light);display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0;">👤</div>
+        <div onclick="openProfilePictureChooser()" style="position:relative;width:52px;height:52px;flex-shrink:0;cursor:pointer;">
+          <div id="account-dash-avatar" style="width:52px;height:52px;border-radius:50%;background:var(--light);display:flex;align-items:center;justify-content:center;font-size:1.4rem;overflow:hidden;">👤</div>
+          <div style="position:absolute;bottom:-2px;right:-2px;width:20px;height:20px;border-radius:50%;background:var(--black);color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.6rem;border:2px solid #fff;">📷</div>
+        </div>
         <div>
           <div id="account-dash-name" style="font-weight:800;font-size:1.05rem;"></div>
           <div id="account-dash-tier" style="font-size:0.74rem;font-weight:700;margin-top:2px;"></div>
         </div>
       </div>
+      <input type="file" id="profile-pic-gallery-input" accept="image/*" style="display:none;" onchange="handleProfilePictureSelect(this)"/>
+      <input type="file" id="profile-pic-camera-input" accept="image/*" capture="user" style="display:none;" onchange="handleProfilePictureSelect(this)"/>
+      <div id="profile-pic-msg" style="display:none;margin:-8px 0 14px;font-size:0.76rem;font-weight:700;"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
         <div style="background:var(--light);border-radius:10px;padding:12px;text-align:center;">
           <div id="account-dash-orders" style="font-size:1.3rem;font-weight:900;color:var(--black);"></div>
@@ -1695,7 +1745,7 @@
 <div class="modal-overlay" id="messages-modal">
   <div class="modal" style="max-width:480px; text-align:left; padding:0; display:flex; flex-direction:column; max-height:82vh;">
     <div style="padding:20px 24px 14px; border-bottom:1px solid var(--border); flex-shrink:0;">
-      <button class="modal-close" onclick="closeOverlayEl(document.getElementById('messages-modal'))" style="position:absolute; top:16px; right:16px;">X</button>
+      <button class="modal-close" onclick="closeOverlayEl(document.getElementById('messages-modal'))">X</button>
       <h2 style="margin:0;">Messages</h2>
       <p style="margin:4px 0 0; font-size:0.8rem; color:var(--grey);">Chat directly with Swift Importers support.</p>
     </div>
@@ -1710,6 +1760,16 @@
 </div>
 
 <!-- LEAVE A REVIEW -->
+<!-- CHANGE PROFILE PICTURE -->
+<div class="modal-overlay" id="profile-pic-choice-modal">
+  <div class="modal" style="max-width:320px;text-align:center;">
+    <button class="modal-close" onclick="closeOverlayEl(document.getElementById('profile-pic-choice-modal'))">X</button>
+    <h2 style="margin-bottom:16px;">Change Profile Picture</h2>
+    <button onclick="closeOverlayEl(document.getElementById('profile-pic-choice-modal'));document.getElementById('profile-pic-camera-input').click();" class="submit-btn" style="margin-bottom:10px;">📷 Take Photo</button>
+    <button onclick="closeOverlayEl(document.getElementById('profile-pic-choice-modal'));document.getElementById('profile-pic-gallery-input').click();" style="width:100%;background:var(--light);border:none;color:#333;padding:12px;border-radius:6px;font-size:0.88rem;font-weight:700;cursor:pointer;">🖼️ Choose from Gallery</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="review-modal">
   <div class="modal" style="max-width:420px; text-align:left;">
     <button class="modal-close" onclick="closeOverlayEl(document.getElementById('review-modal'))">X</button>
@@ -4320,12 +4380,32 @@
   }
 
   function updateMessagesBadge() {
-    var badge = document.getElementById('mbn-messages-badge');
-    if (!badge) return;
     var unread = customerMessages.filter(function(m){ return m.sender === 'admin' && !m.read; }).length;
-    if (unread > 0) { badge.textContent = unread > 9 ? '9+' : unread; badge.style.display = 'flex'; }
-    else { badge.style.display = 'none'; }
+    var badge = document.getElementById('mbn-messages-badge');
+    if (badge) {
+      if (unread > 0) { badge.textContent = unread > 9 ? '9+' : unread; badge.style.display = 'flex'; }
+      else { badge.style.display = 'none'; }
+    }
+    var ddBadge = document.getElementById('nav-dropdown-messages-badge');
+    if (ddBadge) {
+      if (unread > 0) { ddBadge.textContent = unread > 9 ? '9+' : unread; ddBadge.style.display = 'flex'; }
+      else { ddBadge.style.display = 'none'; }
+    }
   }
+
+  function toggleAccountDropdown(evt) {
+    if (evt) evt.stopPropagation();
+    document.getElementById('nav-account-dropdown').classList.toggle('open');
+  }
+  function closeAccountDropdown() {
+    document.getElementById('nav-account-dropdown').classList.remove('open');
+  }
+  document.addEventListener('click', function(e){
+    var dd = document.getElementById('nav-account-dropdown');
+    if (dd && dd.classList.contains('open') && !e.target.closest('.nav-account-wrap')) {
+      dd.classList.remove('open');
+    }
+  });
 
   function openMessagesPage() {
     if (!currentAccount) { openAccountEntry(); return; }
@@ -4714,6 +4794,7 @@
 
   function renderAccountDashboard() {
     if (!currentAccount) return;
+    updateProfilePictureDisplay();
     var tier = currentAccount.tier || 'standard';
     var spent = currentAccount.totalSpent || 0;
     document.getElementById('account-dash-name').textContent = currentAccount.name || '';
@@ -4781,6 +4862,71 @@
     } else {
       enableBiometricLogin();
     }
+  }
+
+  // ── PROFILE PICTURE ──
+  // Stored as a compressed base64 data URI directly on the customer's Firestore document
+  // (this project has no Firebase Storage set up) — resized client-side first to keep it
+  // well under Firestore's 1MB per-document limit.
+  function openProfilePictureChooser() {
+    if (!currentAccount) return;
+    openOverlayEl(document.getElementById('profile-pic-choice-modal'));
+  }
+
+  function handleProfilePictureSelect(input) {
+    var file = input.files && input.files[0];
+    input.value = ''; // allow picking the same file again later
+    if (!file || !currentAccount) return;
+    var msg = document.getElementById('profile-pic-msg');
+    if (msg) { msg.style.display = 'block'; msg.style.color = 'var(--grey)'; msg.textContent = 'Processing photo...'; }
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var img = new Image();
+      img.onload = function(){
+        var maxSize = 240;
+        var scale = Math.min(maxSize / img.width, maxSize / img.height, 1);
+        var canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+        saveProfilePicture(dataUrl);
+      };
+      img.onerror = function(){
+        if (msg) { msg.style.color = 'var(--red)'; msg.textContent = 'Couldn\'t read that image — please try another.'; }
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function saveProfilePicture(dataUrl) {
+    var msg = document.getElementById('profile-pic-msg');
+    if (!currentAccount || !window.fbDb || !window.fbFns) return;
+    try {
+      var { doc, updateDoc } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'customers', currentAccount.fbDocId), { profilePicture: dataUrl });
+      currentAccount.profilePicture = dataUrl;
+      updateProfilePictureDisplay();
+      if (msg) { msg.style.color = '#2a9d50'; msg.textContent = '✓ Profile picture updated!'; setTimeout(function(){ msg.style.display = 'none'; }, 2500); }
+    } catch(e) {
+      console.error('[account] failed to save profile picture:', e);
+      if (msg) { msg.style.color = 'var(--red)'; msg.textContent = 'Couldn\'t save — check your connection.'; msg.style.display = 'block'; }
+      showToastMessage('⚠️ Couldn\'t save your photo — check your connection.', '#c0392b');
+    }
+  }
+
+  function updateProfilePictureDisplay() {
+    var avatar = document.getElementById('account-dash-avatar');
+    if (!avatar) return;
+    if (currentAccount && currentAccount.profilePicture) {
+      avatar.innerHTML = '<img src="'+currentAccount.profilePicture+'" style="width:100%;height:100%;object-fit:cover;"/>';
+    } else {
+      avatar.innerHTML = '👤';
+    }
+    var navBtn = document.getElementById('nav-account-label');
+    // (nav label stays text-based — avatar is a dashboard-only touch, keeps the nav compact)
   }
 
   function toggleAccountSection(name) {
@@ -5295,7 +5441,7 @@
   }
 
   // Close on overlay click
-  ['returns-modal','track-order-modal','payment-guide-modal','delivery-info-modal','how-to-order-modal','cart-modal','success-modal','app-dialog-overlay','fbw-preview-modal','account-modal','saved-modal','messages-modal','review-modal'].forEach(function(id){
+  ['returns-modal','track-order-modal','payment-guide-modal','delivery-info-modal','how-to-order-modal','cart-modal','success-modal','app-dialog-overlay','fbw-preview-modal','account-modal','saved-modal','messages-modal','review-modal','profile-pic-choice-modal'].forEach(function(id){
     var el=document.getElementById(id);
     if(el) el.addEventListener('click',function(e){ if(e.target===this){ if(id==='cart-modal'){closeCart();}else{closeOverlayEl(this);} } });
   });
