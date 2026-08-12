@@ -1824,6 +1824,14 @@
     return new Date(p.freeGiftExpiresAt).getTime() > Date.now();
   }
 
+  // A gift can be "running" but still restricted to signed-in customers — this tells
+  // us whether THIS viewer, right now, actually qualifies for it.
+  function canViewerClaimGift(p) {
+    if (!isFreeGiftActive(p)) return false;
+    if (p.freeGiftAccountOnly && !currentAccount) return false;
+    return true;
+  }
+
   function formatCountdown(msRemaining) {
     if (msRemaining <= 0) return 'Deal ended';
     var totalSec = Math.floor(msRemaining/1000);
@@ -2010,6 +2018,7 @@
       imgDiv.appendChild(iconEl);
     }
     var giftProduct = isFreeGiftActive(p) ? products.find(function(gp){ return gp.id === p.freeGiftProductId; }) : null;
+    var giftClaimable = giftProduct && canViewerClaimGift(p);
     var giftExpiryMs = (giftProduct && p.freeGiftExpiresAt) ? new Date(p.freeGiftExpiresAt).getTime() : null;
     var likeBtn = document.createElement('button');
     likeBtn.className = 'card-like-btn';
@@ -2028,7 +2037,10 @@
         '<div class="product-card-price">'+priceDisplay+(anyDiscount?' <span style="color:var(--grey);font-weight:600;font-size:0.75em;text-decoration:line-through;">'+fmtPrice(cheapestDiscounted.sell)+'</span>':'')+(p.promoEligible!==false?' <span style="font-size:0.56rem;font-weight:800;color:#2a9d50;vertical-align:middle;">🎟️ Promo Eligible</span>':'')+'</div>'+
         (soonestExp !== null ? '<div style="margin-top:4px;"><span class="countdown-badge" data-expiry="'+soonestExp+'" style="font-size:0.6rem;">'+formatCountdown(soonestExp - Date.now())+'</span></div>' : '')+
         (minP!==maxP?'<div class="product-card-price-range">Multiple variants</div>':'')+
-        (giftProduct ? '<div class="gift-strip"><span class="gift-strip-icon">🎁</span>'+((giftProduct.image||(giftProduct.images&&giftProduct.images[0]))?'<img src="'+(giftProduct.image||giftProduct.images[0])+'" class="gift-strip-thumb" onerror="this.style.display=\'none\'"/>':'')+'<span>FREE: '+truncateWords(giftProduct.name, 5)+'</span>'+(giftExpiryMs?' <span class="countdown-badge" data-expiry="'+giftExpiryMs+'" style="font-size:0.56rem;margin-left:4px;">'+formatCountdown(giftExpiryMs - Date.now())+'</span>':'')+'</div>' : '')+
+        (giftProduct ? (giftClaimable
+          ? '<div class="gift-strip"><span class="gift-strip-icon">🎁</span>'+((giftProduct.image||(giftProduct.images&&giftProduct.images[0]))?'<img src="'+(giftProduct.image||giftProduct.images[0])+'" class="gift-strip-thumb" onerror="this.style.display=\'none\'"/>':'')+'<span>FREE: '+truncateWords(giftProduct.name, 5)+'</span>'+(giftExpiryMs?' <span class="countdown-badge" data-expiry="'+giftExpiryMs+'" style="font-size:0.56rem;margin-left:4px;">'+formatCountdown(giftExpiryMs - Date.now())+'</span>':'')+'</div>'
+          : '<div class="gift-strip" style="background:linear-gradient(90deg,#f0eaff,#f6f2ff);border-color:#8a6fd6;color:#5b3fa8;"><span class="gift-strip-icon">🔒</span><span>Free gift for account holders</span></div>'
+        ) : '')+
         (p.promoVisible && isProductPromoActive(p) ? '<div style="margin-top:5px;background:linear-gradient(90deg,#e0f7e9,#eafff2);border:1px solid #2a9d50;border-radius:20px;padding:4px 9px;font-size:0.6rem;font-weight:800;color:#1b7d40;display:inline-flex;align-items:center;gap:4px;">🏷️ Save '+fmtPrice(p.promoDiscountAmount)+' with promo</div>' : '')+
         '<div class="product-card-stock '+stockCls+'">'+stockLabel+'</div>'+
         '<div class="tap-hint">Tap to view &amp; buy</div>'+
@@ -2385,7 +2397,17 @@
     // Free gift with purchase
     var pdGiftBox = document.getElementById('pd-gift-box');
     var giftProductPd = isFreeGiftActive(p) ? products.find(function(gp){ return gp.id === p.freeGiftProductId; }) : null;
-    if (giftProductPd) {
+    if (giftProductPd && p.freeGiftAccountOnly && !currentAccount) {
+      pdGiftBox.innerHTML =
+        '<div class="pd-gift-box" onclick="openAccountEntry()" style="cursor:pointer;">' +
+          '<div class="pd-gift-thumb" style="font-size:1.4rem;">🔒</div>' +
+          '<div>' +
+            '<div class="pd-gift-label">Free Gift For Account Holders</div>' +
+            '<div class="pd-gift-name">Sign in or create a free account to claim this gift</div>' +
+          '</div>' +
+        '</div>';
+      pdGiftBox.style.display = 'block';
+    } else if (giftProductPd) {
       var giftThumbSrc = giftProductPd.image || (giftProductPd.images && giftProductPd.images[0]) || '';
       var giftThumbHtml = giftThumbSrc
         ? '<img src="'+giftThumbSrc+'" alt="" onerror="this.parentElement.innerHTML=\'&#127873;\'"/>'
@@ -3831,6 +3853,7 @@
     updateAccountNavLabel();
     renderAccountDashboard();
     accountShowView('dashboard');
+    refreshCurrentProductGiftBox();
   }
 
   async function accountSignupSubmit() {
@@ -3855,10 +3878,18 @@
       updateAccountNavLabel();
       renderAccountDashboard();
       accountShowView('dashboard');
+      refreshCurrentProductGiftBox();
     } catch(e) {
       msg.textContent = 'Error creating your account. Please try again.';
       msg.style.display = 'block';
       console.error(e);
+    }
+  }
+
+  function refreshCurrentProductGiftBox() {
+    var pdOverlay = document.getElementById('pd-overlay');
+    if (pdOverlay && pdOverlay.classList.contains('open') && pdCurrentProduct) {
+      renderProductDetailContent(pdCurrentProduct.id);
     }
   }
 
