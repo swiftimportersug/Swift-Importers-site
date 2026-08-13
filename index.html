@@ -80,6 +80,11 @@
       background:var(--red); color:#fff; font-size:0.6rem; font-weight:800;
       min-width:16px; height:16px; border-radius:20px; display:flex; align-items:center; justify-content:center; padding:0 4px;
     }
+    .nav-account-main-badge{
+      position:absolute; top:-4px; right:-4px;
+      background:var(--red); width:11px; height:11px; border-radius:50%;
+      border:2px solid #141414; box-shadow:0 0 0 1px rgba(255,255,255,0.15);
+    }
     .account-btn:hover{background:rgba(255,255,255,0.14);border-color:var(--gold);}
     .mobile-bottom-nav{display:none;}
     @media(max-width:768px){
@@ -1001,7 +1006,10 @@
   </ul>
   <div class="nav-right">
     <div class="nav-account-wrap" style="position:relative;">
-      <button class="account-btn" id="nav-account-btn" onclick="toggleAccountDropdown(event)" title="My Account">👤 <span id="nav-account-label">Account</span> <span style="font-size:0.6rem;">&#9662;</span></button>
+      <button class="account-btn" id="nav-account-btn" onclick="toggleAccountDropdown(event)" title="My Account" style="position:relative;">
+        👤 <span id="nav-account-label">Account</span> <span style="font-size:0.6rem;">&#9662;</span>
+        <span id="nav-account-main-badge" class="nav-account-main-badge" style="display:none;"></span>
+      </button>
       <div id="nav-account-dropdown" class="nav-account-dropdown">
         <button onclick="closeAccountDropdown();openAccountEntry();">👤 <span style="flex:1;">Profile</span><span id="nav-dropdown-profile-badge" class="nav-dropdown-badge" style="display:none;">!</span></button>
         <button onclick="closeAccountDropdown();openSavedPage();">🔖 <span>Saved</span></button>
@@ -4530,6 +4538,17 @@
       if (unread > 0) { ddBadge.textContent = unread > 9 ? '9+' : unread; ddBadge.style.display = 'flex'; }
       else { ddBadge.style.display = 'none'; }
     }
+    updateMainAccountBadge();
+  }
+
+  // One combined red-dot indicator on the top-level "Account" button itself, so on PC a
+  // customer notices something's waiting for them (an unread message or a pending
+  // review) without needing to open the dropdown first.
+  function updateMainAccountBadge() {
+    var unreadMessages = customerMessages.filter(function(m){ return m.sender === 'admin' && !m.read; }).length > 0;
+    var hasPendingReview = !!pendingReviewTarget;
+    var mainBadge = document.getElementById('nav-account-main-badge');
+    if (mainBadge) mainBadge.style.display = (unreadMessages || hasPendingReview) ? 'block' : 'none';
   }
 
   function toggleAccountDropdown(evt) {
@@ -4671,6 +4690,7 @@
       var el = document.getElementById(id);
       if (el) el.style.display = hasPending ? 'flex' : 'none';
     });
+    updateMainAccountBadge();
   }
 
   function reviewReminderHtml() {
@@ -5218,9 +5238,11 @@
 
   function accountSignOut() {
     currentAccount = null;
+    pendingReviewTarget = null;
     try { localStorage.removeItem(ACCOUNT_STORAGE_KEY); } catch(e) {}
     updateAccountNavLabel();
     stopMessagesListener();
+    updateMainAccountBadge();
     closeOverlayEl(document.getElementById('account-modal'));
   }
 
