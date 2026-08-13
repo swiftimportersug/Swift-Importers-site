@@ -1510,7 +1510,7 @@
         <!-- PRODUCT DESCRIPTION -->
         <div id="pd-description-section" style="display:none; margin-top:4px; margin-bottom:4px; background:var(--light); border-radius:10px; padding:14px 16px;">
           <div style="font-size:0.65rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--grey);margin-bottom:8px;">📝 Product Description</div>
-          <div id="pd-description-text" class="pd-desc-clamped" style="font-size:0.85rem; color:#444; line-height:1.7; white-space:pre-line;"></div>
+          <div id="pd-description-text" class="pd-desc-clamped" style="font-size:0.85rem; color:#444; line-height:1.7;"></div>
           <button id="pd-read-more-btn" onclick="toggleDescription()" style="display:none; margin-top:10px; background:none; border:none; color:var(--gold-dark); font-size:0.82rem; font-weight:700; cursor:pointer; font-family:'Inter',sans-serif; padding:0; text-decoration:underline; text-underline-offset:3px;"></button>
         </div>
 
@@ -2026,6 +2026,31 @@
   function favIconSvg(size) {
     size = size || 18;
     return '<svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'" style="display:block;"><path fill="currentColor" d="M6 2a2 2 0 0 0-2 2v18l8-5.333L20 22V4a2 2 0 0 0-2-2H6z"/></svg>';
+  }
+
+  // Lightweight formatting for product descriptions, typed as plain text by admin/staff:
+  //   # Heading text        -> large bold heading
+  //   ## Subheading text    -> smaller bold subheading
+  //   **bold text**         -> bold inline text
+  // Escapes any raw HTML first so this stays safe to render with innerHTML.
+  function formatDescriptionInline(line) {
+    return line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  }
+  function formatDescriptionHtml(text) {
+    if (!text) return '';
+    var escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    var lines = escaped.split('\n');
+    return lines.map(function(line){
+      var trimmed = line.trim();
+      if (trimmed.indexOf('## ') === 0) {
+        return '<div style="font-size:1.05em;font-weight:800;margin:10px 0 4px;">' + formatDescriptionInline(trimmed.slice(3)) + '</div>';
+      }
+      if (trimmed.indexOf('# ') === 0) {
+        return '<div style="font-size:1.2em;font-weight:900;margin:12px 0 6px;">' + formatDescriptionInline(trimmed.slice(2)) + '</div>';
+      }
+      if (trimmed === '') return '<div style="height:0.6em;"></div>';
+      return '<div>' + formatDescriptionInline(line) + '</div>';
+    }).join('');
   }
 
   function truncateWords(text, n) {
@@ -2679,7 +2704,7 @@
 
     if (p.description && p.description.trim()) {
       var fullText = p.description.trim();
-      descText.textContent = fullText;
+      descText.innerHTML = formatDescriptionHtml(fullText);
       descText.classList.add('pd-desc-clamped');
       readMoreBtn.textContent = '▼ Show more';
       readMoreBtn.setAttribute('data-expanded', 'false');
@@ -3761,7 +3786,7 @@
     var fbwDescWrap = document.getElementById('fbw-preview-desc-wrap');
     var fbwDescBody = document.getElementById('fbw-preview-desc');
     var fbwDescArrow = document.getElementById('fbw-preview-desc-arrow');
-    fbwDescBody.textContent = p.description || '';
+    fbwDescBody.innerHTML = formatDescriptionHtml(p.description || '');
     fbwDescBody.style.display = 'none';
     if (fbwDescArrow) fbwDescArrow.style.transform = 'rotate(0deg)';
     fbwDescWrap.style.display = p.description ? 'block' : 'none';
