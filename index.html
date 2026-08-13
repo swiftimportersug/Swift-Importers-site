@@ -1621,7 +1621,7 @@
       <div class="hto-option" id="del-opt-2"><div class="hto-num">&#127960;&#65039;</div><div class="hto-content"><div class="hto-title">Kampala &amp; Suburbs Coverage</div><p>We deliver across <strong>Kampala and its major suburbs</strong>, including Munyonyo, Buziga, Bweyogerere, Ntinda, Ggaba, Makindye, Makerere, and many more.</p></div></div>
       <div class="hto-option" id="del-opt-3"><div class="hto-num">&#128172;</div><div class="hto-content"><div class="hto-title">Add Detailed Directions</div><p>Include clear landmark-based directions in your order notes. For example: "Behind Shell Kireka, second gray gate on the left" or "Makerere, Ham Towers near the main gate."</p></div></div>
       <div class="hto-option" id="del-opt-4"><div class="hto-num">&#9201;&#65039;</div><div class="hto-content"><div class="hto-title">Delivery Times</div><p>Same-day delivery for orders placed before <strong>6:00 PM</strong> within Kampala. You can expect your items within <strong>20-40 minutes</strong> after order confirmation for most Kampala suburbs. For Jinja - same day via taxi. For Lira City - bus parcel, next morning pickup. Fees UGX 5,000-20,000.</p></div></div>
-      <div class="hto-footer-btn" id="del-footer-btn"><a href="#order" onclick="captureCheckoutOrigin();closeAllOverlays();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();armCheckoutGuard();},200)" class="btn-primary" style="display:block;text-align:center;margin-top:8px;text-decoration:none;">Place Your Order Now</a></div>
+      <div class="hto-footer-btn" id="del-footer-btn"><a href="#order" onclick="captureCheckoutOrigin();closeAllOverlays();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();armCheckoutGuard();prefillCheckoutFromAccount();},200)" class="btn-primary" style="display:block;text-align:center;margin-top:8px;text-decoration:none;">Place Your Order Now</a></div>
     </div>
   </div>
 </div>
@@ -1707,6 +1707,27 @@
           <span>📦 Purchase History</span><span id="account-purchases-arrow">▸</span>
         </button>
         <div id="account-purchases-body" style="display:none;padding:10px 2px 0;max-height:260px;overflow-y:auto;"></div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <button onclick="toggleAccountSection('address')" style="width:100%;text-align:left;background:var(--light);border:none;padding:12px 14px;border-radius:8px;font-size:0.85rem;font-weight:700;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-family:'Inter',sans-serif;">
+          <span>📍 Delivery Address</span><span id="account-address-arrow">▸</span>
+        </button>
+        <div id="account-address-body" style="display:none;padding:12px 2px 0;">
+          <div style="font-size:0.74rem; color:var(--grey); margin-bottom:10px;">Save this once and it'll automatically fill in at checkout — no need to retype it every order.</div>
+          <label style="display:block; font-size:0.7rem; font-weight:700; color:#555; margin-bottom:4px;">Delivery Area</label>
+          <select id="account-saved-area" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;margin-bottom:10px;font-family:'Inter',sans-serif;">
+            <option value="">Select your area</option>
+            <option>Kampala Central</option><option>Kampala Suburbs (Ntinda, Bukoto, Najjera)</option>
+            <option>Entebbe</option><option>Jinja</option><option>Mbarara</option>
+            <option>Gulu</option><option>Mbale</option><option>Fort Portal</option>
+            <option>Kasese</option><option>Other (specify below)</option>
+          </select>
+          <label style="display:block; font-size:0.7rem; font-weight:700; color:#555; margin-bottom:4px;">Exact Delivery Location</label>
+          <textarea id="account-saved-location" rows="2" placeholder="e.g. Opposite Shoprite, next to Stanbic Bank..." style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;margin-bottom:10px;font-family:'Inter',sans-serif;resize:vertical;"></textarea>
+          <button onclick="saveMyDeliveryAddress()" class="submit-btn" style="padding:10px;">Save Address</button>
+          <div id="account-address-msg" style="display:none;margin-top:8px;font-size:0.78rem;font-weight:700;"></div>
+        </div>
       </div>
 
       <div style="margin-bottom:16px;">
@@ -1805,7 +1826,7 @@
     <div class="cart-total" id="cart-total-row" style="display:none;">
       <span>Total</span><span id="cart-total-val"></span>
     </div>
-    <button class="submit-btn" onclick="captureCheckoutOrigin();closeAllOverlays();renderOrderItemsSummary();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();armCheckoutGuard();}, 50);">Proceed to Order</button>
+    <button class="submit-btn" onclick="captureCheckoutOrigin();closeAllOverlays();renderOrderItemsSummary();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();armCheckoutGuard();prefillCheckoutFromAccount();}, 50);">Proceed to Order</button>
   </div>
 </div>
 
@@ -3607,6 +3628,7 @@
       showOrderFormArrow();
       armOrderFieldValidation();
       armCheckoutGuard();
+      prefillCheckoutFromAccount();
       // Focus first empty field
       var nameField = document.getElementById('order-name');
       if (nameField && !nameField.value) { setTimeout(function(){ nameField.focus(); }, 600); }
@@ -4423,8 +4445,14 @@
     } catch(e) { /* Web Audio unavailable/blocked — fail silently, badge still shows */ }
   }
 
-  // Browser notifications for new messages — see the honest limits noted where this is
-  // called from (requestNotificationPermission / showBrowserNotification below).
+  // Browser notifications for new messages — see sw.js for the honest limits (this
+  // works while the tab is open somewhere, even backgrounded; it does NOT work with the
+  // browser fully closed, which needs Firebase Cloud Messaging + a server-side trigger).
+  var swRegistration = null;
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').then(function(reg){ swRegistration = reg; }).catch(function(){ /* sw.js missing or blocked — notifications just won't show */ });
+  }
+
   function requestNotificationPermission() {
     if (!('Notification' in window)) return;
     if (Notification.permission === 'default') {
@@ -4434,14 +4462,24 @@
 
   function showBrowserNotification(latestMsg) {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    try {
-      var n = new Notification('New message from Swift Importers', {
-        body: latestMsg && latestMsg.text ? latestMsg.text : 'You have a new message.',
-        icon: 'https://em-content.zobj.net/source/apple/391/speech-balloon_1f4ac.png',
-        tag: 'swift-importers-message' // replaces any earlier notification instead of stacking
-      });
-      n.onclick = function(){ window.focus(); openMessagesPage(); n.close(); };
-    } catch(e) { /* some browsers restrict Notification() outside a service worker context */ }
+    var title = 'New message from Swift Importers';
+    var options = {
+      body: latestMsg && latestMsg.text ? latestMsg.text : 'You have a new message.',
+      icon: 'https://em-content.zobj.net/source/apple/391/speech-balloon_1f4ac.png',
+      tag: 'swift-importers-message', // replaces any earlier notification instead of stacking
+      renotify: true,
+      vibrate: [200, 100, 200]
+    };
+    // showNotification() via a service worker is what actually shows up reliably in
+    // mobile's system notification area — the plain `new Notification()` constructor
+    // mostly only works on desktop.
+    if (swRegistration && swRegistration.showNotification) {
+      swRegistration.showNotification(title, options);
+    } else if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+      navigator.serviceWorker.ready.then(function(reg){ reg.showNotification(title, options); }).catch(function(){});
+    } else {
+      try { var n = new Notification(title, options); n.onclick = function(){ window.focus(); openMessagesPage(); n.close(); }; } catch(e) {}
+    }
   }
 
   function startMessagesListener() {
@@ -4512,7 +4550,10 @@
     if (!currentAccount) { openAccountEntry(); return; }
     openOverlayEl(document.getElementById('messages-modal'));
     renderMessagesThread();
-    markAdminMessagesRead();
+    markAdminMessagesRead().then(function(){
+      renderMessagesThread();
+      updateMessagesBadge();
+    });
     checkPendingReviewReminder();
   }
 
@@ -4580,6 +4621,7 @@
       var { doc, updateDoc } = window.fbFns;
       for (var i = 0; i < unread.length; i++) {
         await updateDoc(doc(window.fbDb, 'messages', unread[i].fbDocId), { read: true });
+        unread[i].read = true;
       }
     } catch(e) { console.error('[messages] failed to mark read:', e); }
   }
@@ -4947,6 +4989,9 @@
     if (codeBody) { codeBody.style.display = 'none'; codeArrow.textContent = '▸'; }
     var codeMsg = document.getElementById('account-change-code-msg');
     if (codeMsg) codeMsg.style.display = 'none';
+    var addrBody = document.getElementById('account-address-body');
+    var addrArrow = document.getElementById('account-address-arrow');
+    if (addrBody) { addrBody.style.display = 'none'; addrArrow.textContent = '▸'; }
 
     var goldNote = document.getElementById('account-dash-gold-note');
     var progressNote = document.getElementById('account-dash-progress-note');
@@ -5062,6 +5107,46 @@
     body.style.display = isOpen ? 'none' : 'block';
     arrow.textContent = isOpen ? '▸' : '▾';
     if (!isOpen && name === 'purchases') renderPurchaseHistory();
+    if (!isOpen && name === 'address') {
+      document.getElementById('account-saved-area').value = (currentAccount && currentAccount.savedArea) || '';
+      document.getElementById('account-saved-location').value = (currentAccount && currentAccount.savedExactLocation) || '';
+      document.getElementById('account-address-msg').style.display = 'none';
+    }
+  }
+
+  async function saveMyDeliveryAddress() {
+    var msg = document.getElementById('account-address-msg');
+    if (!currentAccount || !window.fbDb || !window.fbFns) return;
+    var area = document.getElementById('account-saved-area').value;
+    var location = document.getElementById('account-saved-location').value.trim();
+    try {
+      var { doc, updateDoc } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'customers', currentAccount.fbDocId), { savedArea: area, savedExactLocation: location });
+      currentAccount.savedArea = area;
+      currentAccount.savedExactLocation = location;
+      msg.textContent = '✓ Address saved — it\'ll auto-fill at checkout from now on.';
+      msg.style.color = '#2a9d50';
+      msg.style.display = 'block';
+    } catch(e) {
+      msg.textContent = 'Couldn\'t save — check your connection.';
+      msg.style.color = 'var(--red)';
+      msg.style.display = 'block';
+      console.error(e);
+    }
+  }
+
+  // Fills in name/phone/area/location from the signed-in account so a registered
+  // customer never has to retype details they've already given us.
+  function prefillCheckoutFromAccount() {
+    if (!currentAccount) return;
+    var nameEl = document.getElementById('order-name');
+    var phoneEl = document.getElementById('order-phone');
+    var areaEl = document.getElementById('order-area');
+    var locEl = document.getElementById('exact-location');
+    if (nameEl && !nameEl.value && currentAccount.name) nameEl.value = currentAccount.name;
+    if (phoneEl && !phoneEl.value && currentAccount.phone) phoneEl.value = currentAccount.phone;
+    if (areaEl && !areaEl.value && currentAccount.savedArea) areaEl.value = currentAccount.savedArea;
+    if (locEl && !locEl.value && currentAccount.savedExactLocation) locEl.value = currentAccount.savedExactLocation;
   }
 
   async function renderPurchaseHistory() {

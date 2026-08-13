@@ -2186,6 +2186,11 @@
     } catch(e) { /* Web Audio unavailable/blocked — badge still shows */ }
   }
 
+  var swRegistrationAdmin = null;
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').then(reg => { swRegistrationAdmin = reg; }).catch(() => {});
+  }
+
   function requestNotificationPermissionAdmin() {
     if (!('Notification' in window)) return;
     if (Notification.permission === 'default') {
@@ -2195,13 +2200,20 @@
 
   function showAdminBrowserNotification(latestMsg) {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    try {
-      const n = new Notification('New customer message' + (latestMsg && latestMsg.customerName ? ' — ' + latestMsg.customerName : ''), {
-        body: latestMsg && latestMsg.text ? latestMsg.text : 'A customer has sent a new message.',
-        tag: 'swift-admin-message'
-      });
-      n.onclick = () => { window.focus(); showPage('messages'); n.close(); };
-    } catch(e) { /* some browsers restrict Notification() outside a service worker context */ }
+    const title = 'New customer message' + (latestMsg && latestMsg.customerName ? ' — ' + latestMsg.customerName : '');
+    const options = {
+      body: latestMsg && latestMsg.text ? latestMsg.text : 'A customer has sent a new message.',
+      tag: 'swift-admin-message',
+      renotify: true,
+      vibrate: [200, 100, 200]
+    };
+    if (swRegistrationAdmin && swRegistrationAdmin.showNotification) {
+      swRegistrationAdmin.showNotification(title, options);
+    } else if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+      navigator.serviceWorker.ready.then(reg => reg.showNotification(title, options)).catch(() => {});
+    } else {
+      try { const n = new Notification(title, options); n.onclick = () => { window.focus(); showPage('messages'); n.close(); }; } catch(e) {}
+    }
   }
 
   function fbListenMessages() {
@@ -2278,9 +2290,16 @@
     activeThreadCustomerId = customerId;
     renderAdminThreadsList();
     renderAdminThreadMessages(customerId);
-    markCustomerMessagesRead(customerId);
     document.getElementById('admin-thread-back-btn').style.display = 'inline-block';
     document.body.classList.add('admin-thread-open'); // mobile: show conversation panel, hide list
+    markCustomerMessagesRead(customerId).then(function(){
+      // Update our local copy immediately too, so the color change is instant instead of
+      // waiting on the next Firestore snapshot round-trip.
+      allMessages.forEach(m => { if (m.customerId === customerId && m.sender === 'customer') m.read = true; });
+      renderAdminThreadsList();
+      renderAdminThreadMessages(customerId);
+      updateAdminMessagesBadge();
+    });
   }
 
   function closeAdminThread() {
@@ -2299,13 +2318,15 @@
     replyRow.style.display = 'flex';
     box.innerHTML = msgs.map(m => {
       const isAdmin = m.sender === 'admin';
-      const customerRead = !isAdmin && m.read; // this customer message has been read
-      const bubbleBg = isAdmin ? 'var(--gold)' : (customerRead ? '#e0f7e9' : 'var(--light)');
-      const bubbleColor = isAdmin ? 'var(--black)' : (customerRead ? '#1b7d40' : '#222');
+      const customerRead = !isAdmin && m.read; // this customer message has been read by admin
+      const adminMsgSeen = isAdmin && m.read;   // this admin message has been seen by the customer
+      const bubbleBg = isAdmin ? (adminMsgSeen ? '#e0f7e9' : 'var(--gold)') : (customerRead ? '#e0f7e9' : 'var(--light)');
+      const bubbleColor = isAdmin ? (adminMsgSeen ? '#1b7d40' : 'var(--black)') : (customerRead ? '#1b7d40' : '#222');
+      const footerText = isAdmin ? (adminMsgSeen ? '✅ Seen' : 'You') : (customerRead ? '✅ Read' : 'Customer');
       return `
         <div style="align-self:${isAdmin ? 'flex-end' : 'flex-start'}; max-width:75%;">
           <div style="background:${bubbleBg}; color:${bubbleColor}; padding:9px 13px; border-radius:${isAdmin ? '14px 14px 3px 14px' : '14px 14px 14px 3px'}; font-size:0.85rem; line-height:1.4; transition:background 0.3s, color 0.3s;">${(m.text||'').replace(/</g,'&lt;')}</div>
-          <div style="font-size:0.62rem; color:#999; margin-top:3px; text-align:${isAdmin ? 'right' : 'left'};">${isAdmin ? 'You' : (customerRead ? '✅ Read' : 'Customer')} &middot; ${fmtOrderTime(m.timestamp)}</div>
+          <div style="font-size:0.62rem; color:#999; margin-top:3px; text-align:${isAdmin ? 'right' : 'left'};">${footerText} &middot; ${fmtOrderTime(m.timestamp)}</div>
         </div>
       `;
     }).join('');
