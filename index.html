@@ -4282,6 +4282,19 @@
     }
   }
 
+  function handleBiometricToggle() {
+    if (currentAccount && currentAccount.webauthnCredentialId) {
+      showAppConfirm(
+        'Turn off Face/Touch ID sign-in on this device?\nYou\'ll need your phone number and code to sign in next time.',
+        disableBiometricLogin,
+        null,
+        { icon: '🔐', confirmText: 'Turn Off', cancelText: 'Keep It On' }
+      );
+    } else {
+      enableBiometricLogin();
+    }
+  }
+
   async function disableBiometricLogin() {
     if (!currentAccount || !window.fbDb || !window.fbFns) return;
     try {
@@ -4410,10 +4423,32 @@
     } catch(e) { /* Web Audio unavailable/blocked — fail silently, badge still shows */ }
   }
 
+  // Browser notifications for new messages — see the honest limits noted where this is
+  // called from (requestNotificationPermission / showBrowserNotification below).
+  function requestNotificationPermission() {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().catch(function(){});
+    }
+  }
+
+  function showBrowserNotification(latestMsg) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    try {
+      var n = new Notification('New message from Swift Importers', {
+        body: latestMsg && latestMsg.text ? latestMsg.text : 'You have a new message.',
+        icon: 'https://em-content.zobj.net/source/apple/391/speech-balloon_1f4ac.png',
+        tag: 'swift-importers-message' // replaces any earlier notification instead of stacking
+      });
+      n.onclick = function(){ window.focus(); openMessagesPage(); n.close(); };
+    } catch(e) { /* some browsers restrict Notification() outside a service worker context */ }
+  }
+
   function startMessagesListener() {
     if (!currentAccount || !window.fbDb || !window.fbFns || !window.fbFns.query || !window.fbFns.where) return;
     if (unsubscribeMessages) { unsubscribeMessages(); unsubscribeMessages = null; }
     messagesFirstSnapshotSeen = false;
+    requestNotificationPermission();
     var { collection, query, where, onSnapshot } = window.fbFns;
     var q = query(collection(window.fbDb, 'messages'), where('customerId', '==', currentAccount.fbDocId));
     unsubscribeMessages = onSnapshot(q, function(snapshot){
@@ -4422,6 +4457,12 @@
       var newUnread = customerMessages.filter(function(m){ return m.sender === 'admin' && !m.read; }).length;
       if (messagesFirstSnapshotSeen && newUnread > lastKnownUnreadMsgCount) {
         playMessageAlertSound();
+        // Only pop a system notification if they're not already looking at the tab —
+        // avoids a redundant notification while they're mid-conversation.
+        if (document.visibilityState !== 'visible') {
+          var lastAdminMsg = customerMessages.filter(function(m){ return m.sender === 'admin'; }).slice(-1)[0];
+          showBrowserNotification(lastAdminMsg);
+        }
       }
       lastKnownUnreadMsgCount = newUnread;
       messagesFirstSnapshotSeen = true;
@@ -4488,9 +4529,12 @@
     empty.style.display = 'none';
     thread.innerHTML = customerMessages.map(function(m){
       var isMe = m.sender === 'customer';
+      var seen = isMe && m.read; // admin has read this message the customer sent
+      var bubbleBg = isMe ? (seen ? '#e0f7e9' : 'var(--black)') : 'var(--light)';
+      var bubbleColor = isMe ? (seen ? '#1b7d40' : '#fff') : '#222';
       return '<div style="align-self:'+(isMe?'flex-end':'flex-start')+'; max-width:78%;">' +
-        '<div style="background:'+(isMe?'var(--black)':'var(--light)')+'; color:'+(isMe?'#fff':'#222')+'; padding:9px 13px; border-radius:'+(isMe?'14px 14px 3px 14px':'14px 14px 14px 3px')+'; font-size:0.85rem; line-height:1.4;">'+escapeHtml(m.text)+'</div>' +
-        '<div style="font-size:0.62rem; color:var(--grey); margin-top:3px; text-align:'+(isMe?'right':'left')+';">'+(isMe?'You':'Swift Importers')+' &middot; '+fmtMessageTime(m.timestamp)+'</div>' +
+        '<div style="background:'+bubbleBg+'; color:'+bubbleColor+'; padding:9px 13px; border-radius:'+(isMe?'14px 14px 3px 14px':'14px 14px 14px 3px')+'; font-size:0.85rem; line-height:1.4; transition:background 0.3s, color 0.3s;">'+escapeHtml(m.text)+'</div>' +
+        '<div style="font-size:0.62rem; color:var(--grey); margin-top:3px; text-align:'+(isMe?'right':'left')+';">'+(isMe?(seen?'Seen &#10003;':'You'):'Swift Importers')+' &middot; '+fmtMessageTime(m.timestamp)+'</div>' +
       '</div>';
     }).join('');
     thread.scrollTop = thread.scrollHeight;
@@ -4943,14 +4987,6 @@
       } else {
         bioSection.style.display = 'none';
       }
-    }
-  }
-
-  function handleBiometricToggle() {
-    if (currentAccount && currentAccount.webauthnCredentialId) {
-      disableBiometricLogin();
-    } else {
-      enableBiometricLogin();
     }
   }
 
