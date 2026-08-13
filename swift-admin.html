@@ -712,6 +712,10 @@
       .main { margin-left: 0; }
       .menu-toggle { display: block; }
       .content { padding: 16px; }
+      .admin-messages-layout{ grid-template-columns:1fr !important; height:calc(100vh - 140px) !important; }
+      .admin-conversation-panel{ display:none !important; }
+      body.admin-thread-open .admin-conversation-panel{ display:flex !important; }
+      body.admin-thread-open .admin-threads-panel{ display:none !important; }
       .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
       .form-row-2, .form-row-3 { grid-template-columns: 1fr; }
       .variant-row { gap: 8px; }
@@ -1295,12 +1299,15 @@
         <div class="section-hdr">
           <h2>💬 Customer Messages</h2>
         </div>
-        <div style="display:grid; grid-template-columns:280px 1fr; gap:16px; height:calc(100vh - 180px); min-height:400px;">
-          <div class="table-wrap" style="overflow-y:auto; padding:8px;">
+        <div class="admin-messages-layout" style="display:grid; grid-template-columns:280px 1fr; gap:16px; height:calc(100vh - 180px); min-height:400px;">
+          <div class="table-wrap admin-threads-panel" id="admin-threads-panel" style="overflow-y:auto; padding:8px;">
             <div id="admin-threads-list"></div>
           </div>
-          <div class="table-wrap" style="display:flex; flex-direction:column; overflow:hidden;">
-            <div id="admin-thread-header" style="padding:14px 18px; border-bottom:1px solid var(--border); font-weight:800; font-size:0.9rem; flex-shrink:0;">Select a conversation</div>
+          <div class="table-wrap admin-conversation-panel" id="admin-conversation-panel" style="display:flex; flex-direction:column; overflow:hidden;">
+            <div id="admin-thread-header" style="padding:14px 18px; border-bottom:1px solid var(--border); font-weight:800; font-size:0.9rem; flex-shrink:0; display:flex; align-items:center; gap:10px;">
+              <button id="admin-thread-back-btn" onclick="closeAdminThread()" style="display:none; background:none; border:none; font-size:1.1rem; cursor:pointer; padding:0 4px 0 0; color:var(--black);">&#8249;</button>
+              <span id="admin-thread-header-text">Select a conversation</span>
+            </div>
             <div id="admin-thread-messages" style="flex:1; overflow-y:auto; padding:16px 18px; display:flex; flex-direction:column; gap:10px;"></div>
             <div id="admin-thread-reply-row" style="display:none; padding:12px 14px; border-top:1px solid var(--border); gap:8px; flex-shrink:0;">
               <input type="text" id="admin-reply-input" placeholder="Type a reply..." style="flex:1; min-width:0; padding:10px 13px; border:1.5px solid var(--border); border-radius:20px; font-size:0.85rem; font-family:'Inter',sans-serif; outline:none;" onkeydown="if(event.key==='Enter'){event.preventDefault();sendAdminReply();}"/>
@@ -2091,13 +2098,50 @@
   let activeThreadCustomerId = null;
   let unsubscribeMessages = null;
 
+  let messagesFirstSnapshotSeenAdmin = false;
+  let lastKnownUnreadMsgCountAdmin = 0;
+
+  function playAdminMessageAlert() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const playTone = (freq, startTime, duration, peakGain) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle'; // brighter/more attention-grabbing than a plain sine
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(peakGain, startTime + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+      };
+      const now = ctx.currentTime;
+      // Punchy 3-note ascending alert, louder than the storefront's soft chime, played twice
+      [0, 0.55].forEach(pass => {
+        playTone(784, now + pass, 0.16, 0.5);
+        playTone(987.77, now + pass + 0.13, 0.16, 0.5);
+        playTone(1318.51, now + pass + 0.26, 0.32, 0.55);
+      });
+      setTimeout(() => { try { ctx.close(); } catch(e) {} }, 1400);
+    } catch(e) { /* Web Audio unavailable/blocked — badge still shows */ }
+  }
+
   function fbListenMessages() {
     if (!window.fbDb || !window.fbFns) return;
     const { collection, onSnapshot } = window.fbFns;
     if (unsubscribeMessages) unsubscribeMessages();
+    messagesFirstSnapshotSeenAdmin = false;
     unsubscribeMessages = onSnapshot(collection(window.fbDb, 'messages'), (snapshot) => {
       allMessages = snapshot.docs.map(d => ({ fbDocId: d.id, ...d.data() }));
       allMessages.sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+      const newUnread = allMessages.filter(m => m.sender === 'customer' && !m.read).length;
+      if (messagesFirstSnapshotSeenAdmin && newUnread > lastKnownUnreadMsgCountAdmin) {
+        playAdminMessageAlert();
+      }
+      lastKnownUnreadMsgCountAdmin = newUnread;
+      messagesFirstSnapshotSeenAdmin = true;
       updateAdminMessagesBadge();
       const messagesPage = document.getElementById('page-messages');
       if (messagesPage && messagesPage.classList.contains('active')) {
@@ -2131,16 +2175,22 @@
     }).sort((a,b) => new Date(b.lastTime) - new Date(a.lastTime));
 
     if (threads.length === 0) { list.innerHTML = '<div style="padding:16px; font-size:0.8rem; color:#999;">No messages yet.</div>'; return; }
-    list.innerHTML = threads.map(t => `
-      <div onclick="openAdminThread('${t.customerId}')" style="padding:12px 10px; border-radius:8px; cursor:pointer; margin-bottom:4px; background:${activeThreadCustomerId === t.customerId ? 'var(--light)' : 'transparent'};">
+    list.innerHTML = threads.map(t => {
+      const isActive = activeThreadCustomerId === t.customerId;
+      const isRead = t.unread === 0;
+      const bg = isActive ? 'var(--light)' : (isRead ? '#e9f7ee' : 'transparent');
+      const border = isRead && !isActive ? '1px solid #b8e0c4' : '1px solid transparent';
+      return `
+      <div onclick="openAdminThread('${t.customerId}')" style="padding:12px 10px; border-radius:8px; cursor:pointer; margin-bottom:4px; background:${bg}; border:${border};">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
-          <span style="font-weight:800; font-size:0.82rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${t.name}</span>
+          <span style="font-weight:800; font-size:0.82rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${isRead ? '✅ ' : ''}${t.name}</span>
           ${t.unread > 0 ? `<span style="background:var(--red); color:#fff; font-size:0.62rem; font-weight:800; min-width:16px; height:16px; border-radius:20px; display:flex; align-items:center; justify-content:center; padding:0 4px; flex-shrink:0;">${t.unread}</span>` : ''}
         </div>
         <div style="font-size:0.72rem; color:#888; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px;">${t.lastText}</div>
         <div style="font-size:0.62rem; color:#bbb; margin-top:2px;">${fmtOrderTime(t.lastTime)}</div>
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
 
   function openAdminThread(customerId) {
@@ -2148,10 +2198,18 @@
     renderAdminThreadsList();
     renderAdminThreadMessages(customerId);
     markCustomerMessagesRead(customerId);
+    document.getElementById('admin-thread-back-btn').style.display = 'inline-block';
+    document.body.classList.add('admin-thread-open'); // mobile: show conversation panel, hide list
+  }
+
+  function closeAdminThread() {
+    activeThreadCustomerId = null;
+    document.body.classList.remove('admin-thread-open'); // mobile: show list panel again
+    renderAdminThreadsList();
   }
 
   function renderAdminThreadMessages(customerId) {
-    const header = document.getElementById('admin-thread-header');
+    const header = document.getElementById('admin-thread-header-text');
     const box = document.getElementById('admin-thread-messages');
     const replyRow = document.getElementById('admin-thread-reply-row');
     const msgs = allMessages.filter(m => m.customerId === customerId);
@@ -2200,21 +2258,26 @@
     } catch(e) { console.error('[messages] failed to send reply:', e); input.value = text; }
   }
 
+  let allCustomersCache = [];
+
   async function searchCustomers(query) {
     const results = document.getElementById('customer-search-results');
-    const q = query.trim();
-    if (!q) { results.innerHTML = '<div style="font-size:0.8rem; color:#999;">Start typing a phone number or name...</div>'; return; }
+    const q = (query || '').trim();
     if (!window.fbDb || !window.fbFns) return;
     try {
-      const { collection, getDocs } = window.fbFns;
-      const snap = await getDocs(collection(window.fbDb, 'customers'));
-      const qLower = q.toLowerCase();
-      const matches = snap.docs
-        .map(d => ({ fbDocId: d.id, ...d.data() }))
-        .filter(c => (c.phone||'').includes(q.replace(/[^\d]/g,'')) || (c.name||'').toLowerCase().includes(qLower))
-        .slice(0, 15);
-      if (matches.length === 0) { results.innerHTML = '<div style="font-size:0.8rem; color:#999;">No matching customers.</div>'; return; }
-      results.innerHTML = matches.map(c => `
+      if (allCustomersCache.length === 0) {
+        const { collection, getDocs } = window.fbFns;
+        const snap = await getDocs(collection(window.fbDb, 'customers'));
+        allCustomersCache = snap.docs.map(d => ({ fbDocId: d.id, ...d.data() }));
+        allCustomersCache.sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
+      }
+      let matches = allCustomersCache;
+      if (q) {
+        const qLower = q.toLowerCase();
+        matches = matches.filter(c => (c.phone||'').includes(q.replace(/[^\d]/g,'')) || (c.name||'').toLowerCase().includes(qLower));
+      }
+      if (matches.length === 0) { results.innerHTML = `<div style="font-size:0.8rem; color:#999;">${q ? 'No matching customers.' : 'No registered customers yet.'}</div>`; return; }
+      results.innerHTML = matches.slice(0, 60).map(c => `
         <div style="width:260px; flex:0 0 260px; box-sizing:border-box; display:flex; flex-direction:column; gap:6px; background:var(--light); border:1px solid var(--border); border-radius:10px; padding:12px 14px;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
             <span style="font-weight:800; font-size:0.85rem;">${c.name || '(no name)'}</span>
@@ -2227,7 +2290,7 @@
           </div>
           <button onclick="openResetCustomerCode('${c.fbDocId}','${(c.name||'').replace(/'/g,"\\'")}','${c.phone}')" style="margin-top:4px; background:#fff; border:1.5px solid var(--border); color:#555; cursor:pointer; font-size:0.72rem; font-weight:700; padding:6px 10px; border-radius:6px;">🔑 Reset Code</button>
         </div>
-      `).join('');
+      `).join('') + (matches.length > 60 ? `<div style="width:100%; font-size:0.76rem; color:#999; margin-top:6px;">Showing 60 of ${matches.length} — narrow your search to see more specific results.</div>` : '');
     } catch(e) {
       results.innerHTML = '<div style="font-size:0.8rem; color:var(--red);">Error searching customers.</div>';
       console.error(e);
@@ -2652,8 +2715,8 @@
     document.getElementById('page-title').textContent = titles[name] || name;
     if (name !== 'scanner') stopScanner();
     if (name === 'emp-performance') renderEmployeePerformance();
-    if (name === 'customers') { loadTierSettingsIntoForm(); }
-    if (name === 'messages') { renderAdminThreadsList(); }
+    if (name === 'customers') { loadTierSettingsIntoForm(); searchCustomers(document.getElementById('customer-search-input') ? document.getElementById('customer-search-input').value : ''); }
+    if (name === 'messages') { document.body.classList.remove('admin-thread-open'); activeThreadCustomerId = null; renderAdminThreadsList(); }
     renderAll();
     closeSidebar();
   }
