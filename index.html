@@ -220,6 +220,13 @@
       55%{ transform:scale(0.85) rotate(6deg); }
       100%{ transform:scale(1) rotate(0); }
     }
+    @keyframes reviewPulse{
+      0%{ transform:scale(1); box-shadow:0 0 0 0 rgba(199,162,72,0.5); }
+      30%{ transform:scale(1.03); box-shadow:0 0 0 8px rgba(199,162,72,0.15); }
+      60%{ transform:scale(0.99); box-shadow:0 0 0 3px rgba(199,162,72,0.25); }
+      100%{ transform:scale(1); box-shadow:0 0 0 0 rgba(199,162,72,0); }
+    }
+    .review-pulse{ animation:reviewPulse 0.9s ease-out; }
     @keyframes heartParticleFloat{
       0%{ transform:translate(-50%,-50%) scale(0.4) rotate(0deg); opacity:1; }
       70%{ opacity:1; }
@@ -846,27 +853,26 @@
     .modal h2{font-family:var(--serif);font-size:1.5rem;font-weight:600;margin-bottom:8px;}
     .modal p{color:#555;font-size:0.9rem;margin-bottom:20px;}
     .modal-close{position:absolute;top:16px;right:16px;background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--grey);}
-    @media(max-width:768px){
-      #account-modal.open, #saved-modal.open, #messages-modal.open{
-        align-items:stretch !important; justify-content:stretch !important; padding:0 !important;
-      }
-      #account-modal .modal, #saved-modal .modal, #messages-modal .modal{
-        width:100% !important; max-width:100% !important; height:100vh !important; height:100dvh !important;
-        max-height:100vh !important; max-height:100dvh !important; border-radius:0 !important; margin:0 !important;
-        overflow-y:auto; padding-top:56px !important; box-sizing:border-box;
-      }
-      #account-modal .modal-close, #saved-modal .modal-close, #messages-modal .modal-close{
-        position:fixed !important; top:0 !important; left:0 !important; right:0 !important; margin:0; z-index:20;
-        background:var(--white); width:100%; height:52px;
-        display:flex; align-items:center; padding:0 16px; box-sizing:border-box;
-        border-bottom:1px solid var(--border); font-size:0;
-      }
-      #account-modal .modal-close::before, #saved-modal .modal-close::before, #messages-modal .modal-close::before{
-        content:'\2039 Back'; font-size:0.95rem; font-weight:700; color:var(--black);
-      }
-      #messages-modal .modal{ padding-top:0 !important; }
-      #messages-modal .modal > div:first-child{ padding-top:66px !important; }
+    #account-modal.open, #saved-modal.open, #messages-modal.open{
+      align-items:stretch !important; justify-content:center !important; padding:0 !important;
     }
+    #account-modal .modal, #saved-modal .modal, #messages-modal .modal{
+      width:100% !important; max-width:720px !important; height:100vh !important; height:100dvh !important;
+      max-height:100vh !important; max-height:100dvh !important; border-radius:0 !important; margin:0 !important;
+      overflow-y:auto; padding-top:56px !important; box-sizing:border-box;
+    }
+    #account-modal .modal-close, #saved-modal .modal-close, #messages-modal .modal-close{
+      position:fixed !important; top:0 !important; left:50% !important; right:auto !important;
+      transform:translateX(-50%); margin:0; z-index:20;
+      background:var(--white); width:100%; max-width:720px; height:52px;
+      display:flex; align-items:center; padding:0 16px; box-sizing:border-box;
+      border-bottom:1px solid var(--border); font-size:0;
+    }
+    #account-modal .modal-close::before, #saved-modal .modal-close::before, #messages-modal .modal-close::before{
+      content:'\2039 Back'; font-size:0.95rem; font-weight:700; color:var(--black);
+    }
+    #messages-modal .modal{ padding-top:0 !important; }
+    #messages-modal .modal > div:first-child{ padding-top:66px !important; }
     .hto-modal{max-width:520px;max-height:88vh;overflow-y:auto;padding:0;border-radius:12px;animation:slideUpModal 0.35s cubic-bezier(0.34,1.56,0.64,1);}
     .hto-close-bar{position:sticky;top:0;z-index:10;background:var(--white);display:flex;align-items:center;justify-content:space-between;padding:14px 20px 10px;border-bottom:1px solid var(--border);border-radius:12px 12px 0 0;}
     .hto-close-bar span{font-family:'Inter',sans-serif;font-weight:800;font-size:1rem;color:var(--black);}
@@ -997,7 +1003,7 @@
     <div class="nav-account-wrap" style="position:relative;">
       <button class="account-btn" id="nav-account-btn" onclick="toggleAccountDropdown(event)" title="My Account">👤 <span id="nav-account-label">Account</span> <span style="font-size:0.6rem;">&#9662;</span></button>
       <div id="nav-account-dropdown" class="nav-account-dropdown">
-        <button onclick="closeAccountDropdown();openAccountEntry();">👤 <span>Profile</span></button>
+        <button onclick="closeAccountDropdown();openAccountEntry();">👤 <span style="flex:1;">Profile</span><span id="nav-dropdown-profile-badge" class="nav-dropdown-badge" style="display:none;">!</span></button>
         <button onclick="closeAccountDropdown();openSavedPage();">🔖 <span>Saved</span></button>
         <button onclick="closeAccountDropdown();openMessagesPage();">💬 <span style="flex:1;">Messages</span><span id="nav-dropdown-messages-badge" class="nav-dropdown-badge" style="display:none;"></span></button>
       </div>
@@ -1335,6 +1341,7 @@
   </button>
   <button class="mbn-item" onclick="openAccountEntry()">
     <span class="mbn-icon">👤</span><span class="mbn-label">Profile</span>
+    <span class="mbn-badge" id="mbn-profile-badge" style="display:none;">!</span>
   </button>
 </div>
 
@@ -1689,6 +1696,7 @@
           <div style="font-size:0.68rem;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Total Spent</div>
         </div>
       </div>
+      <div id="account-dash-review-reminder" style="display:none;background:linear-gradient(160deg,#fff3d6,#ffe6b3);border:1.5px solid var(--gold);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:0.82rem;font-weight:700;color:#5a4310;"></div>
       <div id="account-dash-gold-note" style="display:none;background:linear-gradient(160deg,#fff8e6,#f5e2a0);border:1.5px solid #d4af37;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:0.8rem;font-weight:700;color:#5a4310;">
         🌟 Gold Member — you get an automatic 10% off every order, on top of any promo code!
       </div>
@@ -4325,6 +4333,7 @@
         try { localStorage.setItem(BIOMETRIC_STORAGE_KEY, JSON.stringify({ phone: acc.phone, credentialId: credentialId })); } catch(e) {}
         updateAccountNavLabel();
         startMessagesListener();
+    checkPendingReviewReminder();
         closeOverlayEl(document.getElementById('account-modal'));
         refreshCurrentProductGiftBox();
         return true;
@@ -4537,8 +4546,7 @@
   var reviewStarsSelected = 0;
 
   async function checkPendingReviewReminder() {
-    var reminderEl = document.getElementById('messages-review-reminder');
-    if (!currentAccount || !window.fbDb || !window.fbFns || !reminderEl) return;
+    if (!currentAccount || !window.fbDb || !window.fbFns) return;
     try {
       var { collection, query, where, getDocs } = window.fbFns;
       var ordersQ = query(collection(window.fbDb, 'orders'), where('accountId', '==', currentAccount.fbDocId));
@@ -4547,7 +4555,7 @@
         .map(function(d){ return { fbDocId: d.id, ...d.data() }; })
         .filter(function(o){ return o.status === 'closed'; })
         .sort(function(a,b){ return new Date(b.timestamp) - new Date(a.timestamp); });
-      if (closedOrders.length === 0) { reminderEl.style.display = 'none'; return; }
+      if (closedOrders.length === 0) { pendingReviewTarget = null; updateReviewNotificationBadges(); renderReviewReminders(); return; }
 
       var reviewsQ = query(collection(window.fbDb, 'reviews'), where('customerId', '==', currentAccount.fbDocId));
       var reviewsSnap = await getDocs(reviewsQ);
@@ -4566,14 +4574,41 @@
           }
         }
       }
-
-      if (pendingReviewTarget) {
-        reminderEl.innerHTML = '⭐ How was your <strong>' + pendingReviewTarget.productName + '</strong>? <button onclick="openReviewModal(\''+pendingReviewTarget.productId+'\',\''+pendingReviewTarget.productName.replace(/'/g,"\\'")+'\',\''+pendingReviewTarget.orderId+'\')" style="display:block; margin-top:8px; background:var(--black); color:#fff; border:none; padding:8px 16px; border-radius:6px; font-size:0.78rem; font-weight:700; cursor:pointer;">Leave a Review</button>';
-        reminderEl.style.display = 'block';
-      } else {
-        reminderEl.style.display = 'none';
-      }
+      updateReviewNotificationBadges();
+      renderReviewReminders();
     } catch(e) { console.error('[reviews] failed to check pending review:', e); }
+  }
+
+  function updateReviewNotificationBadges() {
+    var hasPending = !!pendingReviewTarget;
+    ['mbn-profile-badge','nav-dropdown-profile-badge'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.style.display = hasPending ? 'flex' : 'none';
+    });
+  }
+
+  function reviewReminderHtml() {
+    if (!pendingReviewTarget) return '';
+    return '⭐ How was your <strong>' + pendingReviewTarget.productName + '</strong>? ' +
+      '<button onclick="openReviewModal(\''+pendingReviewTarget.productId+'\',\''+pendingReviewTarget.productName.replace(/'/g,"\\'")+'\',\''+pendingReviewTarget.orderId+'\')" style="display:block; margin-top:8px; background:var(--black); color:#fff; border:none; padding:8px 16px; border-radius:6px; font-size:0.78rem; font-weight:700; cursor:pointer;">Leave a Review</button>';
+  }
+
+  function renderReviewReminders() {
+    var reminderEl = document.getElementById('messages-review-reminder');
+    if (reminderEl) {
+      if (pendingReviewTarget) { reminderEl.innerHTML = reviewReminderHtml(); reminderEl.style.display = 'block'; }
+      else { reminderEl.style.display = 'none'; }
+    }
+    var dashReminder = document.getElementById('account-dash-review-reminder');
+    if (dashReminder) {
+      if (pendingReviewTarget) {
+        dashReminder.innerHTML = reviewReminderHtml();
+        dashReminder.style.display = 'block';
+        dashReminder.classList.remove('review-pulse'); void dashReminder.offsetWidth; dashReminder.classList.add('review-pulse');
+      } else {
+        dashReminder.style.display = 'none';
+      }
+    }
   }
 
   function openReviewModal(productId, productName, orderId) {
@@ -4789,6 +4824,7 @@
     accountShowView('dashboard');
     refreshCurrentProductGiftBox();
     startMessagesListener();
+    checkPendingReviewReminder();
   }
 
   async function accountSignupSubmit() {
@@ -4815,6 +4851,7 @@
       accountShowView('dashboard');
       refreshCurrentProductGiftBox();
       startMessagesListener();
+    checkPendingReviewReminder();
     } catch(e) {
       msg.textContent = 'Error creating your account. Please try again.';
       msg.style.display = 'block';
@@ -4846,6 +4883,8 @@
   function renderAccountDashboard() {
     if (!currentAccount) return;
     updateProfilePictureDisplay();
+    renderReviewReminders();
+    checkPendingReviewReminder();
     var tier = currentAccount.tier || 'standard';
     var spent = currentAccount.totalSpent || 0;
     document.getElementById('account-dash-name').textContent = currentAccount.name || '';
@@ -5100,6 +5139,7 @@
           currentAccount = acc;
           updateAccountNavLabel();
           startMessagesListener();
+    checkPendingReviewReminder();
         }
       }
     } catch(e) { /* silent — user can just sign in manually */ }
