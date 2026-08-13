@@ -1296,11 +1296,13 @@
       </div>
 
       <div class="form-group">
-        <label>📦 Warehouse Cover Photo (staff-only)</label>
-        <input type="text" id="f-warehouse-cover-image" placeholder="Image URL — what the box/item looks like in storage" oninput="updateWarehouseCoverPreview()"/>
+        <label>📦 Warehouse Cover Photo (staff-only, up to 2)</label>
+        <input type="text" id="f-warehouse-cover-image" placeholder="Image URL — what the box/item looks like in storage" oninput="updateWarehouseCoverPreview()" style="margin-bottom:8px;"/>
+        <input type="text" id="f-warehouse-cover-image-2" placeholder="Second image URL (optional)" oninput="updateWarehouseCoverPreview()"/>
         <div style="font-size:0.7rem; color:#888; margin-top:4px;">Only visible to admin/staff when finding this product's location — never shown to customers. Helps whoever's fetching it recognize the box/packaging at a glance.</div>
-        <div id="f-warehouse-cover-preview" style="display:none; margin-top:8px;">
-          <img id="f-warehouse-cover-preview-img" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);" onerror="this.parentElement.style.display='none';"/>
+        <div id="f-warehouse-cover-preview" style="display:none; margin-top:8px; gap:8px;">
+          <img id="f-warehouse-cover-preview-img" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);" onerror="this.style.display='none';"/>
+          <img id="f-warehouse-cover-preview-img-2" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);display:none;" onerror="this.style.display='none';"/>
         </div>
       </div>
 
@@ -2386,6 +2388,7 @@
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--light); border:1px solid var(--border); border-radius:8px; padding:12px 16px; margin-bottom:8px; flex-wrap:wrap;">
         <div style="display:flex; align-items:center; gap:10px;">
           ${p.warehouseCoverImage ? `<img src="${p.warehouseCoverImage}" onclick="openCoverLightbox('${p.warehouseCoverImage.replace(/'/g,"\\'")}','${p.name.replace(/'/g,"\\'")}')" style="width:44px;height:44px;object-fit:cover;border-radius:7px;border:1.5px solid var(--border);flex-shrink:0;cursor:zoom-in;" onerror="this.style.display='none';" title="Click to enlarge"/>` : ''}
+          ${p.warehouseCoverImage2 ? `<img src="${p.warehouseCoverImage2}" onclick="openCoverLightbox('${p.warehouseCoverImage2.replace(/'/g,"\\'")}','${p.name.replace(/'/g,"\\'")}')" style="width:44px;height:44px;object-fit:cover;border-radius:7px;border:1.5px solid var(--border);flex-shrink:0;cursor:zoom-in;" onerror="this.style.display='none';" title="Click to enlarge"/>` : ''}
           <div style="font-weight:700; font-size:0.85rem;">${p.name}</div>
         </div>
         ${p.warehouseLocation
@@ -3814,6 +3817,7 @@
     document.getElementById('f-threshold').value = threshold;
     document.getElementById('f-warehouse-location').value = '';
     document.getElementById('f-warehouse-cover-image').value = '';
+    document.getElementById('f-warehouse-cover-image-2').value = '';
     updateWarehouseCoverPreview();
     document.getElementById('f-condition').value = 'Brand New';
     document.getElementById('f-promo-eligible').checked = true;
@@ -3865,6 +3869,7 @@
     document.getElementById('f-threshold').value = p.threshold || threshold;
     document.getElementById('f-warehouse-location').value = p.warehouseLocation || '';
     document.getElementById('f-warehouse-cover-image').value = p.warehouseCoverImage || '';
+    document.getElementById('f-warehouse-cover-image-2').value = p.warehouseCoverImage2 || '';
     updateWarehouseCoverPreview();
     document.getElementById('f-condition').value = p.condition || 'Brand New';
     document.getElementById('f-promo-eligible').checked = p.promoEligible !== false;
@@ -4198,12 +4203,16 @@
 
   function updateWarehouseCoverPreview() {
     const input = document.getElementById('f-warehouse-cover-image');
+    const input2 = document.getElementById('f-warehouse-cover-image-2');
     const wrap = document.getElementById('f-warehouse-cover-preview');
     const img = document.getElementById('f-warehouse-cover-preview-img');
+    const img2 = document.getElementById('f-warehouse-cover-preview-img-2');
     if (!input || !wrap || !img) return;
     const url = input.value.trim();
-    if (url) { img.src = url; wrap.style.display = 'block'; }
-    else { wrap.style.display = 'none'; }
+    const url2 = input2 ? input2.value.trim() : '';
+    if (url) { img.src = url; img.style.display = 'block'; } else { img.style.display = 'none'; }
+    if (url2) { img2.src = url2; img2.style.display = 'block'; } else { img2.style.display = 'none'; }
+    wrap.style.display = (url || url2) ? 'flex' : 'none';
   }
 
   function updatePromoCodeVisibleSliderStyle() {
@@ -4267,6 +4276,7 @@
       hotDeal: !!p.hotDeal,
       warehouseLocation: p.warehouseLocation || '',
       warehouseCoverImage: p.warehouseCoverImage || '',
+      warehouseCoverImage2: p.warehouseCoverImage2 || '',
       condition: p.condition || 'Brand New',
       promoEligible: p.promoEligible !== false,
       promoCode: p.promoCode || '',
@@ -4337,6 +4347,7 @@
     const video = document.getElementById('f-video').value.trim();
     const warehouseLocation = document.getElementById('f-warehouse-location').value.trim();
     const warehouseCoverImage = document.getElementById('f-warehouse-cover-image').value.trim();
+    const warehouseCoverImage2 = document.getElementById('f-warehouse-cover-image-2').value.trim();
     const condition = document.getElementById('f-condition').value;
     const promoEligible = document.getElementById('f-promo-eligible').checked;
     const promoCode = document.getElementById('f-promocode').value.trim().toUpperCase();
@@ -4357,8 +4368,8 @@
 
     // Build the full candidate product object (used for both change-detection and saving)
     const candidateProduct = editingId
-      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', condition: condition || 'Brand New', promoEligible: promoEligible, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 }
-      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', condition: condition || 'Brand New', promoEligible: promoEligible, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
+      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', warehouseCoverImage2: warehouseCoverImage2 || '', condition: condition || 'Brand New', promoEligible: promoEligible, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 }
+      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', warehouseCoverImage2: warehouseCoverImage2 || '', condition: condition || 'Brand New', promoEligible: promoEligible, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
 
     // If editing an existing product and nothing actually changed, skip the save entirely
     if (editingId && editingOriginalSnapshot && productSignature(editingOriginalSnapshot) === productSignature(candidateProduct)) {
@@ -4370,14 +4381,14 @@
     if (editingId) {
       const idx = products.findIndex(p => p.id === editingId);
       if (idx > -1) {
-        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', condition: condition || 'Brand New', promoEligible: promoEligible, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
+        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', warehouseCoverImage2: warehouseCoverImage2 || '', condition: condition || 'Brand New', promoEligible: promoEligible, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
       }
     } else {
       products.push({
         id: candidateProduct.id,
         name, category: cat, store, sku,
         threshold: threshold_,
-        variants, hotDeal, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', condition: condition || 'Brand New', promoEligible: promoEligible, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0
+        variants, hotDeal, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', warehouseCoverImage2: warehouseCoverImage2 || '', condition: condition || 'Brand New', promoEligible: promoEligible, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, promoExpiresAt: promoExpiresAt || null, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0
       });
     }
 

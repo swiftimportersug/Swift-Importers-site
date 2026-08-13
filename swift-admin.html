@@ -806,6 +806,55 @@
     </div>
   </div>
 
+  <!-- CUSTOMER DETAIL VIEW -->
+  <div class="modal-overlay" id="customer-detail-modal" onclick="if(event.target===this) this.classList.remove('open');">
+    <div class="modal-box" style="max-width:560px; max-height:85vh; overflow-y:auto; padding:24px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px;">
+        <div>
+          <div id="customer-detail-name" style="font-size:1.1rem; font-weight:800;"></div>
+          <div id="customer-detail-phone" style="font-size:0.8rem; color:#888; margin-top:2px;"></div>
+        </div>
+        <div id="customer-detail-tier"></div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:16px 0;">
+        <div style="background:var(--light); border-radius:8px; padding:10px; text-align:center;">
+          <div id="customer-detail-orders-count" style="font-size:1.2rem; font-weight:900;"></div>
+          <div style="font-size:0.66rem; color:#888; font-weight:700; text-transform:uppercase;">Orders</div>
+        </div>
+        <div style="background:var(--light); border-radius:8px; padding:10px; text-align:center;">
+          <div id="customer-detail-spent" style="font-size:1.05rem; font-weight:900;"></div>
+          <div style="font-size:0.66rem; color:#888; font-weight:700; text-transform:uppercase;">Total Spent</div>
+        </div>
+      </div>
+
+      <div class="admin-3d-box" style="margin-bottom:12px;">
+        <div onclick="toggleCustomerDetailSection('orders')" class="admin-3d-header">
+          <div class="admin-3d-title"><span class="admin-3d-icon">✅</span> Completed Orders</div>
+          <span id="customer-detail-orders-arrow" class="admin-3d-arrow">▸</span>
+        </div>
+        <div id="customer-detail-orders-body" style="display:none; padding:0 16px 16px;"></div>
+      </div>
+
+      <div class="admin-3d-box" style="margin-bottom:12px;">
+        <div onclick="toggleCustomerDetailSection('liked')" class="admin-3d-header">
+          <div class="admin-3d-title"><span class="admin-3d-icon">❤️</span> Liked Items</div>
+          <span id="customer-detail-liked-arrow" class="admin-3d-arrow">▸</span>
+        </div>
+        <div id="customer-detail-liked-body" style="display:none; padding:0 16px 16px;"></div>
+      </div>
+
+      <div class="admin-3d-box">
+        <div onclick="toggleCustomerDetailSection('favs')" class="admin-3d-header">
+          <div class="admin-3d-title"><span class="admin-3d-icon">🔖</span> Favorites</div>
+          <span id="customer-detail-favs-arrow" class="admin-3d-arrow">▸</span>
+        </div>
+        <div id="customer-detail-favs-body" style="display:none; padding:0 16px 16px;"></div>
+      </div>
+
+      <button onclick="document.getElementById('customer-detail-modal').classList.remove('open')" style="width:100%; margin-top:16px; background:var(--light); border:none; color:#777; padding:11px; border-radius:6px; font-size:0.85rem; font-weight:700; cursor:pointer;">Close</button>
+    </div>
+  </div>
+
   <!-- CLOSE ORDER — payment confirmation -->
   <div class="modal-overlay" id="close-order-confirm-modal">
     <div class="modal-box" style="max-width:400px; text-align:center; padding:28px 24px;">
@@ -1407,11 +1456,13 @@
       </div>
 
       <div class="form-group">
-        <label>📦 Warehouse Cover Photo (staff-only)</label>
-        <input type="text" id="f-warehouse-cover-image" placeholder="Image URL — what the box/item looks like in storage" oninput="updateWarehouseCoverPreview()"/>
+        <label>📦 Warehouse Cover Photo (staff-only, up to 2)</label>
+        <input type="text" id="f-warehouse-cover-image" placeholder="Image URL — what the box/item looks like in storage" oninput="updateWarehouseCoverPreview()" style="margin-bottom:8px;"/>
+        <input type="text" id="f-warehouse-cover-image-2" placeholder="Second image URL (optional)" oninput="updateWarehouseCoverPreview()"/>
         <div style="font-size:0.7rem; color:#888; margin-top:4px;">Only visible to admin/staff when finding this product's location — never shown to customers. Helps whoever's fetching it recognize the box/packaging at a glance.</div>
-        <div id="f-warehouse-cover-preview" style="display:none; margin-top:8px;">
-          <img id="f-warehouse-cover-preview-img" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);" onerror="this.parentElement.style.display='none';"/>
+        <div id="f-warehouse-cover-preview" style="display:none; margin-top:8px; gap:8px;">
+          <img id="f-warehouse-cover-preview-img" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);" onerror="this.style.display='none';"/>
+          <img id="f-warehouse-cover-preview-img-2" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);display:none;" onerror="this.style.display='none';"/>
         </div>
       </div>
 
@@ -1734,12 +1785,16 @@
 
   function updateWarehouseCoverPreview() {
     const input = document.getElementById('f-warehouse-cover-image');
+    const input2 = document.getElementById('f-warehouse-cover-image-2');
     const wrap = document.getElementById('f-warehouse-cover-preview');
     const img = document.getElementById('f-warehouse-cover-preview-img');
+    const img2 = document.getElementById('f-warehouse-cover-preview-img-2');
     if (!input || !wrap || !img) return;
     const url = input.value.trim();
-    if (url) { img.src = url; wrap.style.display = 'block'; }
-    else { wrap.style.display = 'none'; }
+    const url2 = input2 ? input2.value.trim() : '';
+    if (url) { img.src = url; img.style.display = 'block'; } else { img.style.display = 'none'; }
+    if (url2) { img2.src = url2; img2.style.display = 'block'; } else { img2.style.display = 'none'; }
+    wrap.style.display = (url || url2) ? 'flex' : 'none';
   }
 
   function updatePromoCodeVisibleSliderStyle() {
@@ -2291,7 +2346,10 @@
             <span>${c.orderCount||0} orders</span>
             <span>${fmt(c.totalSpent||0)} spent</span>
           </div>
-          <button onclick="openResetCustomerCode('${c.fbDocId}','${(c.name||'').replace(/'/g,"\\'")}','${c.phone}')" style="margin-top:4px; background:#fff; border:1.5px solid var(--border); color:#555; cursor:pointer; font-size:0.72rem; font-weight:700; padding:6px 10px; border-radius:6px;">🔑 Reset Code</button>
+          <div style="display:flex; gap:6px; margin-top:4px;">
+            <button onclick="openCustomerDetail('${c.fbDocId}')" style="flex:1; background:var(--black); border:none; color:#fff; cursor:pointer; font-size:0.72rem; font-weight:700; padding:6px 10px; border-radius:6px;">👁️ View Details</button>
+            <button onclick="openResetCustomerCode('${c.fbDocId}','${(c.name||'').replace(/'/g,"\\'")}','${c.phone}')" style="flex:1; background:#fff; border:1.5px solid var(--border); color:#555; cursor:pointer; font-size:0.72rem; font-weight:700; padding:6px 10px; border-radius:6px;">🔑 Reset Code</button>
+          </div>
         </div>
       `).join('') + (matches.length > 60 ? `<div style="width:100%; font-size:0.76rem; color:#999; margin-top:6px;">Showing 60 of ${matches.length} — narrow your search to see more specific results.</div>` : '');
     } catch(e) {
@@ -2305,6 +2363,79 @@
     document.getElementById('reset-code-customer-name').textContent = (name || 'This customer') + ' — ' + phone;
     document.getElementById('reset-code-input').value = '';
     document.getElementById('reset-customer-code-modal').classList.add('open');
+  }
+
+  function toggleCustomerDetailSection(name) {
+    const body = document.getElementById('customer-detail-' + name + '-body');
+    const arrow = document.getElementById('customer-detail-' + name + '-arrow');
+    const isOpen = body.style.display !== 'none';
+    body.style.display = isOpen ? 'none' : 'block';
+    arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+  }
+
+  async function openCustomerDetail(docId) {
+    const c = allCustomersCache.find(x => x.fbDocId === docId);
+    if (!c) return;
+    document.getElementById('customer-detail-name').textContent = c.name || '(no name)';
+    document.getElementById('customer-detail-phone').textContent = '📱 ' + c.phone;
+    document.getElementById('customer-detail-tier').innerHTML = tierBadgeHtml(c.tier);
+    document.getElementById('customer-detail-orders-count').textContent = c.orderCount || 0;
+    document.getElementById('customer-detail-spent').textContent = fmt(c.totalSpent || 0);
+
+    // Reset sections closed each time
+    ['orders','liked','favs'].forEach(n => {
+      document.getElementById('customer-detail-' + n + '-body').style.display = 'none';
+      document.getElementById('customer-detail-' + n + '-arrow').style.transform = 'rotate(0deg)';
+    });
+
+    // Liked / Favorites — pulled straight from the customer record, instant
+    const likedIds = c.likedProductIds || [];
+    const favIds = c.favoriteProductIds || [];
+    document.getElementById('customer-detail-liked-body').innerHTML = renderProductChipList(likedIds);
+    document.getElementById('customer-detail-favs-body').innerHTML = renderProductChipList(favIds);
+
+    // Completed orders — fetched fresh
+    const ordersBody = document.getElementById('customer-detail-orders-body');
+    ordersBody.innerHTML = '<div style="font-size:0.8rem; color:#999; padding:8px 0;">Loading...</div>';
+    document.getElementById('customer-detail-modal').classList.add('open');
+
+    if (window.fbDb && window.fbFns) {
+      try {
+        const { collection, query, where, getDocs } = window.fbFns;
+        const q = query(collection(window.fbDb, 'orders'), where('accountId', '==', docId));
+        const snap = await getDocs(q);
+        const completed = snap.docs.map(d => d.data()).filter(o => o.status === 'closed')
+          .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+        if (completed.length === 0) {
+          ordersBody.innerHTML = '<div style="font-size:0.8rem; color:#999; padding:8px 0;">No completed orders yet.</div>';
+        } else {
+          ordersBody.innerHTML = completed.map(o => {
+            const items = (o.cartItems || []).map(ci => ci.name + ' x' + ci.qty).join(', ');
+            return `<div style="border-bottom:1px solid var(--border); padding:8px 0;">
+              <div style="display:flex; justify-content:space-between; font-size:0.78rem; font-weight:700;">
+                <span>${fmtOrderTime(o.timestamp)}</span><span>${fmt(o.orderTotal||o.subtotal||0)}</span>
+              </div>
+              <div style="font-size:0.76rem; color:#666; margin-top:2px;">${items}</div>
+            </div>`;
+          }).join('');
+        }
+      } catch(e) {
+        ordersBody.innerHTML = '<div style="font-size:0.8rem; color:#c0392b; padding:8px 0;">Couldn\'t load orders — check the Firestore rules for reading orders.</div>';
+        console.error(e);
+      }
+    }
+  }
+
+  function renderProductChipList(ids) {
+    if (!ids || ids.length === 0) return '<div style="font-size:0.8rem; color:#999; padding:8px 0;">None yet.</div>';
+    const items = ids.map(id => products.find(p => p.id === id)).filter(Boolean);
+    if (items.length === 0) return '<div style="font-size:0.8rem; color:#999; padding:8px 0;">None yet.</div>';
+    return '<div style="display:flex; flex-wrap:wrap; gap:8px;">' + items.map(p => `
+      <div style="display:flex; align-items:center; gap:6px; background:var(--light); border-radius:20px; padding:5px 12px 5px 5px;">
+        ${(p.image||(p.images&&p.images[0])) ? `<img src="${p.image||p.images[0]}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;"/>` : ''}
+        <span style="font-size:0.76rem; font-weight:600;">${p.name}</span>
+      </div>
+    `).join('') + '</div>';
   }
 
   async function confirmResetCustomerCode() {
@@ -3131,6 +3262,7 @@
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--light); border:1px solid var(--border); border-radius:8px; padding:12px 16px; margin-bottom:8px; flex-wrap:wrap;">
         <div style="display:flex; align-items:center; gap:10px;">
           ${p.warehouseCoverImage ? `<img src="${p.warehouseCoverImage}" onclick="openCoverLightbox('${p.warehouseCoverImage.replace(/'/g,"\\'")}','${p.name.replace(/'/g,"\\'")}')" style="width:44px;height:44px;object-fit:cover;border-radius:7px;border:1.5px solid var(--border);flex-shrink:0;cursor:zoom-in;" onerror="this.style.display='none';" title="Click to enlarge"/>` : ''}
+          ${p.warehouseCoverImage2 ? `<img src="${p.warehouseCoverImage2}" onclick="openCoverLightbox('${p.warehouseCoverImage2.replace(/'/g,"\\'")}','${p.name.replace(/'/g,"\\'")}')" style="width:44px;height:44px;object-fit:cover;border-radius:7px;border:1.5px solid var(--border);flex-shrink:0;cursor:zoom-in;" onerror="this.style.display='none';" title="Click to enlarge"/>` : ''}
           <div style="font-weight:700; font-size:0.85rem;">${p.name}</div>
         </div>
         ${p.warehouseLocation
@@ -4874,6 +5006,7 @@
     document.getElementById('f-threshold').value = threshold;
     document.getElementById('f-warehouse-location').value = '';
     document.getElementById('f-warehouse-cover-image').value = '';
+    document.getElementById('f-warehouse-cover-image-2').value = '';
     updateWarehouseCoverPreview();
     document.getElementById('f-condition').value = 'Brand New';
     document.getElementById('f-promo-eligible').checked = true;
@@ -4939,6 +5072,7 @@
     document.getElementById('f-threshold').value = p.threshold || threshold;
     document.getElementById('f-warehouse-location').value = p.warehouseLocation || '';
     document.getElementById('f-warehouse-cover-image').value = p.warehouseCoverImage || '';
+    document.getElementById('f-warehouse-cover-image-2').value = p.warehouseCoverImage2 || '';
     updateWarehouseCoverPreview();
     document.getElementById('f-condition').value = p.condition || 'Brand New';
     document.getElementById('f-promo-eligible').checked = p.promoEligible !== false;
@@ -5266,6 +5400,7 @@
       frequentlyBoughtWith: p.frequentlyBoughtWith || [],
       warehouseLocation: p.warehouseLocation || '',
       warehouseCoverImage: p.warehouseCoverImage || '',
+      warehouseCoverImage2: p.warehouseCoverImage2 || '',
       condition: p.condition || 'Brand New',
       promoEligible: p.promoEligible !== false,
       bundleProductId: p.bundleProductId || '',
@@ -5347,6 +5482,7 @@
     const frequentlyBoughtWith = currentFbwIds.slice();
     const warehouseLocation = document.getElementById('f-warehouse-location').value.trim();
     const warehouseCoverImage = document.getElementById('f-warehouse-cover-image').value.trim();
+    const warehouseCoverImage2 = document.getElementById('f-warehouse-cover-image-2').value.trim();
     const condition = document.getElementById('f-condition').value;
     const promoEligible = document.getElementById('f-promo-eligible').checked;
     const bundleProductId = document.getElementById('f-bundle-product') ? document.getElementById('f-bundle-product').value : '';
@@ -5361,8 +5497,8 @@
 
     // Build the full candidate product object (used for both change-detection and saving)
     const candidateProduct = editingId
-      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, freeGiftAccountOnly: freeGiftAccountOnly, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 }
-      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, freeGiftAccountOnly: freeGiftAccountOnly, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
+      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, freeGiftAccountOnly: freeGiftAccountOnly, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', warehouseCoverImage2: warehouseCoverImage2 || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 }
+      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, freeGiftAccountOnly: freeGiftAccountOnly, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', warehouseCoverImage2: warehouseCoverImage2 || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
 
     // If editing an existing product and nothing actually changed, skip the save entirely
     if (editingId && editingOriginalSnapshot && productSignature(editingOriginalSnapshot) === productSignature(candidateProduct)) {
@@ -5374,14 +5510,14 @@
     if (editingId) {
       const idx = products.findIndex(p => p.id === editingId);
       if (idx > -1) {
-        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, freeGiftAccountOnly: freeGiftAccountOnly, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
+        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, freeGiftAccountOnly: freeGiftAccountOnly, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', warehouseCoverImage2: warehouseCoverImage2 || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
       }
     } else {
       products.push({
         id: candidateProduct.id,
         name, category: cat, store, sku,
         threshold: threshold_,
-        variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, freeGiftAccountOnly: freeGiftAccountOnly, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0
+        variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, freeGiftAccountOnly: freeGiftAccountOnly, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', warehouseCoverImage2: warehouseCoverImage2 || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0
       });
     }
 
