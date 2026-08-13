@@ -1691,9 +1691,9 @@
     <!-- STEP 3: signed-in dashboard -->
     <div id="account-view-dashboard" style="display:none;">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-        <div onclick="openProfilePictureChooser()" style="position:relative;width:52px;height:52px;flex-shrink:0;cursor:pointer;">
-          <div id="account-dash-avatar" style="width:52px;height:52px;border-radius:50%;background:var(--light);display:flex;align-items:center;justify-content:center;font-size:1.4rem;overflow:hidden;">👤</div>
-          <div style="position:absolute;bottom:-2px;right:-2px;width:20px;height:20px;border-radius:50%;background:var(--black);color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.6rem;border:2px solid #fff;">📷</div>
+        <div style="position:relative;width:52px;height:52px;flex-shrink:0;">
+          <div id="account-dash-avatar" onclick="viewProfilePicture()" style="width:52px;height:52px;border-radius:50%;background:var(--light);display:flex;align-items:center;justify-content:center;font-size:1.4rem;overflow:hidden;cursor:pointer;">👤</div>
+          <div onclick="openProfilePictureChooser()" title="Change photo" style="position:absolute;bottom:-2px;right:-2px;width:20px;height:20px;border-radius:50%;background:var(--black);color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.6rem;border:2px solid #fff;cursor:pointer;">📷</div>
         </div>
         <div>
           <div id="account-dash-name" style="font-weight:800;font-size:1.05rem;"></div>
@@ -5068,6 +5068,15 @@
   // Stored as a compressed base64 data URI directly on the customer's Firestore document
   // (this project has no Firebase Storage set up) — resized client-side first to keep it
   // well under Firestore's 1MB per-document limit.
+  function viewProfilePicture() {
+    if (!currentAccount) return;
+    if (currentAccount.profilePicture) {
+      openSingleImageFullscreen(currentAccount.profilePicture);
+    } else {
+      openProfilePictureChooser(); // nothing to view yet — go straight to setting one
+    }
+  }
+
   function openProfilePictureChooser() {
     if (!currentAccount) return;
     openOverlayEl(document.getElementById('profile-pic-choice-modal'));
