@@ -1636,6 +1636,10 @@
       <div class="form-group"><label>Phone Number</label><input type="tel" id="account-phone-input" placeholder="+256 7XX XXX XXX" onkeydown="if(event.key==='Enter'){event.preventDefault();accountPhoneSubmit();}"/></div>
       <button class="submit-btn" onclick="accountPhoneSubmit()">Continue</button>
       <div id="account-phone-msg" style="display:none;margin-top:10px;font-size:0.82rem;font-weight:700;color:var(--red);"></div>
+      <div style="text-align:center; margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
+        <div style="font-size:0.76rem; color:var(--grey); margin-bottom:6px;">Lost access to your account?</div>
+        <a href="https://wa.me/256757675088?text=Hi%2C%20I%27ve%20lost%20access%20to%20my%20Swift%20Importers%20account%20and%20need%20help%20signing%20in." target="_blank" style="display:inline-flex; align-items:center; gap:6px; color:#25D366; font-size:0.82rem; font-weight:700; text-decoration:none;">💬 Contact us on WhatsApp</a>
+      </div>
     </div>
 
     <!-- STEP 2a: existing account — enter code -->
@@ -4250,7 +4254,10 @@
           rp: { name: 'Swift Importers' },
           user: { id: userId, name: currentAccount.phone, displayName: currentAccount.name || currentAccount.phone },
           pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
-          authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
+          // residentKey lets the device itself remember "there's a Swift Importers login
+          // here" without us needing localStorage — that's what lets the sign-in button
+          // find the right account later even after clearing site data.
+          authenticatorSelection: { authenticatorAttachment: 'platform', residentKey: 'preferred', requireResidentKey: false, userVerification: 'required' },
           timeout: 60000
         }
       });
@@ -4278,49 +4285,54 @@
     } catch(e) { console.error('[biometric] disable failed:', e); }
   }
 
+  // Show the biometric option whenever the browser/device is capable of it — NOT only
+  // when this device has previously signed in before. IMPORTANT LIMIT, worth being clear
+  // about: a fingerprint/Face ID registered on one phone can never be used to sign in on
+  // a different phone or computer — that's enforced by the hardware itself, not something
+  // any code choice here can change. What this DOES fix is: if a customer clears their
+  // browser data, switches browsers on the SAME device, or just never triggered the
+  // button before, it'll still find their account correctly via the credential itself,
+  // rather than depending on a locally-remembered phone number.
   function hasBiometricLoginAvailable() {
-    if (!isWebAuthnSupported()) return false;
-    try {
-      var saved = JSON.parse(localStorage.getItem(BIOMETRIC_STORAGE_KEY) || 'null');
-      return !!(saved && saved.phone && saved.credentialId);
-    } catch(e) { return false; }
+    return isWebAuthnSupported();
   }
 
   async function tryBiometricLogin() {
-    var saved;
-    try { saved = JSON.parse(localStorage.getItem(BIOMETRIC_STORAGE_KEY) || 'null'); } catch(e) { saved = null; }
-    if (!saved || !saved.credentialId || !isWebAuthnSupported()) return false;
+    if (!isWebAuthnSupported()) return false;
     var msg = document.getElementById('account-phone-msg');
     try {
       var challenge = randomChallenge();
       var assertion = await navigator.credentials.get({
         publicKey: {
           challenge: challenge,
-          allowCredentials: [{ id: base64UrlToBuffer(saved.credentialId), type: 'public-key' }],
           userVerification: 'required',
           timeout: 60000
+          // No allowCredentials list — this lets the platform authenticator offer any
+          // discoverable credential it holds for this site, so login works purely from
+          // what's on the device, not from anything we cached locally.
         }
       });
       if (!assertion) return false;
+      var credentialId = bufferToBase64Url(assertion.rawId);
       var { collection, query, where, getDocs } = window.fbFns;
-      var q = query(collection(window.fbDb, 'customers'), where('phone', '==', saved.phone));
+      var q = query(collection(window.fbDb, 'customers'), where('webauthnCredentialId', '==', credentialId));
       var snap = await getDocs(q);
       if (!snap.empty) {
         var docSnap = snap.docs[0];
         var acc = { fbDocId: docSnap.id, ...docSnap.data() };
-        if (acc.webauthnCredentialId === saved.credentialId) {
-          currentAccount = acc;
-          persistAccountSession();
-          updateAccountNavLabel();
-          startMessagesListener();
-          closeOverlayEl(document.getElementById('account-modal'));
-          refreshCurrentProductGiftBox();
-          return true;
-        }
+        currentAccount = acc;
+        persistAccountSession();
+        try { localStorage.setItem(BIOMETRIC_STORAGE_KEY, JSON.stringify({ phone: acc.phone, credentialId: credentialId })); } catch(e) {}
+        updateAccountNavLabel();
+        startMessagesListener();
+        closeOverlayEl(document.getElementById('account-modal'));
+        refreshCurrentProductGiftBox();
+        return true;
       }
-      if (msg) { msg.textContent = 'Biometric sign-in no longer matches this account. Please sign in with your code instead.'; msg.style.display = 'block'; }
+      if (msg) { msg.textContent = 'No account on this device matched that fingerprint/Face ID. Please sign in with your phone number instead, or contact us below if you\'re locked out.'; msg.style.display = 'block'; }
     } catch(e) {
       console.error('[biometric] login failed or cancelled:', e);
+      if (msg && e && e.name !== 'NotAllowedError') { msg.textContent = 'Biometric sign-in isn\'t set up on this device yet — please use your phone number.'; msg.style.display = 'block'; }
     }
     return false;
   }

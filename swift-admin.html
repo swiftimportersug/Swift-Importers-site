@@ -792,7 +792,7 @@
   </div>
 
   <!-- RESET CUSTOMER CODE -->
-  <div class="modal-overlay" id="reset-customer-code-modal">
+  <div class="modal-overlay" id="reset-customer-code-modal" onclick="if(event.target===this) this.classList.remove('open');">
     <div class="modal-box" style="max-width:380px; padding:24px;">
       <div style="font-size:1rem; font-weight:800; margin-bottom:4px;">Reset Code</div>
       <div id="reset-code-customer-name" style="font-size:0.82rem; color:#888; margin-bottom:14px;"></div>
@@ -800,7 +800,7 @@
       <label style="display:block; font-size:0.68rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:#555; margin-bottom:4px;">New 4-Digit Code</label>
       <input type="text" id="reset-code-input" maxlength="4" inputmode="numeric" placeholder="••••" style="width:100%; text-align:center; letter-spacing:0.4em; font-size:1.2rem; padding:12px; border:1.5px solid var(--border); border-radius:8px; font-family:'Inter',sans-serif; box-sizing:border-box; margin-bottom:16px;" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4);"/>
       <div style="display:flex; gap:10px;">
-        <button class="btn-cancel" style="flex:1;" onclick="closeOverlayEl(document.getElementById('reset-customer-code-modal'))">Cancel</button>
+        <button class="btn-cancel" style="flex:1;" onclick="document.getElementById('reset-customer-code-modal').classList.remove('open')">Cancel</button>
         <button class="btn-gold" style="flex:1;" onclick="confirmResetCustomerCode()">Reset Code</button>
       </div>
     </div>
