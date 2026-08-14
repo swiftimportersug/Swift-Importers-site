@@ -906,6 +906,9 @@
       <div class="nav-item" onclick="showPage('inventory')">
         <span class="nav-icon">📦</span> Inventory
       </div>
+      <div class="nav-item" onclick="showPage('tracking')">
+        <span class="nav-icon">🚚</span> Product Tracking
+      </div>
       <div class="nav-item" onclick="showPage('alerts')">
         <span class="nav-icon">🔔</span> Stock Alerts
         <span id="alert-badge" style="margin-left:auto; background:var(--red); color:#fff; font-size:0.65rem; font-weight:700; padding:2px 7px; border-radius:20px; display:none;"></span>
@@ -1160,6 +1163,105 @@
             <tbody id="inventory-tbody"></tbody>
           </table>
         </div>
+      </div>
+
+      <!-- PRODUCT TRACKING PAGE -->
+      <div class="page" id="page-tracking">
+        <div class="section-hdr">
+          <h2>🚚 Product Tracking</h2>
+        </div>
+
+        <div style="font-size:0.8rem; color:#888; margin-bottom:16px; background:var(--light); border-radius:8px; padding:10px 14px;">
+          Track items bought online (eBay, Amazon, Alibaba, AliExpress, Gear4Music, etc.) from purchase until they physically arrive in Kampala. Scan a tracking number to confirm receipt, or mark it received manually if the label's damaged.
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:20px;">
+          <div class="stat-card">
+            <div id="tracking-stat-pending-count" style="font-size:1.3rem; font-weight:900;">0</div>
+            <div style="font-size:0.68rem; color:#888; font-weight:700; text-transform:uppercase;">Pending Items</div>
+          </div>
+          <div class="stat-card">
+            <div id="tracking-stat-pending-value" style="font-size:1.05rem; font-weight:900; color:var(--gold-dark);">UGX 0</div>
+            <div style="font-size:0.68rem; color:#888; font-weight:700; text-transform:uppercase;">Pending Value</div>
+          </div>
+          <div class="stat-card">
+            <div id="tracking-stat-received-count" style="font-size:1.3rem; font-weight:900;">0</div>
+            <div style="font-size:0.68rem; color:#888; font-weight:700; text-transform:uppercase;">Received Items</div>
+          </div>
+          <div class="stat-card">
+            <div id="tracking-stat-total-value" style="font-size:1.05rem; font-weight:900; color:#2a9d50;">UGX 0</div>
+            <div style="font-size:0.68rem; color:#888; font-weight:700; text-transform:uppercase;">Total Spent (all)</div>
+          </div>
+        </div>
+
+        <div class="admin-3d-box" style="margin-bottom:16px;">
+          <div onclick="toggleAddTrackingSection()" class="admin-3d-header">
+            <div class="admin-3d-title"><span class="admin-3d-icon">➕</span> Add Tracking Item</div>
+            <span id="add-tracking-arrow" class="admin-3d-arrow">▸</span>
+          </div>
+          <div id="add-tracking-body" style="display:none; padding:0 20px 20px;">
+            <div class="form-row-2" style="margin-bottom:10px;">
+              <div class="form-group" style="margin:0;">
+                <label>Item Name</label>
+                <input type="text" id="track-item-name" placeholder="e.g. KZ Castor Pro IEMs"/>
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label>Store</label>
+                <select id="track-store">
+                  <option>eBay</option><option>Amazon</option><option>Alibaba</option>
+                  <option>AliExpress</option><option>Gear4Music</option><option>Other</option>
+                </select>
+              </div>
+            </div>
+            <div id="track-store-other-wrap" style="display:none; margin-bottom:10px;">
+              <input type="text" id="track-store-other" placeholder="Store name"/>
+            </div>
+            <div class="form-group" style="margin-bottom:10px;">
+              <label>Tracking Number</label>
+              <input type="text" id="track-number" placeholder="e.g. 1Z999AA10123456784"/>
+            </div>
+            <div class="form-row-2" style="margin-bottom:10px;">
+              <div class="form-group" style="margin:0;">
+                <label>Quantity</label>
+                <input type="number" id="track-qty" min="1" value="1"/>
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label>Purchase Price (per unit, UGX)</label>
+                <input type="number" id="track-price" min="0" placeholder="e.g. 45000"/>
+              </div>
+            </div>
+            <div class="form-row-2" style="margin-bottom:10px;">
+              <div class="form-group" style="margin:0;">
+                <label>Purchase Date</label>
+                <input type="date" id="track-purchase-date" lang="en-GB"/>
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label>Extra Expenses (UGX, optional)</label>
+                <input type="number" id="track-extra-expense" min="0" placeholder="Transport, agent fees, etc."/>
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+              <label>Notes (optional)</label>
+              <input type="text" id="track-notes" placeholder="Anything worth remembering about this order"/>
+            </div>
+            <button class="btn-gold" onclick="addTrackingItem()">➕ Add to Tracking</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; margin-bottom:14px; border-bottom:1.5px solid var(--border);">
+          <button id="tracking-tab-pending" onclick="switchTrackingTab('pending')" style="background:none; border:none; padding:10px 6px; font-size:0.85rem; font-weight:800; color:var(--black); border-bottom:2.5px solid var(--gold); cursor:pointer; font-family:'Inter',sans-serif;">📦 Pending</button>
+          <button id="tracking-tab-received" onclick="switchTrackingTab('received')" style="background:none; border:none; padding:10px 6px; font-size:0.85rem; font-weight:800; color:var(--grey); border-bottom:2.5px solid transparent; cursor:pointer; font-family:'Inter',sans-serif;">✅ Received</button>
+          <button onclick="startTrackingScanner()" style="margin-left:auto; background:var(--black); color:#fff; border:none; padding:9px 16px; border-radius:6px; font-size:0.8rem; font-weight:700; cursor:pointer;">📷 Scan to Receive</button>
+        </div>
+
+        <div id="tracking-scanner-wrap" style="display:none; margin-bottom:16px; background:#000; border-radius:12px; overflow:hidden; position:relative;">
+          <video id="tracking-qr-video" autoplay playsinline style="width:100%; max-height:340px; object-fit:cover; display:block;"></video>
+          <canvas id="tracking-qr-canvas" style="display:none;"></canvas>
+          <div id="tracking-qr-result" style="padding:12px; color:#fff; font-size:0.82rem;"></div>
+          <button onclick="stopTrackingScanner()" style="position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.6); color:#fff; border:none; width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:1rem;">✕</button>
+        </div>
+
+        <div id="tracking-list"></div>
       </div>
 
       <!-- ALERTS PAGE -->
@@ -2060,6 +2162,240 @@
     }
   }
 
+  // ── PRODUCT TRACKING ──
+  let trackingItems = [];
+  let unsubscribeTracking = null;
+  let trackingActiveTab = 'pending';
+
+  function fbListenTracking() {
+    if (!window.fbDb || !window.fbFns) return;
+    const { collection, onSnapshot } = window.fbFns;
+    if (unsubscribeTracking) unsubscribeTracking();
+    unsubscribeTracking = onSnapshot(collection(window.fbDb, 'tracking_items'), (snapshot) => {
+      trackingItems = snapshot.docs.map(d => ({ fbDocId: d.id, ...d.data() }));
+      trackingItems.sort((a,b) => new Date(b.purchaseDate||0) - new Date(a.purchaseDate||0));
+      renderTrackingStats();
+      renderTrackingList();
+    });
+  }
+
+  function toggleAddTrackingSection() {
+    const body = document.getElementById('add-tracking-body');
+    const arrow = document.getElementById('add-tracking-arrow');
+    const isOpen = body.style.display !== 'none';
+    body.style.display = isOpen ? 'none' : 'block';
+    arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+  }
+
+  document.addEventListener('change', (e) => {
+    if (e.target && e.target.id === 'track-store') {
+      document.getElementById('track-store-other-wrap').style.display = e.target.value === 'Other' ? 'block' : 'none';
+    }
+  });
+
+  async function addTrackingItem() {
+    const name = document.getElementById('track-item-name').value.trim();
+    let store = document.getElementById('track-store').value;
+    if (store === 'Other') store = document.getElementById('track-store-other').value.trim() || 'Other';
+    const trackingNumber = document.getElementById('track-number').value.trim();
+    const qty = parseInt(document.getElementById('track-qty').value) || 1;
+    const price = parseInt(document.getElementById('track-price').value) || 0;
+    const purchaseDate = document.getElementById('track-purchase-date').value || new Date().toISOString().slice(0,10);
+    const extraExpense = parseInt(document.getElementById('track-extra-expense').value) || 0;
+    const notes = document.getElementById('track-notes').value.trim();
+
+    if (!name) { showAppAlert('Please enter the item name.'); return; }
+    if (!trackingNumber) { showAppAlert('Please enter the tracking number.'); return; }
+    if (!window.fbDb || !window.fbFns) { showAppAlert('Not connected. Check your internet connection.'); return; }
+
+    try {
+      const { collection, addDoc } = window.fbFns;
+      await addDoc(collection(window.fbDb, 'tracking_items'), {
+        itemName: name, store, trackingNumber, quantity: qty, purchasePrice: price,
+        purchaseDate, extraExpense, notes, status: 'pending', receivedDate: null,
+        createdAt: new Date().toISOString()
+      });
+      ['track-item-name','track-number','track-extra-expense','track-notes'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('track-qty').value = 1;
+      document.getElementById('track-price').value = '';
+      document.getElementById('track-store').value = 'eBay';
+      document.getElementById('track-store-other-wrap').style.display = 'none';
+      showSuccessToast('✅ Added to tracking!');
+    } catch(e) {
+      showAppAlert('Error adding tracking item. Check your connection.');
+      console.error(e);
+    }
+  }
+
+  function switchTrackingTab(tab) {
+    trackingActiveTab = tab;
+    const pendingTab = document.getElementById('tracking-tab-pending');
+    const receivedTab = document.getElementById('tracking-tab-received');
+    pendingTab.style.borderBottomColor = tab === 'pending' ? 'var(--gold)' : 'transparent';
+    pendingTab.style.color = tab === 'pending' ? 'var(--black)' : 'var(--grey)';
+    receivedTab.style.borderBottomColor = tab === 'received' ? 'var(--gold)' : 'transparent';
+    receivedTab.style.color = tab === 'received' ? 'var(--black)' : 'var(--grey)';
+    renderTrackingList();
+  }
+
+  function renderTrackingStats() {
+    const pending = trackingItems.filter(t => t.status === 'pending');
+    const received = trackingItems.filter(t => t.status === 'received');
+    const lineTotal = t => (parseInt(t.purchasePrice)||0) * (parseInt(t.quantity)||1) + (parseInt(t.extraExpense)||0);
+    const pendingValue = pending.reduce((s,t) => s + lineTotal(t), 0);
+    const totalValue = trackingItems.reduce((s,t) => s + lineTotal(t), 0);
+    document.getElementById('tracking-stat-pending-count').textContent = pending.length;
+    document.getElementById('tracking-stat-pending-value').textContent = fmt(pendingValue);
+    document.getElementById('tracking-stat-received-count').textContent = received.length;
+    document.getElementById('tracking-stat-total-value').textContent = fmt(totalValue);
+  }
+
+  function renderTrackingList() {
+    const list = document.getElementById('tracking-list');
+    if (!list) return;
+    const items = trackingItems.filter(t => t.status === trackingActiveTab);
+    if (items.length === 0) {
+      list.innerHTML = `<div style="padding:20px; text-align:center; color:#999; font-size:0.85rem;">No ${trackingActiveTab} items.</div>`;
+      return;
+    }
+    list.innerHTML = items.map(t => {
+      const lineTotal = (parseInt(t.purchasePrice)||0) * (parseInt(t.quantity)||1) + (parseInt(t.extraExpense)||0);
+      return `
+      <div class="glass-3d" style="padding:14px 16px; margin-bottom:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+          <div>
+            <div style="font-weight:800; font-size:0.9rem;">${t.itemName}</div>
+            <div style="font-size:0.76rem; color:#888; margin-top:2px;">🏬 ${t.store} &middot; Qty: ${t.quantity}</div>
+            <div style="font-size:0.76rem; color:#888; margin-top:2px;">📮 <span style="font-family:'Inter',monospace;">${t.trackingNumber}</span></div>
+            <div style="font-size:0.74rem; color:#999; margin-top:2px;">Purchased ${fmtDMY(new Date(t.purchaseDate))}${t.receivedDate ? ' &middot; Received ' + fmtDMY(new Date(t.receivedDate)) : ''}</div>
+            ${t.notes ? `<div style="font-size:0.76rem; color:#666; margin-top:4px; font-style:italic;">"${t.notes}"</div>` : ''}
+          </div>
+          <div style="text-align:right;">
+            <div style="font-weight:800; font-size:0.92rem; color:var(--gold-dark);">${fmt(lineTotal)}</div>
+            <div style="font-size:0.68rem; color:#999;">${fmt(t.purchasePrice)}/unit${t.extraExpense ? ' + ' + fmt(t.extraExpense) + ' fees' : ''}</div>
+          </div>
+        </div>
+        ${t.status === 'pending' ? `
+          <div style="margin-top:10px; display:flex; gap:8px;">
+            <button onclick="manualMarkReceived('${t.fbDocId}')" style="flex:1; background:#fff; border:1.5px solid var(--border); color:#555; padding:7px 10px; border-radius:6px; font-size:0.74rem; font-weight:700; cursor:pointer;">✋ Mark Received Manually (damaged label)</button>
+            <button onclick="deleteTrackingItem('${t.fbDocId}')" style="background:#fff; border:1.5px solid #e0b8b8; color:#c0392b; padding:7px 10px; border-radius:6px; font-size:0.74rem; font-weight:700; cursor:pointer;">🗑️</button>
+          </div>
+        ` : `
+          <div style="margin-top:8px; background:#e8f7ee; color:#1b7d40; font-size:0.72rem; font-weight:700; padding:5px 10px; border-radius:6px; display:inline-block;">✅ In stock — ready to set purchase price on the product</div>
+        `}
+      </div>
+    `;
+    }).join('');
+  }
+
+  async function manualMarkReceived(docId) {
+    showAppConfirm('Mark this item as received? Use this only if the tracking label is damaged and can\'t be scanned.', async () => {
+      await markTrackingReceived(docId);
+    }, null, { icon: '✋', confirmText: 'Mark Received' });
+  }
+
+  async function markTrackingReceived(docId) {
+    if (!window.fbDb || !window.fbFns) return;
+    try {
+      const { doc, updateDoc } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'tracking_items', docId), {
+        status: 'received', receivedDate: new Date().toISOString().slice(0,10)
+      });
+      showSuccessToast('✅ Item marked as received!');
+    } catch(e) {
+      showAppAlert('Error updating item. Check your connection.');
+      console.error(e);
+    }
+  }
+
+  async function deleteTrackingItem(docId) {
+    showAppConfirm('Delete this tracking entry? This can\'t be undone.', async () => {
+      if (!window.fbDb || !window.fbFns) return;
+      try {
+        const { doc, deleteDoc } = window.fbFns;
+        await deleteDoc(doc(window.fbDb, 'tracking_items', docId));
+        showSuccessToast('🗑️ Deleted.');
+      } catch(e) { showAppAlert('Error deleting item.'); console.error(e); }
+    }, null, { icon: '🗑️', confirmText: 'Delete' });
+  }
+
+  // ── DEDICATED SCANNER FOR TRACKING NUMBERS (separate from the main SKU scanner) ──
+  let trackingScannerStream = null;
+  let trackingScanInterval = null;
+  let trackingBarcodeDetector = null;
+  let trackingScannerActive = false;
+
+  async function startTrackingScanner() {
+    const wrap = document.getElementById('tracking-scanner-wrap');
+    wrap.style.display = 'block';
+    try {
+      trackingScannerStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      const video = document.getElementById('tracking-qr-video');
+      video.srcObject = trackingScannerStream;
+      await video.play();
+      trackingScannerActive = true;
+      if (checkBarcodeDetectorSupport()) {
+        try {
+          trackingBarcodeDetector = new BarcodeDetector({ formats: ['qr_code','ean_13','ean_8','code_128','code_39','upc_a','upc_e','itf','codabar'] });
+        } catch(e) { trackingBarcodeDetector = null; }
+      }
+      document.getElementById('tracking-qr-result').textContent = '📷 Scanning... hold steady over the tracking barcode/QR';
+      trackingScanInterval = setInterval(() => trackingScanFrame(), 350);
+    } catch(e) {
+      wrap.style.display = 'none';
+      showAppAlert('Camera access denied or unavailable. You can mark items received manually instead.');
+    }
+  }
+
+  function stopTrackingScanner() {
+    if (trackingScannerStream) { trackingScannerStream.getTracks().forEach(t => t.stop()); trackingScannerStream = null; }
+    clearInterval(trackingScanInterval);
+    trackingScannerActive = false;
+    trackingBarcodeDetector = null;
+    document.getElementById('tracking-scanner-wrap').style.display = 'none';
+  }
+
+  async function trackingScanFrame() {
+    const video = document.getElementById('tracking-qr-video');
+    const canvas = document.getElementById('tracking-qr-canvas');
+    if (!video || video.readyState !== video.HAVE_ENOUGH_DATA) return;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    let detectedCode = null;
+    if (trackingBarcodeDetector) {
+      try {
+        const barcodes = await trackingBarcodeDetector.detect(canvas);
+        if (barcodes && barcodes.length > 0) detectedCode = barcodes[0].rawValue;
+      } catch(e) {}
+    }
+    if (!detectedCode && typeof jsQR !== 'undefined') {
+      try {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const qrResult = jsQR(imageData.data, imageData.width, imageData.height);
+        if (qrResult && qrResult.data) detectedCode = qrResult.data;
+      } catch(e) {}
+    }
+    if (detectedCode) onTrackingCodeDetected(detectedCode);
+  }
+
+  async function onTrackingCodeDetected(code) {
+    playScanBeep();
+    if (navigator.vibrate) navigator.vibrate(150);
+    const match = trackingItems.find(t => t.status === 'pending' && t.trackingNumber.toLowerCase() === code.toLowerCase());
+    const resultEl = document.getElementById('tracking-qr-result');
+    if (match) {
+      stopTrackingScanner();
+      await markTrackingReceived(match.fbDocId);
+    } else {
+      if (resultEl) resultEl.innerHTML = `⚠️ No pending item matches this code: <strong>${code}</strong>`;
+    }
+  }
+
   function toggleTierSettingsSection() {
     const body = document.getElementById('tier-settings-body');
     const arrow = document.getElementById('tier-settings-arrow');
@@ -2779,6 +3115,7 @@
       fbListenProductCosts();
       fbListenOrders();
       fbListenMessages();
+      fbListenTracking();
       fbListenFinance();
       fbListenStores();
       fbListenEmployees();
@@ -2887,17 +3224,19 @@
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('page-' + name).classList.add('active');
     document.querySelectorAll('.nav-item').forEach(n => {
-      const label = name === 'dashboard' ? 'dashboard' : name === 'inventory' ? 'inventory' : name === 'alerts' ? 'alert' : name === 'profits' ? 'profit' : name === 'emp-performance' ? 'employee performance' : name === 'open-orders' ? 'open orders' : name === 'closed-orders' ? 'closed orders' : name === 'customers' ? 'customers' : name === 'messages' ? 'messages' : 'scanner';
+      const label = name === 'dashboard' ? 'dashboard' : name === 'inventory' ? 'inventory' : name === 'tracking' ? 'product tracking' : name === 'alerts' ? 'alert' : name === 'profits' ? 'profit' : name === 'emp-performance' ? 'employee performance' : name === 'open-orders' ? 'open orders' : name === 'closed-orders' ? 'closed orders' : name === 'customers' ? 'customers' : name === 'messages' ? 'messages' : 'scanner';
       if (n.textContent.toLowerCase().includes(label)) {
         n.classList.add('active');
       }
     });
-    const titles = { dashboard:'📊 Dashboard', inventory:'📦 Inventory', alerts:'🔔 Stock Alerts', profits:'💰 Profits', 'open-orders':'📋 Open Orders', 'closed-orders':'✅ Closed Orders', 'emp-performance':'📊 Employee Performance', customers:'👥 Customers', messages:'💬 Messages', scanner:'📷 QR Scanner' };
+    const titles = { dashboard:'📊 Dashboard', inventory:'📦 Inventory', tracking:'🚚 Product Tracking', alerts:'🔔 Stock Alerts', profits:'💰 Profits', 'open-orders':'📋 Open Orders', 'closed-orders':'✅ Closed Orders', 'emp-performance':'📊 Employee Performance', customers:'👥 Customers', messages:'💬 Messages', scanner:'📷 QR Scanner' };
     document.getElementById('page-title').textContent = titles[name] || name;
     if (name !== 'scanner') stopScanner();
+    if (name !== 'tracking' && typeof stopTrackingScanner === 'function') stopTrackingScanner();
     if (name === 'emp-performance') renderEmployeePerformance();
     if (name === 'customers') { loadTierSettingsIntoForm(); searchCustomers(document.getElementById('customer-search-input') ? document.getElementById('customer-search-input').value : ''); }
     if (name === 'messages') { document.body.classList.remove('admin-thread-open'); activeThreadCustomerId = null; renderAdminThreadsList(); }
+    if (name === 'tracking') { renderTrackingStats(); renderTrackingList(); }
     renderAll();
     closeSidebar();
   }
