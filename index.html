@@ -39,12 +39,13 @@
     .cat-option:hover,.cat-option.active{background:var(--gold);color:var(--black);font-weight:700;}
 
     /* NAV */
-    nav{background:var(--black);padding:0 4vw;display:flex;align-items:center;justify-content:space-between;height:74px;position:sticky;top:0;z-index:100;gap:10px;border-bottom:1px solid var(--line);}
+    nav{background:var(--black);padding:0 4vw;display:flex;align-items:center;justify-content:space-between;height:96px;position:sticky;top:0;z-index:100;gap:10px;border-bottom:1px solid var(--line);}
     .logo{font-family:'Inter',sans-serif;font-size:1.35rem;font-weight:800;color:var(--white);letter-spacing:-0.02em;}
     .logo span{color:var(--gold);}
     .logo-img-wrap{display:flex;align-items:center;}
-    .swift-logo{display:flex;flex-direction:column;align-items:center;justify-content:center;border:1.5px solid var(--gold);border-radius:8px;padding:5px 12px;position:relative;text-decoration:none;background:linear-gradient(160deg,#232320,#181815);cursor:default;margin-right:12px;width:fit-content;max-width:100%;box-sizing:border-box;}
-    .site-logo{width:auto;max-width:100%;height:46px;display:block;}
+    .swift-logo{display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;text-decoration:none;cursor:default;margin-right:12px;width:fit-content;max-width:100%;box-sizing:border-box;}
+    .swift-logo-boxed{border:1.5px solid var(--gold);border-radius:8px;padding:7px 16px 6px;background:linear-gradient(160deg,#232320,#181815);}
+    .site-logo{width:auto;max-width:100%;height:74px;display:block;}
     .swift-logo::before{content:'';position:absolute;inset:3px;border:1px solid rgba(199,162,72,0.3);border-radius:5px;pointer-events:none;}
     .swift-logo-main{font-family:'Syne',sans-serif;font-size:clamp(0.85rem,1.35vw,1.3rem);font-weight:800;color:var(--white);letter-spacing:0.04em;text-transform:uppercase;line-height:1;white-space:nowrap;text-align:center;}
     .swift-logo-main .dot{display:inline-block;width:clamp(5px,0.6vw,9px);height:clamp(5px,0.6vw,9px);background:var(--white);border-radius:50%;margin:0 1px;vertical-align:middle;position:relative;top:-2px;}
@@ -944,8 +945,8 @@
       .nav-links{display:none;}
       .logo-img-wrap{flex:1;min-width:0;max-width:calc(100% - 110px);}
       .nav-search-wrap{order:5;flex:1 1 100%;max-width:100%;margin:2px 0 0;}
-      .swift-logo{padding:5px 10px;border-width:2px;border-radius:7px;width:fit-content;max-width:100%;box-sizing:border-box;}
-      .site-logo{height:38px;}
+      .swift-logo{width:fit-content;max-width:100%;box-sizing:border-box;}
+      .site-logo{height:62px;}
       .nav-right{flex-shrink:0;margin-left:14px;}
       #nav-account-btn, .nav-account-dropdown{display:none !important;} /* replaced on mobile by the floating bottom nav */
       body{padding-bottom:64px;}
@@ -1309,7 +1310,7 @@
 <footer id="footer">
   <div class="footer-grid">
     <div class="footer-brand">
-      <div class="swift-logo footer-ver">
+      <div class="swift-logo swift-logo-boxed footer-ver">
         <div class="swift-logo-main">SWIFT IMP<span class="dot"></span>RTERS</div>
         <div class="swift-logo-sub">Delivering Quality</div>
       </div>
@@ -1451,7 +1452,7 @@
 <div class="pd-overlay" id="pd-overlay" onclick="closePdModal(event)">
   <div class="pd-close-bar">
     <div class="pd-logo-mini" onclick="event.stopPropagation(); goToHomePage();" title="Back to home">
-      <div class="swift-logo">
+      <div class="swift-logo swift-logo-boxed">
         <div class="swift-logo-main">SWIFT IMP<span class="dot"></span>RTERS</div>
       </div>
     </div>
