@@ -44,6 +44,7 @@
     .logo span{color:var(--gold);}
     .logo-img-wrap{display:flex;align-items:center;}
     .swift-logo{display:flex;flex-direction:column;align-items:center;justify-content:center;border:1.5px solid var(--gold);border-radius:8px;padding:7px 16px 6px;position:relative;text-decoration:none;background:linear-gradient(160deg,#232320,#181815);cursor:default;margin-right:12px;width:fit-content;max-width:100%;box-sizing:border-box;}
+    .site-logo{width:100%;max-width:260px;height:auto;display:block;}
     .swift-logo::before{content:'';position:absolute;inset:3px;border:1px solid rgba(199,162,72,0.3);border-radius:5px;pointer-events:none;}
     .swift-logo-main{font-family:'Syne',sans-serif;font-size:clamp(0.85rem,1.35vw,1.3rem);font-weight:800;color:var(--white);letter-spacing:0.04em;text-transform:uppercase;line-height:1;white-space:nowrap;text-align:center;}
     .swift-logo-main .dot{display:inline-block;width:clamp(5px,0.6vw,9px);height:clamp(5px,0.6vw,9px);background:var(--white);border-radius:50%;margin:0 1px;vertical-align:middle;position:relative;top:-2px;}
@@ -1018,8 +1019,7 @@
 <nav>
   <div class="logo-img-wrap">
     <div class="swift-logo" onclick="goToHomePage()" style="cursor:pointer;" title="Back to home">
-      <div class="swift-logo-main">SWIFT IMP<span class="dot"></span>RTERS</div>
-      <div class="swift-logo-sub">Delivering Quality</div>
+      <img class="site-logo" src="assets/images/swift-importers-logo-highres.png" alt="Swift Importers - Delivering Quality"/>
     </div>
   </div>
   <div class="nav-search-wrap">
