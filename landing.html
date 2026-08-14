@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title id="page-title">Swift Importers</title>
+<meta name="description" content="Order now for fast delivery in Kampala."/>
+<!-- Ad landing pages should never be indexed — they're campaign-specific, not evergreen content -->
+<meta name="robots" content="noindex, nofollow"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --black:#0B0B0C;--charcoal:#161613;--white:#F8F6F0;
+    --gold:#C7A248;--gold-light:#E8CE8E;--gold-dark:#8F7229;
+    --red:#B8442F;--green:#2A9D50;--grey:#8C8672;--light:#F1EEE4;--border:#E7E2D3;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Inter',sans-serif;background:var(--white);color:var(--black);font-size:15px;line-height:1.6;}
+  .serif{font-family:'Fraunces',serif;}
+
+  header{background:var(--black);padding:14px 5vw;display:flex;align-items:center;justify-content:center;}
+  .site-logo{width:100%;max-width:170px;height:auto;display:block;}
+  .logo-text-fallback{display:none;flex-direction:column;align-items:center;}
+  .logo-text-main{font-family:'Fraunces',serif;font-size:1.1rem;font-weight:700;color:#fff;letter-spacing:0.04em;text-transform:uppercase;}
+  .logo-text-sub{font-size:0.5rem;font-weight:600;color:#fff;letter-spacing:0.2em;text-transform:uppercase;margin-top:2px;}
+
+  .wrap{max-width:560px;margin:0 auto;padding:0 0 40px;}
+
+  #loading-state{padding:80px 20px;text-align:center;color:var(--grey);}
+  #error-state{display:none;padding:80px 20px;text-align:center;color:var(--grey);}
+  .spinner{width:34px;height:34px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  #product-content{display:none;}
+
+  /* Gallery */
+  .gallery-main{width:100%;aspect-ratio:1/1;background:var(--light);overflow:hidden;position:relative;}
+  .gallery-main img{width:100%;height:100%;object-fit:cover;display:block;}
+  .gallery-thumbs{display:flex;gap:8px;padding:10px 5vw;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .gallery-thumb{width:56px;height:56px;flex-shrink:0;border-radius:8px;overflow:hidden;border:2px solid transparent;cursor:pointer;background:var(--light);}
+  .gallery-thumb.active{border-color:var(--gold);}
+  .gallery-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+
+  .product-body{padding:6px 5vw 0;}
+  .product-name{font-family:'Fraunces',serif;font-size:1.5rem;font-weight:700;line-height:1.25;margin:4px 0 8px;}
+  .price-row{display:flex;align-items:baseline;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+  .price-now{font-size:1.6rem;font-weight:800;color:var(--black);}
+  .price-was{font-size:1rem;color:var(--grey);text-decoration:line-through;}
+  .price-save{background:var(--red);color:#fff;font-size:0.72rem;font-weight:800;padding:3px 9px;border-radius:20px;}
+
+  .promo-banner{background:linear-gradient(135deg,#ff5f6d,#ffc371);border-radius:12px;padding:14px 16px;margin-bottom:18px;color:#fff;}
+  .promo-banner-title{font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;}
+  .promo-code-chip{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.92);color:#333;border-radius:7px;padding:6px 12px;font-weight:800;font-size:0.9rem;letter-spacing:0.04em;margin:6px 0;cursor:pointer;}
+  .promo-timer{font-size:0.76rem;font-weight:700;}
+
+  .variant-section{margin-bottom:16px;}
+  .variant-label{font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;color:var(--grey);margin-bottom:8px;}
+  .variant-options{display:flex;flex-wrap:wrap;gap:8px;}
+  .variant-btn{background:#fff;border:1.5px solid var(--border);border-radius:8px;padding:9px 14px;font-size:0.85rem;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:border-color 0.15s,background 0.15s;}
+  .variant-btn.active{border-color:var(--gold);background:var(--light);font-weight:800;}
+  .variant-btn:disabled{opacity:0.4;cursor:not-allowed;text-decoration:line-through;}
+
+  .qty-row{display:flex;align-items:center;gap:14px;margin-bottom:18px;}
+  .qty-btn{width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border);background:#fff;font-size:1.1rem;font-weight:700;cursor:pointer;}
+  .qty-val{font-size:1rem;font-weight:800;min-width:24px;text-align:center;}
+
+  .desc-box{background:var(--light);border-radius:10px;padding:14px 16px;margin-bottom:18px;font-size:0.85rem;color:#444;line-height:1.7;}
+
+  .trust-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px;}
+  .trust-pill{background:var(--light);border-radius:20px;padding:6px 12px;font-size:0.72rem;font-weight:700;color:#555;display:flex;align-items:center;gap:5px;}
+
+  .order-form{background:var(--light);border-radius:14px;padding:20px 18px;}
+  .order-form h2{font-family:'Fraunces',serif;font-size:1.15rem;margin:0 0 4px;}
+  .order-form .sub{font-size:0.8rem;color:var(--grey);margin-bottom:16px;}
+  .form-group{margin-bottom:12px;}
+  .form-group label{display:block;font-size:0.72rem;font-weight:700;color:#555;margin-bottom:5px;}
+  .form-group input,.form-group select,.form-group textarea{
+    width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:8px;
+    font-size:0.88rem;font-family:'Inter',sans-serif;background:#fff;box-sizing:border-box;
+  }
+  .form-group textarea{resize:vertical;}
+  input.field-invalid,select.field-invalid,textarea.field-invalid{border-color:var(--red)!important;background:#fff5f3;}
+  input.field-valid,select.field-valid,textarea.field-valid{border-color:var(--green)!important;background:#f3fbf5;}
+  .maps-pin-btn{margin-top:6px;background:#fff;border:1.5px solid var(--border);color:#555;padding:8px 12px;border-radius:7px;font-size:0.76rem;font-weight:700;cursor:pointer;width:100%;}
+  .location-result{font-size:0.74rem;margin-top:6px;color:var(--green);}
+  .location-result a{color:var(--green);}
+
+  .order-total-row{display:flex;justify-content:space-between;align-items:center;background:#fff;border-radius:8px;padding:12px 14px;margin:14px 0;font-weight:800;}
+  .order-total-row span:last-child{font-size:1.05rem;color:var(--black);}
+
+  .submit-btn{
+    width:100%;background:var(--black);color:#fff;border:none;padding:15px;border-radius:9px;
+    font-size:0.95rem;font-weight:800;cursor:pointer;font-family:'Inter',sans-serif;
+    letter-spacing:0.02em;
+  }
+  .submit-btn:disabled{opacity:0.6;cursor:default;}
+  .submit-btn:active{transform:scale(0.98);}
+
+  #success-state{display:none;padding:60px 20px;text-align:center;}
+  #success-state .icon{font-size:3rem;margin-bottom:10px;}
+  #success-state h2{font-family:'Fraunces',serif;font-size:1.4rem;margin:0 0 8px;}
+  #success-state p{color:var(--grey);font-size:0.9rem;max-width:340px;margin:0 auto 20px;}
+  .wa-btn{display:inline-flex;align-items:center;gap:8px;background:#25D366;color:#fff;padding:12px 22px;border-radius:9px;font-weight:700;text-decoration:none;font-size:0.88rem;}
+
+  footer{text-align:center;padding:20px 5vw;font-size:0.72rem;color:var(--grey);}
+</style>
+</head>
+<body>
+
+<header>
+  <img class="site-logo" id="header-logo-img" src="assets/images/swift-importers-logo-highres.svg" alt="Swift Importers - Delivering Quality" onerror="this.style.display='none'; document.getElementById('logo-text-fallback').style.display='flex';"/>
+  <div class="logo-text-fallback" id="logo-text-fallback">
+    <div class="logo-text-main">Swift Importers</div>
+    <div class="logo-text-sub">Delivering Quality</div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div id="loading-state">
+    <div class="spinner"></div>
+    Loading product...
+  </div>
+
+  <div id="error-state">
+    <div style="font-size:2.2rem;margin-bottom:10px;">😕</div>
+    <div class="serif" style="font-size:1.2rem;font-weight:700;margin-bottom:8px;">Product not found</div>
+    <p>This link may be out of date. Please contact us on WhatsApp and we'll help you find what you're looking for.</p>
+    <a class="wa-btn" href="https://wa.me/256757675088" target="_blank">💬 Chat on WhatsApp</a>
+  </div>
+
+  <div id="product-content">
+    <div class="gallery-main">
+      <img id="gallery-main-img" src="" alt=""/>
+    </div>
+    <div class="gallery-thumbs" id="gallery-thumbs"></div>
+
+    <div class="product-body">
+      <div class="product-name" id="product-name"></div>
+      <div class="price-row" id="price-row"></div>
+
+      <div id="promo-banner" class="promo-banner" style="display:none;">
+        <div class="promo-banner-title">🎟️ Limited Time Offer</div>
+        <div class="promo-code-chip" id="promo-code-chip" onclick="copyPromoCodeLanding()"></div>
+        <div class="promo-timer" id="promo-timer"></div>
+      </div>
+
+      <div class="variant-section" id="variant-section" style="display:none;">
+        <div class="variant-label">Choose an option</div>
+        <div class="variant-options" id="variant-options"></div>
+      </div>
+
+      <div class="qty-row">
+        <span style="font-size:0.8rem;font-weight:700;color:var(--grey);">Quantity</span>
+        <button class="qty-btn" onclick="changeQty(-1)">−</button>
+        <span class="qty-val" id="qty-val">1</span>
+        <button class="qty-btn" onclick="changeQty(1)">+</button>
+      </div>
+
+      <div class="desc-box" id="desc-box" style="display:none;"></div>
+
+      <div class="trust-row">
+        <span class="trust-pill">🚚 Fast Kampala Delivery</span>
+        <span class="trust-pill">✅ Genuine Products</span>
+        <span class="trust-pill">💬 WhatsApp Support</span>
+      </div>
+
+      <div class="order-form">
+        <h2>Get It Delivered</h2>
+        <div class="sub">Fill in your details — we'll call to confirm and deliver to your door.</div>
+
+        <div class="form-group">
+          <label>Full Name *</label>
+          <input type="text" id="order-name" placeholder="e.g. David Okello"/>
+        </div>
+        <div class="form-group">
+          <label>Phone Number *</label>
+          <input type="tel" id="order-phone" placeholder="+256 7XX XXX XXX"/>
+        </div>
+        <div class="form-group">
+          <label>Delivery Area *</label>
+          <select id="order-area">
+            <option value="">Select your area</option>
+            <option>Kampala Central</option><option>Kampala Suburbs (Ntinda, Bukoto, Najjera)</option>
+            <option>Entebbe</option><option>Jinja</option><option>Mbarara</option>
+            <option>Gulu</option><option>Mbale</option><option>Fort Portal</option>
+            <option>Kasese</option><option>Other (specify in notes)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Exact Delivery Location *</label>
+          <textarea id="exact-location" rows="2" placeholder="e.g. Opposite Shoprite, next to Stanbic Bank..."></textarea>
+          <button type="button" class="maps-pin-btn" onclick="getLocationLanding()">
+            <span id="pin-btn-text">📍 Drop a Google Maps Pin</span>
+          </button>
+          <div id="location-result" class="location-result" style="display:none;"></div>
+        </div>
+        <div class="form-group">
+          <label>Payment Method *</label>
+          <select id="order-payment">
+            <option value="">Choose payment</option>
+            <option>MTN Mobile Money</option><option>Airtel Money</option>
+            <option>Cash on Delivery</option><option>Visa / Mastercard</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Notes (optional)</label>
+          <input type="text" id="order-notes" placeholder="e.g. specific colour, delivery time preference"/>
+        </div>
+
+        <div class="order-total-row">
+          <span>Total</span>
+          <span id="order-total-display">UGX 0</span>
+        </div>
+
+        <button class="submit-btn" id="submit-btn" onclick="submitLandingOrder()">Order Now</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="success-state">
+    <div class="icon">🎉</div>
+    <h2>Order Received!</h2>
+    <p>Thank you! We've got your order and will call you shortly to confirm delivery details.</p>
+    <a class="wa-btn" id="success-wa-btn" href="https://wa.me/256757675088" target="_blank">💬 Message Us on WhatsApp</a>
+  </div>
+
+</div>
+
+<footer>
+  Swift Importers Uganda &middot; <a href="tel:+256757675088" style="color:var(--grey);">0757 675 088</a>
+</footer>
+
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  const firebaseConfig = {
+    apiKey: "AIzaSyDqOE4NDmp3xJrTf71MzlClTZ201Uhyk0Q",
+    authDomain: "swift-importers.firebaseapp.com",
+    projectId: "swift-importers",
+    storageBucket: "swift-importers.firebasestorage.app",
+    messagingSenderId: "223766904777",
+    appId: "1:223766904777:web:aae5780e08d0800aff7218"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  window.fbDb = db;
+  window.fbFns = { doc, getDoc, collection, addDoc };
+  window.firebaseReady = true;
+  window.dispatchEvent(new Event('firebaseReady'));
+</script>
+
+<script>
+  // ── URL PARAMETERS ──
+  // ?product=<productId>          required — which product this page is for
+  // &campaign=<anything you want>  optional — freeform label so you know which ad drove
+  //                                 the sale later, e.g. "fb-oct-earbuds" or "ig-story-charger"
+  var urlParams = new URLSearchParams(window.location.search);
+  var landingProductId = urlParams.get('product');
+  var landingCampaign = urlParams.get('campaign') || '';
+
+  var landingProduct = null;
+  var landingSelectedVariantIdx = 0;
+  var landingQty = 1;
+  var landingGalleryImages = [];
+  var landingPromoCode = null;
+  var landingPromoDiscount = 0;
+
+  function fmtPrice(p) { return 'UGX ' + parseInt(p).toLocaleString('en-UG'); }
+
+  function isValidUgandaPhone(value) {
+    if (!value) return false;
+    var digits = value.replace(/[^\d+]/g, '');
+    return /^\+256\d{9}$/.test(digits) || /^256\d{9}$/.test(digits) || /^0\d{9}$/.test(digits);
+  }
+
+  function hasDiscount(v) {
+    var sell = parseInt(v.sell)||0;
+    var disc = parseInt(v.discountPrice)||0;
+    if (!(disc > 0 && disc < sell)) return false;
+    if (v.discountExpiresAt) {
+      var exp = new Date(v.discountExpiresAt).getTime();
+      if (!isNaN(exp) && exp <= Date.now()) return false;
+    }
+    return true;
+  }
+  function effectivePrice(v) {
+    return hasDiscount(v) ? (parseInt(v.discountPrice)||0) : (parseInt(v.sell)||0);
+  }
+  function isProductPromoActive(p) {
+    if (!p || !p.promoCode || !(parseInt(p.promoDiscountAmount) > 0)) return false;
+    if (!p.promoExpiresAt) return true;
+    return new Date(p.promoExpiresAt).getTime() > Date.now();
+  }
+  function formatCountdown(msRemaining) {
+    if (msRemaining <= 0) return 'Deal ended';
+    var totalSec = Math.floor(msRemaining/1000);
+    var days = Math.floor(totalSec/86400);
+    var hours = Math.floor((totalSec%86400)/3600);
+    var mins = Math.floor((totalSec%3600)/60);
+    var secs = totalSec%60;
+    if (days > 0) return days+'d '+hours+'h '+mins+'m '+secs+'s left';
+    if (hours > 0) return hours+'h '+mins+'m '+secs+'s left';
+    if (mins > 0) return mins+'m '+secs+'s left';
+    return secs+'s left';
+  }
+  // Same lightweight markup support as the main site's product descriptions
+  function formatDescriptionHtml(text) {
+    if (!text) return '';
+    var escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    var lines = escaped.split('\n');
+    return lines.map(function(line){
+      var trimmed = line.trim();
+      var inline = function(s){ return s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'); };
+      if (trimmed.indexOf('## ') === 0) return '<div style="font-size:1.05em;font-weight:800;margin:10px 0 4px;">' + inline(trimmed.slice(3)) + '</div>';
+      if (trimmed.indexOf('# ') === 0) return '<div style="font-size:1.2em;font-weight:900;margin:12px 0 6px;">' + inline(trimmed.slice(2)) + '</div>';
+      if (trimmed === '') return '<div style="height:0.6em;"></div>';
+      return '<div>' + inline(line) + '</div>';
+    }).join('');
+  }
+
+  function loadLandingProduct() {
+    if (!landingProductId) { showLandingError(); return; }
+    var { doc, getDoc } = window.fbFns;
+    getDoc(doc(window.fbDb, 'products', landingProductId)).then(function(snap){
+      if (!snap.exists()) { showLandingError(); return; }
+      landingProduct = { id: snap.id, ...snap.data() };
+      renderLandingProduct();
+    }).catch(function(e){ console.error(e); showLandingError(); });
+  }
+
+  function showLandingError() {
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('error-state').style.display = 'block';
+  }
+
+  function renderLandingProduct() {
+    var p = landingProduct;
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('product-content').style.display = 'block';
+    document.getElementById('page-title').textContent = p.name + ' — Swift Importers';
+
+    // Gallery
+    landingGalleryImages = (p.images && p.images.length) ? p.images : (p.image ? [p.image] : []);
+    document.getElementById('gallery-main-img').src = landingGalleryImages[0] || '';
+    document.getElementById('gallery-main-img').alt = p.name;
+    var thumbsWrap = document.getElementById('gallery-thumbs');
+    if (landingGalleryImages.length > 1) {
+      thumbsWrap.innerHTML = landingGalleryImages.map(function(img, i){
+        return '<div class="gallery-thumb' + (i===0?' active':'') + '" onclick="swapLandingImage(' + i + ', this)"><img src="' + img + '"/></div>';
+      }).join('');
+    }
+
+    document.getElementById('product-name').textContent = p.name;
+
+    // Variants
+    var variantWrap = document.getElementById('variant-options');
+    if (p.variants && p.variants.length > 1) {
+      document.getElementById('variant-section').style.display = 'block';
+      variantWrap.innerHTML = p.variants.map(function(v, i){
+        var label = v.name + (v.color ? ' - ' + v.color : '');
+        var stock = parseInt(v.stock) || 0;
+        return '<button class="variant-btn' + (i===0?' active':'') + '" ' + (stock<=0?'disabled':'') + ' onclick="selectLandingVariant(' + i + ', this)">' + label + (stock<=0?' (Out of stock)':'') + '</button>';
+      }).join('');
+    }
+
+    // Description
+    if (p.description && p.description.trim()) {
+      var descBox = document.getElementById('desc-box');
+      descBox.innerHTML = formatDescriptionHtml(p.description.trim());
+      descBox.style.display = 'block';
+    }
+
+    renderLandingPromoBanner();
+    updateLandingPriceDisplay();
+  }
+
+  function swapLandingImage(i, el) {
+    document.getElementById('gallery-main-img').src = landingGalleryImages[i];
+    document.querySelectorAll('.gallery-thumb').forEach(function(t){ t.classList.remove('active'); });
+    el.classList.add('active');
+  }
+
+  function selectLandingVariant(i, el) {
+    landingSelectedVariantIdx = i;
+    document.querySelectorAll('.variant-btn').forEach(function(b){ b.classList.remove('active'); });
+    el.classList.add('active');
+    updateLandingPriceDisplay();
+  }
+
+  var landingCountdownInterval = null;
+  function renderLandingPromoBanner() {
+    var p = landingProduct;
+    var banner = document.getElementById('promo-banner');
+    if (!isProductPromoActive(p)) { banner.style.display = 'none'; return; }
+    landingPromoCode = p.promoCode;
+    landingPromoDiscount = parseInt(p.promoDiscountAmount) || 0;
+    banner.style.display = 'block';
+    document.getElementById('promo-code-chip').innerHTML = '🏷️ ' + p.promoCode + ' — Save ' + fmtPrice(landingPromoDiscount);
+    if (p.promoExpiresAt) {
+      var expMs = new Date(p.promoExpiresAt).getTime();
+      var tick = function(){
+        var el = document.getElementById('promo-timer');
+        if (!el) return;
+        el.textContent = '⏰ ' + formatCountdown(expMs - Date.now());
+        if (expMs - Date.now() <= 0) { clearInterval(landingCountdownInterval); banner.style.display = 'none'; landingPromoDiscount = 0; updateLandingPriceDisplay(); }
+      };
+      tick();
+      landingCountdownInterval = setInterval(tick, 1000);
+    }
+  }
+
+  function copyPromoCodeLanding() {
+    if (!landingPromoCode) return;
+    navigator.clipboard.writeText(landingPromoCode).catch(function(){});
+    var chip = document.getElementById('promo-code-chip');
+    var original = chip.innerHTML;
+    chip.innerHTML = '✓ Copied!';
+    setTimeout(function(){ chip.innerHTML = original; }, 1400);
+  }
+
+  function changeQty(delta) {
+    var v = landingProduct.variants[landingSelectedVariantIdx];
+    var maxStock = v ? (parseInt(v.stock) || 1) : 99;
+    landingQty = Math.max(1, Math.min(maxStock, landingQty + delta));
+    document.getElementById('qty-val').textContent = landingQty;
+    updateLandingPriceDisplay();
+  }
+
+  function updateLandingPriceDisplay() {
+    var p = landingProduct;
+    var v = (p.variants && p.variants[landingSelectedVariantIdx]) || {};
+    var base = effectivePrice(v);
+    var withPromo = landingPromoDiscount > 0 ? Math.max(0, base - landingPromoDiscount) : base;
+    var row = document.getElementById('price-row');
+    var html = '<span class="price-now">' + fmtPrice(withPromo) + '</span>';
+    if (hasDiscount(v) || landingPromoDiscount > 0) {
+      html += '<span class="price-was">' + fmtPrice(parseInt(v.sell)||0) + '</span>';
+      var pct = Math.round((1 - withPromo / (parseInt(v.sell)||1)) * 100);
+      if (pct > 0) html += '<span class="price-save">' + pct + '% OFF</span>';
+    }
+    row.innerHTML = html;
+    document.getElementById('order-total-display').textContent = fmtPrice(withPromo * landingQty);
+  }
+
+  function getLocationLanding() {
+    var btn = document.getElementById('pin-btn-text');
+    var result = document.getElementById('location-result');
+    var field = document.getElementById('exact-location');
+    if (!navigator.geolocation) { result.style.display='block'; result.textContent='Browser does not support location.'; return; }
+    btn.textContent = 'Getting your location...';
+    navigator.geolocation.getCurrentPosition(function(pos){
+      var lat = pos.coords.latitude.toFixed(6), lng = pos.coords.longitude.toFixed(6);
+      var link = 'https://www.google.com/maps?q=' + lat + ',' + lng;
+      field.value = (field.value ? field.value + ' | ' : '') + 'GPS: ' + lat + ', ' + lng;
+      result.style.display = 'block';
+      result.innerHTML = 'Location pinned! <a href="' + link + '" target="_blank">View on Google Maps</a>';
+      btn.textContent = '📍 Location Pinned!';
+    }, function(){
+      btn.textContent = '📍 Drop a Google Maps Pin';
+      result.style.display = 'block';
+      result.textContent = 'Could not get your location. Please type your address manually.';
+    }, { enableHighAccuracy: true, timeout: 10000 });
+  }
+
+  function validateLandingForm() {
+    var ok = true;
+    [['order-name', function(v){ return !!v.trim(); }],
+     ['order-phone', isValidUgandaPhone],
+     ['order-area', function(v){ return !!v; }],
+     ['exact-location', function(v){ return !!v.trim(); }],
+     ['order-payment', function(v){ return !!v; }]
+    ].forEach(function(pair){
+      var el = document.getElementById(pair[0]);
+      var valid = pair[1](el.value);
+      el.classList.toggle('field-invalid', !valid);
+      el.classList.toggle('field-valid', valid);
+      if (!valid) ok = false;
+    });
+    return ok;
+  }
+
+  ['order-name','order-phone','order-area','exact-location','order-payment'].forEach(function(id){
+    var el = document.getElementById(id);
+    el.addEventListener('input', validateLandingForm);
+    el.addEventListener('change', validateLandingForm);
+  });
+
+  function submitLandingOrder() {
+    if (!landingProduct) return;
+    if (!validateLandingForm()) return;
+
+    var v = landingProduct.variants[landingSelectedVariantIdx];
+    var base = effectivePrice(v);
+    var unitPrice = landingPromoDiscount > 0 ? Math.max(0, base - landingPromoDiscount) : base;
+    var subtotal = unitPrice * landingQty;
+
+    var order = {
+      customerName: document.getElementById('order-name').value.trim(),
+      phone: document.getElementById('order-phone').value.trim(),
+      deliveryArea: document.getElementById('order-area').value,
+      exactLocation: document.getElementById('exact-location').value.trim(),
+      products: landingProduct.name + (v.name ? ' (' + v.name + (v.color?' - '+v.color:'') + ')' : '') + ' x' + landingQty,
+      paymentMethod: document.getElementById('order-payment').value,
+      notes: document.getElementById('order-notes').value.trim(),
+      cartItems: [{ id: landingProduct.id, name: landingProduct.name + (v.name ? ' ('+v.name+(v.color?' - '+v.color:'')+')' : ''), qty: landingQty, price: unitPrice, cost: v.cost||0, variantIdx: landingSelectedVariantIdx }],
+      appliedPromoCode: landingPromoDiscount > 0 ? landingPromoCode : null,
+      promoDiscount: landingPromoDiscount > 0 ? (landingPromoDiscount * landingQty) : 0,
+      memberTier: null,
+      memberDiscount: 0,
+      accountId: null,
+      subtotal: subtotal,
+      orderTotal: subtotal,
+      status: 'pending',
+      timestamp: new Date().toISOString(),
+      // What makes this different from a normal storefront order — lets you see in the
+      // admin panel exactly which ad/campaign brought each sale in.
+      source: 'landing_page',
+      campaign: landingCampaign || null,
+      landingProductId: landingProduct.id
+    };
+
+    var btn = document.getElementById('submit-btn');
+    btn.disabled = true; btn.textContent = 'Placing order...';
+
+    window.fbFns.addDoc(window.fbFns.collection(window.fbDb, 'orders'), order).then(function(){
+      document.getElementById('product-content').style.display = 'none';
+      document.getElementById('success-state').style.display = 'block';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }).catch(function(e){
+      console.error(e);
+      btn.disabled = false; btn.textContent = 'Order Now';
+      alert('Something went wrong placing your order. Please try again or message us on WhatsApp.');
+    });
+  }
+
+  if (window.firebaseReady) { loadLandingProduct(); }
+  else { window.addEventListener('firebaseReady', loadLandingProduct); }
+</script>
+</body>
+</html>

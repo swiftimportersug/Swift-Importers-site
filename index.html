@@ -1019,7 +1019,11 @@
 <nav>
   <div class="logo-img-wrap">
     <div class="swift-logo" onclick="goToHomePage()" style="cursor:pointer;" title="Back to home">
-      <img class="site-logo" src="assets/images/swift-importers-logo-highres.png" alt="Swift Importers - Delivering Quality"/>
+      <img class="site-logo" src="assets/images/swift-importers-logo-highres.svg" alt="Swift Importers - Delivering Quality" onerror="this.style.display='none'; document.getElementById('logo-text-fallback').style.display='flex';"/>
+      <div id="logo-text-fallback" style="display:none; flex-direction:column; align-items:center;">
+        <div class="swift-logo-main">SWIFT IMP<span class="dot"></span>RTERS</div>
+        <div class="swift-logo-sub">Delivering Quality</div>
+      </div>
     </div>
   </div>
   <div class="nav-search-wrap">
