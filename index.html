@@ -1824,6 +1824,13 @@
 
 <!-- LEAVE A REVIEW -->
 <!-- CHANGE PROFILE PICTURE -->
+<!-- PROFILE PICTURE VIEWER (standalone — deliberately not sharing the multi-image gallery
+     viewer's state, to rule out any interaction between the two) -->
+<div id="profile-pic-viewer" onclick="closeProfilePictureViewer()" style="display:none; position:fixed; inset:0; z-index:950; background:rgba(0,0,0,0.92); align-items:center; justify-content:center; flex-direction:column;">
+  <button onclick="closeProfilePictureViewer()" style="position:absolute; top:20px; right:20px; background:rgba(255,255,255,0.15); color:#fff; border:none; width:40px; height:40px; border-radius:50%; font-size:1.3rem; cursor:pointer; z-index:2;">&times;</button>
+  <img id="profile-pic-viewer-img" src="" alt="Profile picture" style="max-width:90vw; max-height:80vh; border-radius:12px; object-fit:contain;"/>
+</div>
+
 <div class="modal-overlay" id="profile-pic-choice-modal">
   <div class="modal" style="max-width:320px;text-align:center;">
     <button class="modal-close" onclick="closeOverlayEl(document.getElementById('profile-pic-choice-modal'))">X</button>
@@ -5160,10 +5167,15 @@
   function viewProfilePicture() {
     if (!currentAccount) return;
     if (currentAccount.profilePicture) {
-      openSingleImageFullscreen(currentAccount.profilePicture);
+      document.getElementById('profile-pic-viewer-img').src = currentAccount.profilePicture;
+      document.getElementById('profile-pic-viewer').style.display = 'flex';
     } else {
       openProfilePictureChooser(); // nothing to view yet — go straight to setting one
     }
+  }
+
+  function closeProfilePictureViewer() {
+    document.getElementById('profile-pic-viewer').style.display = 'none';
   }
 
   function openProfilePictureChooser() {

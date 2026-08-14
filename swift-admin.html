@@ -811,7 +811,7 @@
     </div>
   </div>
 
-  <div class="modal-overlay" id="reset-customer-code-modal" onclick="if(event.target===this) this.classList.remove('open');">
+  <div class="modal-overlay" id="reset-customer-code-modal" onclick="if(event.target===this) this.classList.remove('open');" style="z-index:850;">
     <div class="modal-box" style="max-width:380px; padding:24px;">
       <div style="font-size:1rem; font-weight:800; margin-bottom:4px;">Reset Code</div>
       <div id="reset-code-customer-name" style="font-size:0.82rem; color:#888; margin-bottom:14px;"></div>
@@ -866,6 +866,12 @@
           </select>
           <button onclick="applyManualTierChange()" style="background:var(--black); color:#fff; border:none; padding:9px 16px; border-radius:7px; font-size:0.8rem; font-weight:700; cursor:pointer;">Apply</button>
         </div>
+      </div>
+
+      <div style="background:var(--light); border:1.5px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:16px;">
+        <div style="font-size:0.78rem; font-weight:800; color:#555; margin-bottom:8px;">🔑 Account Access</div>
+        <div style="font-size:0.7rem; color:#888; margin-bottom:8px;">If they've lost access to their account, reset their sign-in code here.</div>
+        <button onclick="openResetCustomerCodeFromDetail()" style="width:100%; background:#fff; border:1.5px solid var(--border); color:#555; padding:9px 16px; border-radius:7px; font-size:0.8rem; font-weight:700; cursor:pointer;">🔑 Reset Code</button>
       </div>
 
       <div class="admin-3d-box" style="margin-bottom:12px;">
@@ -1304,10 +1310,14 @@
           </div>
         </div>
 
+        <input type="text" id="tracking-search-input" placeholder="🔍 Search by item name or tracking number..." oninput="renderTrackingList()"
+          style="width:100%; box-sizing:border-box; padding:11px 14px; border:1.5px solid var(--border); border-radius:8px; font-size:0.85rem; font-family:'Inter',sans-serif; margin-bottom:12px;"/>
+
         <div style="display:flex; gap:8px; margin-bottom:14px; border-bottom:1.5px solid var(--border);">
           <button id="tracking-tab-pending" onclick="switchTrackingTab('pending')" style="background:none; border:none; padding:10px 6px; font-size:0.85rem; font-weight:800; color:var(--black); border-bottom:2.5px solid var(--gold); cursor:pointer; font-family:'Inter',sans-serif;">📦 Pending</button>
           <button id="tracking-tab-received" onclick="switchTrackingTab('received')" style="background:none; border:none; padding:10px 6px; font-size:0.85rem; font-weight:800; color:var(--grey); border-bottom:2.5px solid transparent; cursor:pointer; font-family:'Inter',sans-serif;">✅ Received</button>
-          <button onclick="startTrackingScanner()" style="margin-left:auto; background:var(--black); color:#fff; border:none; padding:9px 16px; border-radius:6px; font-size:0.8rem; font-weight:700; cursor:pointer;">📷 Scan to Receive</button>
+          <button onclick="startTrackingScanner(false)" style="margin-left:auto; background:#fff; border:1.5px solid var(--border); color:#555; padding:9px 14px; border-radius:6px; font-size:0.8rem; font-weight:700; cursor:pointer;">🔍 Scan to Find</button>
+          <button onclick="startTrackingScanner(true)" style="background:var(--black); color:#fff; border:none; padding:9px 16px; border-radius:6px; font-size:0.8rem; font-weight:700; cursor:pointer;">📷 Scan to Receive</button>
         </div>
 
         <div id="tracking-scanner-wrap" style="display:none; margin-bottom:16px; background:#000; border-radius:12px; overflow:hidden; position:relative;">
@@ -2313,9 +2323,14 @@
   function renderTrackingList() {
     const list = document.getElementById('tracking-list');
     if (!list) return;
-    const items = trackingItems.filter(t => t.status === trackingActiveTab);
+    const searchInput = document.getElementById('tracking-search-input');
+    const q = searchInput ? searchInput.value.trim().toLowerCase() : '';
+    let items = trackingItems.filter(t => t.status === trackingActiveTab);
+    if (q) {
+      items = items.filter(t => (t.itemName||'').toLowerCase().includes(q) || (t.trackingNumber||'').toLowerCase().includes(q));
+    }
     if (items.length === 0) {
-      list.innerHTML = `<div style="padding:20px; text-align:center; color:#999; font-size:0.85rem;">No ${trackingActiveTab} items.</div>`;
+      list.innerHTML = `<div style="padding:20px; text-align:center; color:#999; font-size:0.85rem;">${q ? 'No matching items in this tab.' : 'No ' + trackingActiveTab + ' items.'}</div>`;
       return;
     }
     list.innerHTML = items.map(t => {
@@ -2421,7 +2436,10 @@
   let trackingBarcodeDetector = null;
   let trackingScannerActive = false;
 
-  async function startTrackingScanner() {
+  let trackingScannerReceiveMode = true;
+
+  async function startTrackingScanner(receiveMode) {
+    trackingScannerReceiveMode = receiveMode !== false;
     const wrap = document.getElementById('tracking-scanner-wrap');
     wrap.style.display = 'block';
     try {
@@ -2437,11 +2455,13 @@
           trackingBarcodeDetector = new BarcodeDetector({ formats: ['qr_code','ean_13','ean_8','code_128','code_39','upc_a','upc_e','itf','codabar'] });
         } catch(e) { trackingBarcodeDetector = null; }
       }
-      document.getElementById('tracking-qr-result').textContent = '📷 Scanning... hold steady over the tracking barcode/QR';
+      document.getElementById('tracking-qr-result').textContent = trackingScannerReceiveMode
+        ? '📷 Scanning... hold steady over the tracking barcode/QR'
+        : '🔍 Scanning to find an item (won\'t mark anything received)...';
       trackingScanInterval = setInterval(() => trackingScanFrame(), 350);
     } catch(e) {
       wrap.style.display = 'none';
-      showAppAlert('Camera access denied or unavailable. You can mark items received manually instead.');
+      showAppAlert('Camera access denied or unavailable. You can search by typing instead.');
     }
   }
 
@@ -2482,13 +2502,29 @@
   async function onTrackingCodeDetected(code) {
     playScanBeep();
     if (navigator.vibrate) navigator.vibrate(150);
-    const match = trackingItems.find(t => t.status === 'pending' && t.trackingNumber.toLowerCase() === code.toLowerCase());
     const resultEl = document.getElementById('tracking-qr-result');
-    if (match) {
-      stopTrackingScanner();
-      await markTrackingReceived(match.fbDocId);
+
+    if (trackingScannerReceiveMode) {
+      const match = trackingItems.find(t => t.status === 'pending' && t.trackingNumber.toLowerCase() === code.toLowerCase());
+      if (match) {
+        stopTrackingScanner();
+        await markTrackingReceived(match.fbDocId);
+      } else {
+        if (resultEl) resultEl.innerHTML = `⚠️ No pending item matches this code: <strong>${code}</strong>`;
+      }
     } else {
-      if (resultEl) resultEl.innerHTML = `⚠️ No pending item matches this code: <strong>${code}</strong>`;
+      // Find mode — locate the item regardless of status, switch to the right tab, and
+      // drop it straight into the search box so it's the only thing showing.
+      const match = trackingItems.find(t => t.trackingNumber.toLowerCase() === code.toLowerCase());
+      if (match) {
+        stopTrackingScanner();
+        trackingActiveTab = match.status;
+        document.getElementById('tracking-search-input').value = match.trackingNumber;
+        switchTrackingTab(match.status);
+        showSuccessToast(`✅ Found: ${match.itemName} (${match.status})`);
+      } else {
+        if (resultEl) resultEl.innerHTML = `⚠️ No item found for this code: <strong>${code}</strong>`;
+      }
     }
   }
 
@@ -2844,7 +2880,7 @@
       }
       if (matches.length === 0) { results.innerHTML = `<div style="font-size:0.8rem; color:#999;">${q ? 'No matching customers.' : 'No registered customers yet.'}</div>`; return; }
       results.innerHTML = matches.slice(0, 60).map(c => `
-        <div style="width:260px; flex:0 0 260px; box-sizing:border-box; display:flex; flex-direction:column; gap:6px; background:var(--light); border:1px solid var(--border); border-radius:10px; padding:12px 14px;">
+        <div onclick="openCustomerDetail('${c.fbDocId}')" style="width:260px; flex:0 0 260px; box-sizing:border-box; display:flex; flex-direction:column; gap:6px; background:var(--light); border:1px solid var(--border); border-radius:10px; padding:12px 14px; cursor:pointer; transition:box-shadow 0.15s, transform 0.15s;" onmouseover="this.style.boxShadow='0 4px 14px rgba(0,0,0,0.12)'; this.style.transform='translateY(-1px)';" onmouseout="this.style.boxShadow=''; this.style.transform='';">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
             <span style="font-weight:800; font-size:0.85rem;">${c.name || '(no name)'}</span>
             ${tierBadgeHtml(c.tier)}
@@ -2853,10 +2889,6 @@
           <div style="display:flex; gap:10px; font-size:0.76rem; color:#888;">
             <span>${c.orderCount||0} orders</span>
             <span>${fmt(c.totalSpent||0)} spent</span>
-          </div>
-          <div style="display:flex; gap:6px; margin-top:4px;">
-            <button onclick="openCustomerDetail('${c.fbDocId}')" style="flex:1; background:var(--black); border:none; color:#fff; cursor:pointer; font-size:0.72rem; font-weight:700; padding:6px 10px; border-radius:6px;">👁️ View Details</button>
-            <button onclick="openResetCustomerCode('${c.fbDocId}','${(c.name||'').replace(/'/g,"\\'")}','${c.phone}')" style="flex:1; background:#fff; border:1.5px solid var(--border); color:#555; cursor:pointer; font-size:0.72rem; font-weight:700; padding:6px 10px; border-radius:6px;">🔑 Reset Code</button>
           </div>
         </div>
       `).join('') + (matches.length > 60 ? `<div style="width:100%; font-size:0.76rem; color:#999; margin-top:6px;">Showing 60 of ${matches.length} — narrow your search to see more specific results.</div>` : '');
@@ -2871,6 +2903,13 @@
     document.getElementById('reset-code-customer-name').textContent = (name || 'This customer') + ' — ' + phone;
     document.getElementById('reset-code-input').value = '';
     document.getElementById('reset-customer-code-modal').classList.add('open');
+  }
+
+  function openResetCustomerCodeFromDetail() {
+    const docId = customerDetailTargetDocId;
+    const c = allCustomersCache.find(x => x.fbDocId === docId);
+    if (!c) return;
+    openResetCustomerCode(docId, c.name, c.phone);
   }
 
   function toggleCustomerDetailSection(name) {
@@ -3761,6 +3800,7 @@
   // Clicking anywhere outside an open toggle box (Site-Wide Promo Codes, Staff Names,
   // Find Product Location) closes it, same as clicking its own header again.
   document.addEventListener('click', function(e){
+    if (e.target.closest('.modal-overlay')) return; // clicking inside any popup (e.g. a confirm dialog) shouldn't count as "clicking outside" the section beneath it
     [
       { boxId: 'promo-section-box', bodyId: 'promo-section-body', arrowId: 'promo-section-arrow' },
       { boxId: 'staff-section-box', bodyId: 'staff-section-body', arrowId: 'staff-section-arrow' },
