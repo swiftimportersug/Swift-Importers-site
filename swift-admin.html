@@ -1564,6 +1564,7 @@
           <div style="display:flex; gap:8px; margin-bottom:16px;">
             <button class="period-tab active" id="emp-perf-tab-sales" data-tab="sales" onclick="setEmpPerfTab('sales')" style="border-radius:8px;">🛒 Sales</button>
             <button class="period-tab" id="emp-perf-tab-adjustments" data-tab="adjustments" onclick="setEmpPerfTab('adjustments')" style="border-radius:8px;">📦 Adjustments</button>
+            <button class="period-tab" id="emp-perf-tab-tracking" data-tab="tracking" onclick="setEmpPerfTab('tracking')" style="border-radius:8px;">🚚 Product Tracking</button>
           </div>
 
           <div id="emp-perf-content"></div>
@@ -2279,6 +2280,7 @@
       await addDoc(collection(window.fbDb, 'tracking_items'), {
         itemName: name, store, trackingNumber, quantity: qty, purchasePrice: price,
         purchaseDate, extraExpense, notes, status: 'pending', receivedDate: null,
+        addedBy: 'Admin',
         createdAt: new Date().toISOString()
       });
       ['track-item-name','track-number','track-extra-expense','track-notes'].forEach(id => document.getElementById(id).value = '');
@@ -2382,7 +2384,8 @@
     try {
       const { doc, updateDoc } = window.fbFns;
       await updateDoc(doc(window.fbDb, 'tracking_items', docId), {
-        status: 'received', receivedDate: new Date().toISOString().slice(0,10)
+        status: 'received', receivedDate: new Date().toISOString().slice(0,10),
+        receivedBy: 'Admin'
       });
       showSuccessToast('✅ Item marked as received!');
       openTrackingExpensePrompt(docId);
@@ -2410,7 +2413,7 @@
     try {
       const { doc, updateDoc, arrayUnion } = window.fbFns;
       await updateDoc(doc(window.fbDb, 'tracking_items', docId), {
-        lastMileExpenses: arrayUnion({ amount, note, date: new Date().toISOString().slice(0,10) })
+        lastMileExpenses: arrayUnion({ amount, note, date: new Date().toISOString().slice(0,10), addedBy: 'Admin' })
       });
       showSuccessToast('✅ Expense added!');
     } catch(e) {
@@ -2726,11 +2729,11 @@
       lastKnownUnreadMsgCountAdmin = newUnread;
       messagesFirstSnapshotSeenAdmin = true;
       updateAdminMessagesBadge();
-      const messagesPage = document.getElementById('page-messages');
-      if (messagesPage && messagesPage.classList.contains('active')) {
-        renderAdminThreadsList();
-        if (activeThreadCustomerId) renderAdminThreadMessages(activeThreadCustomerId);
-      }
+      // Always keep these in sync on every snapshot, not just while the Messages page
+      // happens to be the active one — this removes any chance that a page-visibility
+      // check was the reason read receipts felt like they needed a manual refresh.
+      renderAdminThreadsList();
+      if (activeThreadCustomerId) renderAdminThreadMessages(activeThreadCustomerId);
     });
   }
 
@@ -3706,6 +3709,7 @@
     empPerfTab = tab;
     document.getElementById('emp-perf-tab-sales').classList.toggle('active', tab === 'sales');
     document.getElementById('emp-perf-tab-adjustments').classList.toggle('active', tab === 'adjustments');
+    document.getElementById('emp-perf-tab-tracking').classList.toggle('active', tab === 'tracking');
     renderEmpPerfDetail();
   }
 
@@ -3715,6 +3719,25 @@
 
     const empSales = orders.filter(o => o.status === 'closed' && o.recordedBy === name && isInPeriod(o.timestamp, empPerfPeriod));
     const empAdjustments = adjustmentsLog.filter(a => a.recordedBy === name && isInPeriod(a.timestamp, empPerfPeriod));
+
+    // Flatten tracking_items into individual attributable events — an item can have up
+    // to three kinds of actions (added, received, expense logged), each potentially by
+    // a different staff member, so this reconstructs a proper per-employee activity log.
+    const empTrackingEvents = [];
+    (typeof trackingItems !== 'undefined' ? trackingItems : []).forEach(t => {
+      if (t.addedBy === name && t.createdAt && isInPeriod(t.createdAt, empPerfPeriod)) {
+        empTrackingEvents.push({ type: 'added', item: t.itemName, trackingNumber: t.trackingNumber, date: t.createdAt });
+      }
+      if (t.receivedBy === name && t.receivedDate && isInPeriod(t.receivedDate, empPerfPeriod)) {
+        empTrackingEvents.push({ type: 'received', item: t.itemName, trackingNumber: t.trackingNumber, date: t.receivedDate });
+      }
+      (t.lastMileExpenses || []).forEach(e => {
+        if (e.addedBy === name && e.date && isInPeriod(e.date, empPerfPeriod)) {
+          empTrackingEvents.push({ type: 'expense', item: t.itemName, amount: e.amount, note: e.note, date: e.date });
+        }
+      });
+    });
+    empTrackingEvents.sort((a,b) => new Date(b.date) - new Date(a.date));
 
     let totalSalesValue = 0;
     empSales.forEach(o => {
@@ -3743,6 +3766,11 @@
         <div class="stat-value">${empAdjustments.length}</div>
         <div class="stat-sub">${periodLabel}</div>
       </div>
+      <div class="stat-card">
+        <div class="stat-label">🚚 Tracking Actions</div>
+        <div class="stat-value">${empTrackingEvents.length}</div>
+        <div class="stat-sub">${periodLabel}</div>
+      </div>
     `;
 
     const content = document.getElementById('emp-perf-content');
@@ -3764,7 +3792,7 @@
           </div>
         `;
       }).join('');
-    } else {
+    } else if (empPerfTab === 'adjustments') {
       if (empAdjustments.length === 0) {
         content.innerHTML = '<div class="dash-search-empty">No adjustments by ' + name + ' ' + periodLabel.toLowerCase() + '.</div>';
         return;
@@ -3776,6 +3804,21 @@
             <div class="dash-tx-meta">${a.date || fmtOrderTime(a.timestamp)} &middot; ${a.reason||''}</div>
           </div>
           <span class="dash-tx-tag adjustment">${a.type==='add'?'+':'-'}${a.qty}</span>
+        </div>
+      `).join('');
+    } else {
+      if (empTrackingEvents.length === 0) {
+        content.innerHTML = '<div class="dash-search-empty">No tracking activity by ' + name + ' ' + periodLabel.toLowerCase() + '.</div>';
+        return;
+      }
+      const typeLabels = { added: '➕ Added to tracking', received: '✅ Marked received', expense: '💰 Logged expense' };
+      content.innerHTML = empTrackingEvents.map(ev => `
+        <div class="dash-tx-row">
+          <div>
+            <div class="dash-tx-desc">${typeLabels[ev.type]} — ${ev.item}</div>
+            <div class="dash-tx-meta">${fmtDMY(new Date(ev.date), true)}${ev.trackingNumber ? ' &middot; ' + ev.trackingNumber : ''}${ev.note ? ' &middot; ' + ev.note : ''}</div>
+          </div>
+          ${ev.type === 'expense' ? `<span class="dash-tx-tag adjustment">${fmt(ev.amount)}</span>` : ''}
         </div>
       `).join('');
     }

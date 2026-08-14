@@ -3450,6 +3450,7 @@
       await addDoc(collection(window.fbDb, 'tracking_items'), {
         itemName: name, store, trackingNumber, quantity: qty, purchasePrice: price,
         purchaseDate, extraExpense, notes, status: 'pending', receivedDate: null,
+        addedBy: currentEmployeeName || 'Employee',
         createdAt: new Date().toISOString()
       });
       ['track-item-name','track-number','track-extra-expense','track-notes'].forEach(id => document.getElementById(id).value = '');
@@ -3549,7 +3550,8 @@
     try {
       const { doc, updateDoc } = window.fbFns;
       await updateDoc(doc(window.fbDb, 'tracking_items', docId), {
-        status: 'received', receivedDate: new Date().toISOString().slice(0,10)
+        status: 'received', receivedDate: new Date().toISOString().slice(0,10),
+        receivedBy: currentEmployeeName || 'Employee'
       });
       showSuccessToast('✅ Item marked as received!');
       openTrackingExpensePrompt(docId);
@@ -3577,7 +3579,7 @@
     try {
       const { doc, updateDoc, arrayUnion } = window.fbFns;
       await updateDoc(doc(window.fbDb, 'tracking_items', docId), {
-        lastMileExpenses: arrayUnion({ amount, note, date: new Date().toISOString().slice(0,10) })
+        lastMileExpenses: arrayUnion({ amount, note, date: new Date().toISOString().slice(0,10), addedBy: currentEmployeeName || 'Employee' })
       });
       showSuccessToast('✅ Expense added!');
     } catch(e) {

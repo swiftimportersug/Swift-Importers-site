@@ -189,6 +189,7 @@
       cursor:pointer; border:none;
       animation:promoHomeCardPulse 2.4s ease-in-out infinite;
       transition:transform 0.15s;
+      position:relative;
     }
     .promo-home-card:hover{ transform:translateY(-2px); }
     .promo-home-card:active{ transform:translateY(0) scale(0.97); }
@@ -198,6 +199,26 @@
       0%,100%{ box-shadow:0 4px 12px rgba(255,95,109,0.3); }
       50%{ box-shadow:0 6px 18px rgba(255,95,109,0.5); }
     }
+    @keyframes livePulseDot{
+      0%,100%{ opacity:1; transform:scale(1); }
+      50%{ opacity:0.4; transform:scale(0.7); }
+    }
+    /* Upcoming/"coming soon" cards — deliberately desaturated and static (no pulse
+       animation, no colored gradient) so they read as "not usable yet" at a glance,
+       unlike the vibrant, animated active cards. */
+    .promo-home-card.upcoming{
+      background:linear-gradient(135deg,#c3bcd6,#ddd7ea) !important;
+      box-shadow:0 3px 10px rgba(91,63,168,0.18) !important;
+      animation:none !important;
+      opacity:0.92;
+    }
+    .promo-home-card.upcoming::before{
+      content:'🔒 SOON'; position:absolute; top:-7px; right:8px;
+      background:#5b3fa8; color:#fff; font-size:0.52rem; font-weight:800;
+      padding:2px 7px; border-radius:20px; letter-spacing:0.04em;
+      box-shadow:0 2px 6px rgba(0,0,0,0.25);
+    }
+    .promo-home-card.upcoming .promo-home-code-row{ background:rgba(255,255,255,0.75); }
     .promo-home-amount{ font-size:0.82rem; font-weight:900; color:#fff; line-height:1.15; text-shadow:0 1px 4px rgba(0,0,0,0.12); }
     .promo-home-threshold{ font-size:0.58rem; font-weight:700; color:rgba(255,255,255,0.92); }
     .promo-home-code-row{
@@ -1091,11 +1112,15 @@
 
 <!-- SITE-WIDE PROMO CODES -->
 <section id="promo-codes-section" style="display:none; padding:14px 0 4px;">
+  <div style="padding:0 5vw 6px; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#2a9d50; display:flex; align-items:center; gap:6px;">
+    <span style="width:7px; height:7px; border-radius:50%; background:#2a9d50; display:inline-block; animation:livePulseDot 1.4s ease-in-out infinite;"></span>
+    Live Now — Tap to Copy
+  </div>
   <div class="promo-codes-scroll" id="promo-codes-list"></div>
 </section>
 
-<section id="upcoming-promo-section" style="display:none; padding:6px 0 4px;">
-  <div style="padding:0 5vw 6px; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#5b3fa8;">🚀 Coming Soon</div>
+<section id="upcoming-promo-section" style="display:none; padding:10px 0 10px; margin:6px 0; background:linear-gradient(135deg,#f3f0ff,#faf8ff); border-top:1.5px dashed #c9bdec; border-bottom:1.5px dashed #c9bdec;">
+  <div style="padding:8px 5vw 8px; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#5b3fa8;">🚀 Coming Soon — Not Active Yet</div>
   <div class="promo-codes-scroll" id="upcoming-promo-list"></div>
 </section>
 
@@ -1643,7 +1668,7 @@
       <div class="hto-option" id="del-opt-2"><div class="hto-num">&#127960;&#65039;</div><div class="hto-content"><div class="hto-title">Kampala &amp; Suburbs Coverage</div><p>We deliver across <strong>Kampala and its major suburbs</strong>, including Munyonyo, Buziga, Bweyogerere, Ntinda, Ggaba, Makindye, Makerere, and many more.</p></div></div>
       <div class="hto-option" id="del-opt-3"><div class="hto-num">&#128172;</div><div class="hto-content"><div class="hto-title">Add Detailed Directions</div><p>Include clear landmark-based directions in your order notes. For example: "Behind Shell Kireka, second gray gate on the left" or "Makerere, Ham Towers near the main gate."</p></div></div>
       <div class="hto-option" id="del-opt-4"><div class="hto-num">&#9201;&#65039;</div><div class="hto-content"><div class="hto-title">Delivery Times</div><p>Same-day delivery for orders placed before <strong>6:00 PM</strong> within Kampala. You can expect your items within <strong>20-40 minutes</strong> after order confirmation for most Kampala suburbs. For Jinja - same day via taxi. For Lira City - bus parcel, next morning pickup. Fees UGX 5,000-20,000.</p></div></div>
-      <div class="hto-footer-btn" id="del-footer-btn"><a href="#order" onclick="captureCheckoutOrigin();closeAllOverlays();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();prefillCheckoutFromAccount();setTimeout(function(){armCheckoutGuard();},80);},200)" class="btn-primary" style="display:block;text-align:center;margin-top:8px;text-decoration:none;">Place Your Order Now</a></div>
+      <div class="hto-footer-btn" id="del-footer-btn"><a href="#order" onclick="captureCheckoutOrigin();closeAllOverlays();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();prefillCheckoutFromAccount();armOrderFieldValidation();setTimeout(function(){armCheckoutGuard();},80);},200)" class="btn-primary" style="display:block;text-align:center;margin-top:8px;text-decoration:none;">Place Your Order Now</a></div>
     </div>
   </div>
 </div>
@@ -1828,7 +1853,7 @@
      viewer's state, to rule out any interaction between the two) -->
 <div id="profile-pic-viewer" onclick="closeProfilePictureViewer()" style="display:none; position:fixed; inset:0; z-index:950; background:rgba(0,0,0,0.92); align-items:center; justify-content:center; flex-direction:column;">
   <button onclick="closeProfilePictureViewer()" style="position:absolute; top:20px; right:20px; background:rgba(255,255,255,0.15); color:#fff; border:none; width:40px; height:40px; border-radius:50%; font-size:1.3rem; cursor:pointer; z-index:2;">&times;</button>
-  <img id="profile-pic-viewer-img" src="" alt="Profile picture" style="max-width:90vw; max-height:80vh; border-radius:12px; object-fit:contain;"/>
+  <img id="profile-pic-viewer-img" src="" alt="Profile picture" style="width:min(85vw, 480px); height:min(85vw, 480px); max-height:80vh; border-radius:16px; object-fit:cover; box-shadow:0 20px 60px rgba(0,0,0,0.5);"/>
 </div>
 
 <div class="modal-overlay" id="profile-pic-choice-modal">
@@ -1863,7 +1888,7 @@
     <div class="cart-total" id="cart-total-row" style="display:none;">
       <span>Total</span><span id="cart-total-val"></span>
     </div>
-    <button class="submit-btn" onclick="captureCheckoutOrigin();closeAllOverlays();renderOrderItemsSummary();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();prefillCheckoutFromAccount();setTimeout(function(){armCheckoutGuard();},80);}, 50);">Proceed to Order</button>
+    <button class="submit-btn" onclick="captureCheckoutOrigin();closeAllOverlays();renderOrderItemsSummary();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();prefillCheckoutFromAccount();armOrderFieldValidation();setTimeout(function(){armCheckoutGuard();},80);}, 50);">Proceed to Order</button>
   </div>
 </div>
 
@@ -2048,15 +2073,14 @@
     if (upcoming.length === 0) { section.style.display = 'none'; list.innerHTML = ''; return; }
     section.style.display = 'block';
     list.innerHTML = upcoming.map(function(g, i){
-      var variantClass = i % 3 === 1 ? ' promo-variant-2' : (i % 3 === 2 ? ' promo-variant-3' : '');
       var startMs = new Date(g.activatesAt).getTime();
       var safeCode = String(g.code).replace(/'/g, "\\'");
       var thresholdText = g.minOrderValue > 0 ? 'Orders above '+fmtPriceShort(g.minOrderValue) : 'Any order';
-      return '<div class="promo-home-card'+variantClass+'" style="opacity:0.88;" onclick="copyPromoCode(\''+safeCode+'\', this)">' +
-          '<div class="promo-home-amount">'+fmtPriceShort(g.discountAmount)+' OFF</div>' +
-          '<div class="promo-home-threshold">'+thresholdText+'</div>' +
+      return '<div class="promo-home-card upcoming" onclick="copyPromoCode(\''+safeCode+'\', this)">' +
+          '<div class="promo-home-amount" style="color:#3d2d70;">'+fmtPriceShort(g.discountAmount)+' OFF</div>' +
+          '<div class="promo-home-threshold" style="color:#5b3fa8;">'+thresholdText+'</div>' +
           '<div class="promo-home-code-row"><span class="promo-home-code">'+g.code+'</span><span class="promo-home-copy-hint">Tap to copy</span></div>' +
-          '<div class="promo-home-timer">&#128640; Starts in <span class="countdown-badge" data-expiry="'+startMs+'" style="background:rgba(0,0,0,0.22);">'+formatCountdown(startMs - Date.now())+'</span></div>' +
+          '<div class="promo-home-timer" style="color:#5b3fa8;">&#128640; Starts in <span class="countdown-badge" data-expiry="'+startMs+'" style="background:rgba(91,63,168,0.18); color:#3d2d70;">'+formatCountdown(startMs - Date.now())+'</span></div>' +
         '</div>';
     }).join('');
   }
@@ -3700,8 +3724,8 @@
       closePdOverlay();
       document.getElementById('order').scrollIntoView({behavior:'smooth'});
       showOrderFormArrow();
-      armOrderFieldValidation();
       prefillCheckoutFromAccount();
+      armOrderFieldValidation();
       // Focus first empty field
       var nameField = document.getElementById('order-name');
       if (nameField && !nameField.value) { setTimeout(function(){ nameField.focus(); }, 600); }
