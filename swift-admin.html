@@ -844,6 +844,28 @@
           <div id="customer-detail-spent" style="font-size:1.05rem; font-weight:900;"></div>
           <div style="font-size:0.66rem; color:#888; font-weight:700; text-transform:uppercase;">Total Spent</div>
         </div>
+        <div style="background:var(--light); border-radius:8px; padding:10px; text-align:center;">
+          <div id="customer-detail-visits-7" style="font-size:1.2rem; font-weight:900;"></div>
+          <div style="font-size:0.66rem; color:#888; font-weight:700; text-transform:uppercase;">Days Active (7d)</div>
+        </div>
+        <div style="background:var(--light); border-radius:8px; padding:10px; text-align:center;">
+          <div id="customer-detail-visits-30" style="font-size:1.2rem; font-weight:900;"></div>
+          <div style="font-size:0.66rem; color:#888; font-weight:700; text-transform:uppercase;">Days Active (30d)</div>
+        </div>
+      </div>
+
+      <div style="background:#f3f0ff; border:1.5px solid #8a6fd6; border-radius:10px; padding:12px 14px; margin-bottom:16px;">
+        <div style="font-size:0.78rem; font-weight:800; color:#5b3fa8; margin-bottom:8px;">🎖️ Manually Set Tier</div>
+        <div style="font-size:0.7rem; color:#888; margin-bottom:8px;">Override their tier directly — useful for rewarding loyalty that doesn't show up in spend alone. This bypasses the usual spending thresholds.</div>
+        <div style="display:flex; gap:8px;">
+          <select id="customer-detail-tier-select" style="flex:1; padding:9px 11px; border:1.5px solid var(--border); border-radius:7px; font-family:'Inter',sans-serif; font-size:0.82rem;">
+            <option value="standard">Standard</option>
+            <option value="silver">🥈 Silver</option>
+            <option value="gold">🥇 Gold</option>
+            <option value="platinum">💎 Platinum</option>
+          </select>
+          <button onclick="applyManualTierChange()" style="background:var(--black); color:#fff; border:none; padding:9px 16px; border-radius:7px; font-size:0.8rem; font-weight:700; cursor:pointer;">Apply</button>
+        </div>
       </div>
 
       <div class="admin-3d-box" style="margin-bottom:12px;">
@@ -1012,6 +1034,21 @@
                 <input type="number" id="gp-amount" min="0" placeholder="Amount off (UGX)" style="flex:1; min-width:140px; padding:10px 12px; border:1.5px solid var(--border); border-radius:7px; font-size:0.85rem; font-family:'Inter',sans-serif; box-sizing:border-box;"/>
                 <input type="number" id="gp-minorder" min="0" placeholder="For orders above (UGX) — optional" style="flex:1; min-width:200px; padding:10px 12px; border:1.5px solid var(--border); border-radius:7px; font-size:0.85rem; font-family:'Inter',sans-serif; box-sizing:border-box;"/>
               </div>
+
+              <div style="font-size:0.72rem; font-weight:800; color:#5b3fa8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">🚀 Schedule It (optional)</div>
+              <div style="font-size:0.7rem; color:#888; margin-bottom:8px;">Leave blank to make it live immediately. Set a start time to have it appear on the storefront as an upcoming deal with a countdown, then go live automatically — like AliExpress flash sales.</div>
+              <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+                <button type="button" onclick="setGlobalPromoStartPreset(1,'hours')" style="background:#fff; border:1.5px solid #c9bdec; border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#5b3fa8;">Starts in 1 hour</button>
+                <button type="button" onclick="setGlobalPromoStartPreset(6,'hours')" style="background:#fff; border:1.5px solid #c9bdec; border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#5b3fa8;">6 hours</button>
+                <button type="button" onclick="setGlobalPromoStartPreset(1,'days')" style="background:#fff; border:1.5px solid #c9bdec; border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#5b3fa8;">1 day</button>
+                <button type="button" onclick="setGlobalPromoStartPreset(3,'days')" style="background:#fff; border:1.5px solid #c9bdec; border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#5b3fa8;">3 days</button>
+                <button type="button" onclick="setGlobalPromoStartPreset(7,'days')" style="background:#fff; border:1.5px solid #c9bdec; border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#5b3fa8;">7 days</button>
+                <button type="button" onclick="document.getElementById('gp-starts').value=''; updateDMYPreview(document.getElementById('gp-starts'));" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#888;">✕ Live now</button>
+              </div>
+              <input type="datetime-local" lang="en-GB" id="gp-starts" onchange="updateDMYPreview(this)" style="width:100%; padding:9px 11px; border:1.5px solid #c9bdec; border-radius:7px; font-size:0.82rem; font-family:'Inter',sans-serif; box-sizing:border-box; margin-bottom:4px;"/>
+              <div id="gp-starts-preview" style="font-size:0.72rem; font-weight:700; color:#5b3fa8; min-height:1.2em; margin-bottom:10px;"></div>
+
+              <div style="font-size:0.72rem; font-weight:800; color:#555; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">⏰ Ends (optional)</div>
               <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
                 <button type="button" onclick="setGlobalPromoPreset(1,'hours')" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+1 hour</button>
                 <button type="button" onclick="setGlobalPromoPreset(1,'days')" style="background:#fff; border:1.5px solid var(--border); border-radius:6px; padding:5px 10px; font-size:0.7rem; font-weight:700; cursor:pointer; color:#555;">+1 day</button>
@@ -2538,6 +2575,28 @@
 
   // ── CUSTOMER SEARCH & CODE RESET ──
   let resetCodeTargetDocId = null;
+  let customerDetailTargetDocId = null;
+
+  async function applyManualTierChange() {
+    const docId = customerDetailTargetDocId;
+    const newTier = document.getElementById('customer-detail-tier-select').value;
+    if (!docId || !window.fbDb || !window.fbFns) return;
+    const c = allCustomersCache.find(x => x.fbDocId === docId);
+    const tierLabel = { standard:'Standard', silver:'🥈 Silver', gold:'🥇 Gold', platinum:'💎 Platinum' }[newTier];
+    showAppConfirm(`Set ${c ? c.name : 'this customer'}'s tier to ${tierLabel}? This overrides their spend-based tier directly.`, async () => {
+      try {
+        const { doc, updateDoc } = window.fbFns;
+        await updateDoc(doc(window.fbDb, 'customers', docId), { tier: newTier });
+        if (c) c.tier = newTier;
+        document.getElementById('customer-detail-tier').innerHTML = tierBadgeHtml(newTier);
+        showSuccessToast('✅ Tier updated!');
+      } catch(e) {
+        showAppAlert('Error updating tier. Check your connection.');
+        console.error(e);
+      }
+    }, null, { icon: '🎖️', confirmText: 'Set Tier' });
+  }
+
 
   function tierBadgeHtml(tier) {
     if (tier === 'platinum') return '<span style="background:#efe9fb;border:1.5px solid #6a5acd;color:#5a4bb0;font-weight:800;font-size:0.7rem;padding:2px 9px;border-radius:20px;">💎 Platinum</span>';
@@ -2720,15 +2779,15 @@
     replyRow.style.display = 'flex';
     box.innerHTML = msgs.map(m => {
       const isAdmin = m.sender === 'admin';
-      const customerRead = !isAdmin && m.read; // this customer message has been read by admin
-      const adminMsgSeen = isAdmin && m.read;   // this admin message has been seen by the customer
-      const bubbleBg = isAdmin ? (adminMsgSeen ? '#e0f7e9' : 'var(--gold)') : (customerRead ? '#e0f7e9' : 'var(--light)');
-      const bubbleColor = isAdmin ? (adminMsgSeen ? '#1b7d40' : 'var(--black)') : (customerRead ? '#1b7d40' : '#222');
-      const footerText = isAdmin ? (adminMsgSeen ? '✅ Seen' : 'You') : (customerRead ? '✅ Read' : 'Customer');
+      const seenMark = m.read ? ' ✓✓' : '';
+      // Fixed colors per sender, always — admin is always the dark bubble, customer is
+      // always the light one, matching standard chat-app conventions. "Seen" status is
+      // shown as a small checkmark next to the label instead of changing bubble color,
+      // so the two senders are never ambiguous regardless of read state.
       return `
         <div style="align-self:${isAdmin ? 'flex-end' : 'flex-start'}; max-width:75%;">
-          <div style="background:${bubbleBg}; color:${bubbleColor}; padding:9px 13px; border-radius:${isAdmin ? '14px 14px 3px 14px' : '14px 14px 14px 3px'}; font-size:0.85rem; line-height:1.4; transition:background 0.3s, color 0.3s;">${(m.text||'').replace(/</g,'&lt;')}</div>
-          <div style="font-size:0.62rem; color:#999; margin-top:3px; text-align:${isAdmin ? 'right' : 'left'};">${footerText} &middot; ${fmtOrderTime(m.timestamp)}</div>
+          <div style="background:${isAdmin ? 'var(--black)' : 'var(--light)'}; color:${isAdmin ? '#fff' : '#222'}; padding:9px 13px; border-radius:${isAdmin ? '14px 14px 3px 14px' : '14px 14px 14px 3px'}; font-size:0.85rem; line-height:1.4;">${(m.text||'').replace(/</g,'&lt;')}</div>
+          <div style="font-size:0.62rem; color:${m.read ? '#2a9d50' : '#999'}; font-weight:${m.read ? '700' : '400'}; margin-top:3px; text-align:${isAdmin ? 'right' : 'left'};">${isAdmin ? 'You' : 'Customer'}${seenMark} &middot; ${fmtOrderTime(m.timestamp)}</div>
         </div>
       `;
     }).join('');
@@ -2830,6 +2889,14 @@
     document.getElementById('customer-detail-tier').innerHTML = tierBadgeHtml(c.tier);
     document.getElementById('customer-detail-orders-count').textContent = c.orderCount || 0;
     document.getElementById('customer-detail-spent').textContent = fmt(c.totalSpent || 0);
+    document.getElementById('customer-detail-tier-select').value = c.tier || 'standard';
+    customerDetailTargetDocId = docId;
+
+    const visitDates = c.visitDates || [];
+    const now = Date.now();
+    const daysAgo = n => now - n * 24 * 60 * 60 * 1000;
+    document.getElementById('customer-detail-visits-7').textContent = visitDates.filter(d => new Date(d).getTime() >= daysAgo(7)).length;
+    document.getElementById('customer-detail-visits-30').textContent = visitDates.filter(d => new Date(d).getTime() >= daysAgo(30)).length;
 
     // Reset sections closed each time
     ['orders','liked','favs'].forEach(n => {
@@ -3799,10 +3866,22 @@
     updateDMYPreview(input);
   }
 
+  function setGlobalPromoStartPreset(amount, unit) {
+    const input = document.getElementById('gp-starts');
+    if (!input) return;
+    const now = new Date();
+    if (unit === 'hours') now.setHours(now.getHours() + amount);
+    else if (unit === 'days') now.setDate(now.getDate() + amount);
+    const pad = n => String(n).padStart(2, '0');
+    input.value = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + 'T' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+    updateDMYPreview(input);
+  }
+
   async function addGlobalPromoCode() {
     const codeInput = document.getElementById('gp-code');
     const amountInput = document.getElementById('gp-amount');
     const minOrderInput = document.getElementById('gp-minorder');
+    const startsInput = document.getElementById('gp-starts');
     const expiresInput = document.getElementById('gp-expires');
     const code = codeInput.value.trim().toUpperCase();
     const amount = parseInt(amountInput.value) || 0;
@@ -3810,17 +3889,27 @@
     if (!code) { showAppAlert('Please enter a promo code.'); return; }
     if (!amount || amount <= 0) { showAppAlert('Please enter how much this code takes off (UGX).'); return; }
     if (globalPromoCodes.some(g => g.code === code)) { showAppAlert('That code already exists.'); return; }
+    let activatesAt = '';
+    if (startsInput.value) {
+      const sd = new Date(startsInput.value);
+      if (!isNaN(sd.getTime())) activatesAt = sd.toISOString();
+    }
     let expiresAt = '';
     if (expiresInput.value) {
       const d = new Date(expiresInput.value);
       if (!isNaN(d.getTime())) expiresAt = d.toISOString();
     }
+    if (activatesAt && expiresAt && new Date(activatesAt).getTime() >= new Date(expiresAt).getTime()) {
+      showAppAlert('The start time needs to be before the expiry time.');
+      return;
+    }
     if (!window.fbDb || !window.fbFns) { showAppAlert('Not connected. Check your internet connection.'); return; }
     const { collection, addDoc } = window.fbFns;
     try {
-      await addDoc(collection(window.fbDb, 'promo_codes'), { code, discountAmount: amount, minOrderValue, expiresAt, createdAt: new Date().toISOString() });
-      codeInput.value = ''; amountInput.value = ''; minOrderInput.value = ''; expiresInput.value = '';
-      showSuccessToast('✅ Promo Code Added!');
+      await addDoc(collection(window.fbDb, 'promo_codes'), { code, discountAmount: amount, minOrderValue, activatesAt, expiresAt, createdAt: new Date().toISOString() });
+      codeInput.value = ''; amountInput.value = ''; minOrderInput.value = ''; startsInput.value = ''; expiresInput.value = '';
+      updateDMYPreview(startsInput); updateDMYPreview(expiresInput);
+      showSuccessToast(activatesAt ? '✅ Scheduled! It\'ll go live automatically.' : '✅ Promo Code Added!');
     } catch(e) {
       showAppAlert('Error adding promo code. Check your internet connection.');
       console.error(e);
@@ -3849,6 +3938,7 @@
     }
     wrap.innerHTML = globalPromoCodes.map(g => {
       const expired = g.expiresAt && new Date(g.expiresAt).getTime() <= Date.now();
+      const isScheduled = g.activatesAt && new Date(g.activatesAt).getTime() > Date.now();
       var expiryLabel;
       if (!g.expiresAt) {
         expiryLabel = 'No expiry';
@@ -3858,11 +3948,17 @@
         const expMs = new Date(g.expiresAt).getTime();
         expiryLabel = fmtDMY(new Date(g.expiresAt), true) + ' &middot; <span class="admin-countdown" style="font-weight:800;color:#2a9d50;" data-expiry="'+expMs+'">' + formatCountdownAdmin(expMs - Date.now()) + '</span>';
       }
+      var startLabel = '';
+      if (isScheduled) {
+        const startMs = new Date(g.activatesAt).getTime();
+        startLabel = '<span style="font-size:0.7rem; font-weight:800; color:#5b3fa8;">🚀 Starts in <span class="admin-countdown" data-expiry="'+startMs+'">' + formatCountdownAdmin(startMs - Date.now()) + '</span></span>';
+      }
       return `
-        <div style="width:210px; flex:0 0 210px; display:flex; flex-direction:column; gap:6px; background:${expired?'#f5f5f5':'var(--light)'}; border:1px solid var(--border); border-radius:10px; padding:12px 14px; box-sizing:border-box;">
+        <div style="width:210px; flex:0 0 210px; display:flex; flex-direction:column; gap:6px; background:${expired?'#f5f5f5':(isScheduled?'#f3f0ff':'var(--light)')}; border:1px solid ${isScheduled?'#c9bdec':'var(--border)'}; border-radius:10px; padding:12px 14px; box-sizing:border-box;">
           <span style="align-self:flex-start; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:0.06em; background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:4px 12px; border-radius:6px; font-size:0.82rem;">${g.code}</span>
           <span style="font-size:0.8rem; font-weight:700; color:#2a7d52;">UGX ${(g.discountAmount||0).toLocaleString('en-UG')} off</span>
           <span style="font-size:0.72rem; font-weight:700; color:#555;">${g.minOrderValue > 0 ? 'Orders above UGX ' + g.minOrderValue.toLocaleString('en-UG') : 'Any order size'}</span>
+          ${startLabel}
           <span style="font-size:0.7rem; color:#888;">${expiryLabel}</span>
           <button onclick="deleteGlobalPromoCode('${g.fbDocId}','${g.code}')" style="margin-top:4px; background:#fdecea; border:1.5px solid #f5c6c0; color:var(--red); cursor:pointer; font-size:0.72rem; font-weight:700; padding:6px 10px; border-radius:6px;">🗑️ Remove</button>
         </div>

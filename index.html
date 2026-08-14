@@ -515,7 +515,7 @@
     .pd-arrow{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.4);color:#fff;border:none;width:32px;height:32px;border-radius:50%;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:5;}
     .pd-arrow-left{left:10px;}
     .pd-arrow-right{right:10px;}
-    .fs-overlay{display:none;position:fixed;inset:0;background:#000;z-index:500;align-items:center;justify-content:center;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+    .fs-overlay{display:none;position:fixed;inset:0;background:#000;z-index:900;align-items:center;justify-content:center;overflow-y:auto;-webkit-overflow-scrolling:touch;}
     .fs-overlay.open{display:flex;}
     .fs-overlay img{max-width:100%;max-height:100%;object-fit:contain;cursor:zoom-out;touch-action:pan-y;transition:opacity 0.28s ease;}
     .fs-close{position:absolute;top:18px;right:18px;background:rgba(255,255,255,0.18);color:#fff;border:none;width:42px;height:42px;border-radius:50%;font-size:1.6rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;box-shadow:0 2px 10px rgba(0,0,0,0.4);transition:background 0.15s;}
@@ -1094,6 +1094,11 @@
   <div class="promo-codes-scroll" id="promo-codes-list"></div>
 </section>
 
+<section id="upcoming-promo-section" style="display:none; padding:6px 0 4px;">
+  <div style="padding:0 5vw 6px; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#5b3fa8;">🚀 Coming Soon</div>
+  <div class="promo-codes-scroll" id="upcoming-promo-list"></div>
+</section>
+
 <!-- CATEGORIES -->
 <section id="categories">
   <div class="section-header">
@@ -1638,7 +1643,7 @@
       <div class="hto-option" id="del-opt-2"><div class="hto-num">&#127960;&#65039;</div><div class="hto-content"><div class="hto-title">Kampala &amp; Suburbs Coverage</div><p>We deliver across <strong>Kampala and its major suburbs</strong>, including Munyonyo, Buziga, Bweyogerere, Ntinda, Ggaba, Makindye, Makerere, and many more.</p></div></div>
       <div class="hto-option" id="del-opt-3"><div class="hto-num">&#128172;</div><div class="hto-content"><div class="hto-title">Add Detailed Directions</div><p>Include clear landmark-based directions in your order notes. For example: "Behind Shell Kireka, second gray gate on the left" or "Makerere, Ham Towers near the main gate."</p></div></div>
       <div class="hto-option" id="del-opt-4"><div class="hto-num">&#9201;&#65039;</div><div class="hto-content"><div class="hto-title">Delivery Times</div><p>Same-day delivery for orders placed before <strong>6:00 PM</strong> within Kampala. You can expect your items within <strong>20-40 minutes</strong> after order confirmation for most Kampala suburbs. For Jinja - same day via taxi. For Lira City - bus parcel, next morning pickup. Fees UGX 5,000-20,000.</p></div></div>
-      <div class="hto-footer-btn" id="del-footer-btn"><a href="#order" onclick="captureCheckoutOrigin();closeAllOverlays();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();armCheckoutGuard();prefillCheckoutFromAccount();},200)" class="btn-primary" style="display:block;text-align:center;margin-top:8px;text-decoration:none;">Place Your Order Now</a></div>
+      <div class="hto-footer-btn" id="del-footer-btn"><a href="#order" onclick="captureCheckoutOrigin();closeAllOverlays();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();prefillCheckoutFromAccount();setTimeout(function(){armCheckoutGuard();},80);},200)" class="btn-primary" style="display:block;text-align:center;margin-top:8px;text-decoration:none;">Place Your Order Now</a></div>
     </div>
   </div>
 </div>
@@ -1711,6 +1716,14 @@
         <div style="background:var(--light);border-radius:10px;padding:12px;text-align:center;">
           <div id="account-dash-spent" style="font-size:1.05rem;font-weight:900;color:var(--black);"></div>
           <div style="font-size:0.68rem;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Total Spent</div>
+        </div>
+        <div style="background:var(--light);border-radius:10px;padding:12px;text-align:center;">
+          <div id="account-dash-visits-7" style="font-size:1.3rem;font-weight:900;color:var(--black);"></div>
+          <div style="font-size:0.68rem;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Days Active (7d)</div>
+        </div>
+        <div style="background:var(--light);border-radius:10px;padding:12px;text-align:center;">
+          <div id="account-dash-visits-30" style="font-size:1.3rem;font-weight:900;color:var(--black);"></div>
+          <div style="font-size:0.68rem;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Days Active (30d)</div>
         </div>
       </div>
       <div id="account-dash-review-reminder" style="display:none;background:linear-gradient(160deg,#fff3d6,#ffe6b3);border:1.5px solid var(--gold);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:0.82rem;font-weight:700;color:#5a4310;"></div>
@@ -1843,7 +1856,7 @@
     <div class="cart-total" id="cart-total-row" style="display:none;">
       <span>Total</span><span id="cart-total-val"></span>
     </div>
-    <button class="submit-btn" onclick="captureCheckoutOrigin();closeAllOverlays();renderOrderItemsSummary();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();armCheckoutGuard();prefillCheckoutFromAccount();}, 50);">Proceed to Order</button>
+    <button class="submit-btn" onclick="captureCheckoutOrigin();closeAllOverlays();renderOrderItemsSummary();setTimeout(function(){document.getElementById('order').scrollIntoView({behavior:'smooth'});showOrderFormArrow();armOrderFieldValidation();prefillCheckoutFromAccount();setTimeout(function(){armCheckoutGuard();},80);}, 50);">Proceed to Order</button>
   </div>
 </div>
 
@@ -1989,23 +2002,54 @@
     var list = document.getElementById('promo-codes-list');
     if (!section || !list) return;
     var active = globalPromoCodes.filter(function(g){
-      return g.code && g.discountAmount > 0 && (!g.expiresAt || new Date(g.expiresAt).getTime() > Date.now());
+      return g.code && g.discountAmount > 0
+        && (!g.expiresAt || new Date(g.expiresAt).getTime() > Date.now())
+        && (!g.activatesAt || new Date(g.activatesAt).getTime() <= Date.now());
     }).sort(function(a,b){ return (a.minOrderValue||0) - (b.minOrderValue||0); });
-    if (active.length === 0) { section.style.display = 'none'; list.innerHTML = ''; return; }
+    if (active.length === 0) { section.style.display = 'none'; list.innerHTML = ''; }
+    else {
+      section.style.display = 'block';
+      list.innerHTML = active.map(function(g, i){
+        var variantClass = i % 3 === 1 ? ' promo-variant-2' : (i % 3 === 2 ? ' promo-variant-3' : '');
+        var expMs = g.expiresAt ? new Date(g.expiresAt).getTime() : null;
+        var timerHtml = expMs
+          ? '<div class="promo-home-timer">&#9200; <span class="countdown-badge" data-expiry="'+expMs+'" style="background:rgba(0,0,0,0.22);">'+formatCountdown(expMs - Date.now())+'</span></div>'
+          : '';
+        var safeCode = String(g.code).replace(/'/g, "\\'");
+        var thresholdText = g.minOrderValue > 0 ? 'Orders above '+fmtPriceShort(g.minOrderValue) : 'Any order';
+        return '<div class="promo-home-card'+variantClass+'" onclick="copyPromoCode(\''+safeCode+'\', this)">' +
+            '<div class="promo-home-amount">'+fmtPriceShort(g.discountAmount)+' OFF</div>' +
+            '<div class="promo-home-threshold">'+thresholdText+'</div>' +
+            '<div class="promo-home-code-row"><span class="promo-home-code">'+g.code+'</span><span class="promo-home-copy-hint">Tap to copy</span></div>' +
+            timerHtml +
+          '</div>';
+      }).join('');
+    }
+    renderUpcomingPromoCodes();
+  }
+
+  // AliExpress-style "coming soon" deals — scheduled codes shown with a countdown to
+  // when they'll automatically go live. No admin/employee action needed at that
+  // moment; the storefront just starts honoring the code the instant the clock hits zero.
+  function renderUpcomingPromoCodes() {
+    var section = document.getElementById('upcoming-promo-section');
+    var list = document.getElementById('upcoming-promo-list');
+    if (!section || !list) return;
+    var upcoming = globalPromoCodes.filter(function(g){
+      return g.code && g.discountAmount > 0 && g.activatesAt && new Date(g.activatesAt).getTime() > Date.now();
+    }).sort(function(a,b){ return new Date(a.activatesAt) - new Date(b.activatesAt); });
+    if (upcoming.length === 0) { section.style.display = 'none'; list.innerHTML = ''; return; }
     section.style.display = 'block';
-    list.innerHTML = active.map(function(g, i){
+    list.innerHTML = upcoming.map(function(g, i){
       var variantClass = i % 3 === 1 ? ' promo-variant-2' : (i % 3 === 2 ? ' promo-variant-3' : '');
-      var expMs = g.expiresAt ? new Date(g.expiresAt).getTime() : null;
-      var timerHtml = expMs
-        ? '<div class="promo-home-timer">&#9200; <span class="countdown-badge" data-expiry="'+expMs+'" style="background:rgba(0,0,0,0.22);">'+formatCountdown(expMs - Date.now())+'</span></div>'
-        : '';
+      var startMs = new Date(g.activatesAt).getTime();
       var safeCode = String(g.code).replace(/'/g, "\\'");
       var thresholdText = g.minOrderValue > 0 ? 'Orders above '+fmtPriceShort(g.minOrderValue) : 'Any order';
-      return '<div class="promo-home-card'+variantClass+'" onclick="copyPromoCode(\''+safeCode+'\', this)">' +
+      return '<div class="promo-home-card'+variantClass+'" style="opacity:0.88;" onclick="copyPromoCode(\''+safeCode+'\', this)">' +
           '<div class="promo-home-amount">'+fmtPriceShort(g.discountAmount)+' OFF</div>' +
           '<div class="promo-home-threshold">'+thresholdText+'</div>' +
           '<div class="promo-home-code-row"><span class="promo-home-code">'+g.code+'</span><span class="promo-home-copy-hint">Tap to copy</span></div>' +
-          timerHtml +
+          '<div class="promo-home-timer">&#128640; Starts in <span class="countdown-badge" data-expiry="'+startMs+'" style="background:rgba(0,0,0,0.22);">'+formatCountdown(startMs - Date.now())+'</span></div>' +
         '</div>';
     }).join('');
   }
@@ -2162,6 +2206,12 @@
   // Periodically refresh full product rendering so expired discounts revert to normal pricing everywhere
   setInterval(function(){
     if (typeof products !== 'undefined' && products.length) renderAllProducts();
+  }, 30000);
+  // Same idea for promo codes — a scheduled code needs to move from "Coming Soon" to
+  // the live strip automatically the moment its start time passes, with nobody needing
+  // to touch anything or refresh the page.
+  setInterval(function(){
+    if (typeof globalPromoCodes !== 'undefined') renderHomepagePromoCodes();
   }, 30000);
 
   // FIREBASE LOADING
@@ -3644,11 +3694,16 @@
       document.getElementById('order').scrollIntoView({behavior:'smooth'});
       showOrderFormArrow();
       armOrderFieldValidation();
-      armCheckoutGuard();
       prefillCheckoutFromAccount();
       // Focus first empty field
       var nameField = document.getElementById('order-name');
       if (nameField && !nameField.value) { setTimeout(function(){ nameField.focus(); }, 600); }
+      // closePdOverlay() just queued its own history.back() (async — the popstate for it
+      // hasn't fired yet). Arming the guard here would push a NEW state before that
+      // queued navigation resolves, and the guard's popstate listener would then
+      // misread the delayed "close overlay" event as the customer leaving checkout.
+      // Waiting a tick lets that resolve first.
+      setTimeout(function(){ armCheckoutGuard(); }, 80);
     }, 300);
   }
 
@@ -4023,7 +4078,9 @@
     }
 
     var match = globalPromoCodes.find(function(g){
-      return g.code && String(g.code).toUpperCase() === entered && g.discountAmount > 0 && (!g.expiresAt || new Date(g.expiresAt).getTime() > Date.now());
+      return g.code && String(g.code).toUpperCase() === entered && g.discountAmount > 0
+        && (!g.expiresAt || new Date(g.expiresAt).getTime() > Date.now())
+        && (!g.activatesAt || new Date(g.activatesAt).getTime() <= Date.now());
     });
 
     if (!match) {
@@ -4031,7 +4088,12 @@
       checkoutAppliedPromoDiscount = 0;
       msg.style.display = 'block';
       msg.style.color = 'var(--red)';
-      msg.textContent = '✕ Invalid or expired promo code.';
+      var notYetLive = globalPromoCodes.find(function(g){
+        return g.code && String(g.code).toUpperCase() === entered && g.activatesAt && new Date(g.activatesAt).getTime() > Date.now();
+      });
+      msg.textContent = notYetLive
+        ? '⏳ This code isn\'t active yet — check the countdown on the homepage.'
+        : '✕ Invalid or expired promo code.';
       renderOrderItemsSummary();
       return;
     }
@@ -4386,6 +4448,7 @@
         updateAccountNavLabel();
         startMessagesListener();
     checkPendingReviewReminder();
+    recordVisit();
         closeOverlayEl(document.getElementById('account-modal'));
         refreshCurrentProductGiftBox();
         return true;
@@ -4583,6 +4646,7 @@
       updateMessagesBadge();
     });
     checkPendingReviewReminder();
+    recordVisit();
   }
 
   function renderMessagesThread() {
@@ -4598,12 +4662,10 @@
     empty.style.display = 'none';
     thread.innerHTML = customerMessages.map(function(m){
       var isMe = m.sender === 'customer';
-      var seen = isMe && m.read; // admin has read this message the customer sent
-      var bubbleBg = isMe ? (seen ? '#e0f7e9' : 'var(--black)') : 'var(--light)';
-      var bubbleColor = isMe ? (seen ? '#1b7d40' : '#fff') : '#222';
+      var seenMark = m.read ? ' ✓✓' : '';
       return '<div style="align-self:'+(isMe?'flex-end':'flex-start')+'; max-width:78%;">' +
-        '<div style="background:'+bubbleBg+'; color:'+bubbleColor+'; padding:9px 13px; border-radius:'+(isMe?'14px 14px 3px 14px':'14px 14px 14px 3px')+'; font-size:0.85rem; line-height:1.4; transition:background 0.3s, color 0.3s;">'+escapeHtml(m.text)+'</div>' +
-        '<div style="font-size:0.62rem; color:var(--grey); margin-top:3px; text-align:'+(isMe?'right':'left')+';">'+(isMe?(seen?'Seen &#10003;':'You'):'Swift Importers')+' &middot; '+fmtMessageTime(m.timestamp)+'</div>' +
+        '<div style="background:'+(isMe?'var(--black)':'var(--light)')+'; color:'+(isMe?'#fff':'#222')+'; padding:9px 13px; border-radius:'+(isMe?'14px 14px 3px 14px':'14px 14px 14px 3px')+'; font-size:0.85rem; line-height:1.4;">'+escapeHtml(m.text)+'</div>' +
+        '<div style="font-size:0.62rem; color:'+(m.read?'#2a9d50':'var(--grey)')+'; font-weight:'+(m.read?'700':'400')+'; margin-top:3px; text-align:'+(isMe?'right':'left')+';">'+(isMe?'You':'Swift Importers')+seenMark+' &middot; '+fmtMessageTime(m.timestamp)+'</div>' +
       '</div>';
     }).join('');
     thread.scrollTop = thread.scrollHeight;
@@ -4658,6 +4720,24 @@
   var reviewedOrderItemKeys = null; // cached set of "orderId::productId" the account has already reviewed
   var pendingReviewTarget = null; // {productId, productName, orderId} — the most recent un-reviewed completed purchase
   var reviewStarsSelected = 0;
+
+  // ── VISIT TRACKING (for "how often does this customer visit" stats) ──
+  // Stores distinct day-strings (YYYY-MM-DD) — Firestore's arrayUnion naturally dedupes
+  // exact matches, so calling this multiple times in the same day is harmless. Used to
+  // show "days active in the last 7/30 days" on the customer's own profile and in the
+  // admin panel's customer detail view.
+  async function recordVisit() {
+    if (!currentAccount || !window.fbDb || !window.fbFns || !window.fbFns.arrayUnion) return;
+    var today = new Date().toISOString().slice(0,10);
+    if (currentAccount._visitRecordedToday === today) return; // already written this session
+    try {
+      var { doc, updateDoc, arrayUnion } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'customers', currentAccount.fbDocId), { visitDates: arrayUnion(today) });
+      if (!currentAccount.visitDates) currentAccount.visitDates = [];
+      if (currentAccount.visitDates.indexOf(today) === -1) currentAccount.visitDates.push(today);
+      currentAccount._visitRecordedToday = today;
+    } catch(e) { console.error('[account] failed to record visit:', e); }
+  }
 
   async function checkPendingReviewReminder() {
     if (!currentAccount || !window.fbDb || !window.fbFns) return;
@@ -4776,6 +4856,7 @@
       setTimeout(function(){
         closeOverlayEl(document.getElementById('review-modal'));
         checkPendingReviewReminder();
+    recordVisit();
       }, 1200);
     } catch(e) {
       msg.textContent = 'Something went wrong. Please try again.';
@@ -4940,6 +5021,7 @@
     refreshCurrentProductGiftBox();
     startMessagesListener();
     checkPendingReviewReminder();
+    recordVisit();
   }
 
   async function accountSignupSubmit() {
@@ -4967,6 +5049,7 @@
       refreshCurrentProductGiftBox();
       startMessagesListener();
     checkPendingReviewReminder();
+    recordVisit();
     } catch(e) {
       msg.textContent = 'Error creating your account. Please try again.';
       msg.style.display = 'block';
@@ -5000,6 +5083,7 @@
     updateProfilePictureDisplay();
     renderReviewReminders();
     checkPendingReviewReminder();
+    recordVisit();
     var tier = currentAccount.tier || 'standard';
     var spent = currentAccount.totalSpent || 0;
     document.getElementById('account-dash-name').textContent = currentAccount.name || '';
@@ -5009,6 +5093,11 @@
     tierEl.style.color = tierColors[tier] || 'var(--grey)';
     document.getElementById('account-dash-orders').textContent = currentAccount.orderCount || 0;
     document.getElementById('account-dash-spent').textContent = fmtPrice(spent);
+    var visitDates = currentAccount.visitDates || [];
+    var nowMs = Date.now();
+    var daysAgoMs = function(n){ return nowMs - n * 24 * 60 * 60 * 1000; };
+    document.getElementById('account-dash-visits-7').textContent = visitDates.filter(function(d){ return new Date(d).getTime() >= daysAgoMs(7); }).length;
+    document.getElementById('account-dash-visits-30').textContent = visitDates.filter(function(d){ return new Date(d).getTime() >= daysAgoMs(30); }).length;
 
     var purchasesBody = document.getElementById('account-purchases-body');
     var purchasesArrow = document.getElementById('account-purchases-arrow');
@@ -5301,6 +5390,7 @@
           updateAccountNavLabel();
           startMessagesListener();
     checkPendingReviewReminder();
+    recordVisit();
         }
       }
     } catch(e) { /* silent — user can just sign in manually */ }
