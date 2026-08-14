@@ -9,7 +9,7 @@
   <!-- Firebase -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, collection, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, deleteDoc, query, orderBy, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, deleteDoc, query, orderBy, addDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const firebaseConfig = {
@@ -42,7 +42,7 @@
     // Expose to global scope
     window.fbDb = db;
     window.fbAuth = auth;
-    window.fbFns = { collection, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, deleteDoc, query, orderBy, addDoc };
+    window.fbFns = { collection, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, deleteDoc, query, orderBy, addDoc, arrayUnion };
     window.fbAuthFns = { signInWithEmailAndPassword, signOut, onAuthStateChanged };
     window.EMPLOYEE_EMAIL = EMPLOYEE_EMAIL;
     window.EMPLOYEE_PASSWORD = EMPLOYEE_PASSWORD;
@@ -740,6 +740,8 @@
       .main { margin-left: 0; }
       .menu-toggle { display: block; }
       .content { padding: 16px; }
+      #topbar-dashboard-controls{ display:none !important; }
+      body.on-dashboard-page #topbar-dashboard-controls{ display:flex !important; }
       .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
       .form-row-2, .form-row-3 { grid-template-columns: 1fr; }
       .variant-row { gap: 8px; }
@@ -771,7 +773,7 @@
     }
   </style>
 </head>
-<body>
+<body class="on-dashboard-page">
 
 <!-- LOGIN -->
 <div class="login-screen" id="login-screen">
@@ -904,6 +906,23 @@
   <div class="success-toast" id="success-toast">✅ Successful!</div>
 
   <!-- GENERIC APP DIALOG (replaces native alert()/confirm() popups) -->
+  <!-- LAST-MILE EXPENSE ENTRY -->
+  <div class="modal-overlay" id="tracking-expense-modal" onclick="if(event.target===this) this.classList.remove('open');">
+    <div class="modal-box" style="max-width:400px; padding:24px;">
+      <div style="font-size:1.4rem; margin-bottom:6px;">💰</div>
+      <div style="font-size:1rem; font-weight:800; margin-bottom:4px;">Any Extra Expenses?</div>
+      <div id="tracking-expense-item-name" style="font-size:0.8rem; color:#888; margin-bottom:14px;"></div>
+      <div style="font-size:0.76rem; color:#888; margin-bottom:12px; line-height:1.5;">Transport to pick it up, agent fees, Posta charges, etc. — costs you couldn't know until it actually landed in Kampala. Leave blank if there weren't any, and you can always add more later from this item's card.</div>
+      <label style="display:block; font-size:0.68rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:#555; margin-bottom:4px;">Amount (UGX)</label>
+      <input type="number" id="tracking-expense-amount" min="0" placeholder="e.g. 15000" style="width:100%; box-sizing:border-box; padding:11px 13px; border:1.5px solid var(--border); border-radius:8px; font-family:'Inter',sans-serif; margin-bottom:8px;"/>
+      <input type="text" id="tracking-expense-note" placeholder="What was this for? (optional)" style="width:100%; box-sizing:border-box; padding:11px 13px; border:1.5px solid var(--border); border-radius:8px; font-family:'Inter',sans-serif; margin-bottom:16px;"/>
+      <div style="display:flex; gap:10px;">
+        <button class="btn-cancel" style="flex:1;" onclick="document.getElementById('tracking-expense-modal').classList.remove('open')">Skip</button>
+        <button class="btn-gold" style="flex:1;" onclick="confirmTrackingExpense()">Add Expense</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="app-dialog-overlay">
     <div class="modal-box" style="max-width:380px; text-align:center; padding:26px 24px;">
       <div id="app-dialog-icon" style="font-size:2.1rem; margin-bottom:10px;">⚠️</div>
@@ -1020,13 +1039,15 @@
           <span class="employee-chip-avatar" id="employee-chip-avatar">👤</span>
           <span class="employee-chip-name" id="employee-chip-name"></span>
         </div>
-        <span id="fb-status" style="font-size:0.75rem; font-weight:600; color:var(--grey);">⏳ Connecting...</span>
-        <button id="notif-btn" class="notif-btn enabled" onclick="toggleNotifications()" title="Enable order sound alerts" style="display:none;">
-          🔔 Alerts On
-          🔔 Alerts Off
-        </button>
-        <button class="whatsapp-alert-btn" onclick="sendWAAlert()">📲 Send Stock Alert</button>
-        <button class="whatsapp-alert-btn" style="background:var(--gold); border-color:var(--gold-dark); color:var(--black);" onclick="openFinanceEntryModal()">💵 Add Income/Expense</button>
+        <div id="topbar-dashboard-controls" style="display:flex; align-items:center; gap:10px;">
+          <span id="fb-status" style="font-size:0.75rem; font-weight:600; color:var(--grey);">⏳ Connecting...</span>
+          <button id="notif-btn" class="notif-btn enabled" onclick="toggleNotifications()" title="Enable order sound alerts" style="display:none;">
+            🔔 Alerts On
+            🔔 Alerts Off
+          </button>
+          <button class="whatsapp-alert-btn" onclick="sendWAAlert()">📲 Send Stock Alert</button>
+          <button class="whatsapp-alert-btn" style="background:var(--gold); border-color:var(--gold-dark); color:var(--black);" onclick="openFinanceEntryModal()">💵 Add Income/Expense</button>
+        </div>
       </div>
     </div>
 
@@ -1836,6 +1857,7 @@
       fbListenAdjustmentsLog();
       fbLoadThreshold();
       fbListenTracking();
+      if (!empHistoryReady) { history.replaceState({ empPage: 'dashboard' }, '', '#dashboard'); empHistoryReady = true; }
 
     } catch (err) {
       let msg = '❌ Could not connect this device. Contact the owner.';
@@ -2258,11 +2280,16 @@
   });
 
   // ── NAVIGATION ──
-  function showPage(name) {
+  // ── BROWSER BACK BUTTON SUPPORT ──
+  var empHistoryReady = false;
+
+  function showPage(name, opts) {
+    opts = opts || {};
     if (name === 'profits') { return; } // Profit data is owner-only — not available in the Employee Panel
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('page-' + name).classList.add('active');
+    document.body.classList.toggle('on-dashboard-page', name === 'dashboard');
     document.querySelectorAll('.nav-item').forEach(n => {
       if (n.getAttribute('data-page') === name) {
         n.classList.add('active');
@@ -2276,7 +2303,25 @@
     if (name === 'tracking') { renderTrackingStats(); renderTrackingList(); }
     renderAll();
     closeSidebar();
+
+    if (!opts.fromHistory) {
+      const state = { empPage: name };
+      if (empHistoryReady) {
+        history.pushState(state, '', '#' + name);
+      } else {
+        history.replaceState(state, '', '#' + name);
+        empHistoryReady = true;
+      }
+    }
   }
+
+  window.addEventListener('popstate', function(e){
+    if (e.state && e.state.empPage) {
+      showPage(e.state.empPage, { fromHistory: true });
+    } else {
+      showPage('dashboard', { fromHistory: true });
+    }
+  });
 
   function toggleSidebar() {
     document.getElementById('sidebar').classList.toggle('open');
@@ -3430,12 +3475,16 @@
     renderTrackingList();
   }
 
+  function trackingLineTotal(t) {
+    const lastMile = (t.lastMileExpenses || []).reduce((s,e) => s + (parseInt(e.amount)||0), 0);
+    return (parseInt(t.purchasePrice)||0) * (parseInt(t.quantity)||1) + (parseInt(t.extraExpense)||0) + lastMile;
+  }
+
   function renderTrackingStats() {
     const pending = trackingItems.filter(t => t.status === 'pending');
     const received = trackingItems.filter(t => t.status === 'received');
-    const lineTotal = t => (parseInt(t.purchasePrice)||0) * (parseInt(t.quantity)||1) + (parseInt(t.extraExpense)||0);
-    const pendingValue = pending.reduce((s,t) => s + lineTotal(t), 0);
-    const totalValue = trackingItems.reduce((s,t) => s + lineTotal(t), 0);
+    const pendingValue = pending.reduce((s,t) => s + trackingLineTotal(t), 0);
+    const totalValue = trackingItems.reduce((s,t) => s + trackingLineTotal(t), 0);
     document.getElementById('tracking-stat-pending-count').textContent = pending.length;
     document.getElementById('tracking-stat-pending-value').textContent = fmt(pendingValue);
     document.getElementById('tracking-stat-received-count').textContent = received.length;
@@ -3453,7 +3502,9 @@
     // Note: employees can add, scan-to-receive, and mark received manually — but not
     // delete tracking entries. That stays admin-only.
     list.innerHTML = items.map(t => {
-      const lineTotal = (parseInt(t.purchasePrice)||0) * (parseInt(t.quantity)||1) + (parseInt(t.extraExpense)||0);
+      const lineTotal = trackingLineTotal(t);
+      const lastMileList = t.lastMileExpenses || [];
+      const lastMileSum = lastMileList.reduce((s,e) => s + (parseInt(e.amount)||0), 0);
       return `
       <div class="glass-3d" style="padding:14px 16px; margin-bottom:10px;">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
@@ -3463,10 +3514,11 @@
             <div style="font-size:0.76rem; color:#888; margin-top:2px;">📮 <span style="font-family:'Inter',monospace;">${t.trackingNumber}</span></div>
             <div style="font-size:0.74rem; color:#999; margin-top:2px;">Purchased ${fmtDMY(new Date(t.purchaseDate))}${t.receivedDate ? ' &middot; Received ' + fmtDMY(new Date(t.receivedDate)) : ''}</div>
             ${t.notes ? `<div style="font-size:0.76rem; color:#666; margin-top:4px; font-style:italic;">"${t.notes}"</div>` : ''}
+            ${lastMileList.length > 0 ? `<div style="font-size:0.72rem; color:#b87d12; margin-top:6px;">💰 ${lastMileList.map(e => (e.note ? e.note + ': ' : '') + fmt(e.amount)).join(' &middot; ')}</div>` : ''}
           </div>
           <div style="text-align:right;">
             <div style="font-weight:800; font-size:0.92rem; color:var(--gold-dark);">${fmt(lineTotal)}</div>
-            <div style="font-size:0.68rem; color:#999;">${fmt(t.purchasePrice)}/unit${t.extraExpense ? ' + ' + fmt(t.extraExpense) + ' fees' : ''}</div>
+            <div style="font-size:0.68rem; color:#999;">${fmt(t.purchasePrice)}/unit${t.extraExpense ? ' + ' + fmt(t.extraExpense) + ' fees' : ''}${lastMileSum ? ' + ' + fmt(lastMileSum) + ' last-mile' : ''}</div>
           </div>
         </div>
         ${t.status === 'pending' ? `
@@ -3474,12 +3526,17 @@
             <button onclick="manualMarkReceived('${t.fbDocId}')" style="width:100%; background:#fff; border:1.5px solid var(--border); color:#555; padding:7px 10px; border-radius:6px; font-size:0.74rem; font-weight:700; cursor:pointer;">✋ Mark Received Manually (damaged label)</button>
           </div>
         ` : `
-          <div style="margin-top:8px; background:#e8f7ee; color:#1b7d40; font-size:0.72rem; font-weight:700; padding:5px 10px; border-radius:6px; display:inline-block;">✅ In stock — ready to set purchase price on the product</div>
+          <div style="margin-top:8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <div style="background:#e8f7ee; color:#1b7d40; font-size:0.72rem; font-weight:700; padding:5px 10px; border-radius:6px; display:inline-block;">✅ In stock — ready to set purchase price on the product</div>
+            <button onclick="openTrackingExpensePrompt('${t.fbDocId}')" style="background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:5px 12px; border-radius:6px; font-size:0.72rem; font-weight:700; cursor:pointer;">💰 Add Expense</button>
+          </div>
         `}
       </div>
     `;
     }).join('');
   }
+
+  let trackingExpenseTargetDocId = null;
 
   async function manualMarkReceived(docId) {
     showAppConfirm('Mark this item as received? Use this only if the tracking label is damaged and can\'t be scanned.', async () => {
@@ -3495,8 +3552,36 @@
         status: 'received', receivedDate: new Date().toISOString().slice(0,10)
       });
       showSuccessToast('✅ Item marked as received!');
+      openTrackingExpensePrompt(docId);
     } catch(e) {
       showAppAlert('Error updating item. Check your connection.');
+      console.error(e);
+    }
+  }
+
+  function openTrackingExpensePrompt(docId) {
+    trackingExpenseTargetDocId = docId;
+    const item = trackingItems.find(t => t.fbDocId === docId);
+    document.getElementById('tracking-expense-item-name').textContent = item ? item.itemName : '';
+    document.getElementById('tracking-expense-amount').value = '';
+    document.getElementById('tracking-expense-note').value = '';
+    document.getElementById('tracking-expense-modal').classList.add('open');
+  }
+
+  async function confirmTrackingExpense() {
+    const docId = trackingExpenseTargetDocId;
+    const amount = parseInt(document.getElementById('tracking-expense-amount').value) || 0;
+    const note = document.getElementById('tracking-expense-note').value.trim();
+    document.getElementById('tracking-expense-modal').classList.remove('open');
+    if (!docId || amount <= 0 || !window.fbDb || !window.fbFns) return;
+    try {
+      const { doc, updateDoc, arrayUnion } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'tracking_items', docId), {
+        lastMileExpenses: arrayUnion({ amount, note, date: new Date().toISOString().slice(0,10) })
+      });
+      showSuccessToast('✅ Expense added!');
+    } catch(e) {
+      showAppAlert('Error adding expense. Check your connection.');
       console.error(e);
     }
   }
