@@ -186,9 +186,9 @@
       50% { box-shadow: 0 6px 20px rgba(232, 160, 32, 0.45), 0 2px 6px rgba(0,0,0,0.15), 0 0 0 10px rgba(232,160,32,0); }
     }
     @media (max-width: 600px) {
-      #fab-record-sale { bottom: 160px; left: 18px; right: auto; padding: 14px 18px 14px 16px; }
-      #fab-record-sale .fab-label { display: none; }
-      #fab-record-sale .fab-icon { font-size: 1.4rem; }
+      #fab-record-sale { bottom: 160px; left: 18px; right: auto; padding: 12px 16px 12px 14px; }
+      #fab-record-sale .fab-label { font-size: 0.8rem; }
+      #fab-record-sale .fab-icon { font-size: 1.2rem; }
     }
 
     /* ── FLOATING STALE ORDER ALERT ── */
@@ -970,7 +970,7 @@
   <!-- FLOATING RECORD A SALE BUTTON -->
   <button id="fab-record-sale" title="Record a Sale · drag to move">
     <span class="fab-icon">🛒</span>
-    <span class="fab-label">Record a Sale</span>
+    <span class="fab-label">Cash Sale</span>
   </button>
 
   <!-- FLOATING STALE ORDER ALERT -->
@@ -1892,13 +1892,28 @@
     document.getElementById('login-error').style.display = 'none';
   }
 
-  function checkPin() {
+  async function checkPin() {
     const errEl = document.getElementById('login-error');
     if (!employeeSignedIn) {
-      errEl.textContent = '❌ Still connecting — please wait a moment and try again.';
+      // Rather than immediately rejecting the PIN, wait a reasonable amount of time
+      // for the background sign-in (which is often still in progress on a slower
+      // connection) to finish — this was previously forcing employees to notice the
+      // error and manually retype their PIN a second time.
+      errEl.textContent = '⏳ Connecting...';
       errEl.style.display = 'block';
-      pinEntry = ''; updatePinDots();
-      return;
+      errEl.style.color = 'var(--grey)';
+      let waited = 0;
+      while (!employeeSignedIn && waited < 12000) {
+        await new Promise(r => setTimeout(r, 200));
+        waited += 200;
+      }
+      if (!employeeSignedIn) {
+        errEl.textContent = '❌ Could not connect. Check your internet and try again.';
+        errEl.style.color = 'var(--red)';
+        pinEntry = ''; updatePinDots();
+        return;
+      }
+      errEl.style.display = 'none';
     }
     if (pinEntry === employeePinExpected) {
       errEl.style.display = 'none';
@@ -1906,6 +1921,7 @@
       showWhoStep();
     } else {
       errEl.textContent = '❌ Incorrect PIN. Try again.';
+      errEl.style.color = 'var(--red)';
       errEl.style.display = 'block';
       const dotsWrap = document.getElementById('pin-dots');
       dotsWrap.classList.add('shake');
