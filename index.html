@@ -46,7 +46,7 @@
     .swift-logo{display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;text-decoration:none;cursor:default;margin-right:12px;width:fit-content;max-width:100%;box-sizing:border-box;}
     .swift-logo-boxed{border:1.5px solid var(--gold);border-radius:8px;padding:7px 16px 6px;background:linear-gradient(160deg,#232320,#181815);}
     .site-logo{width:auto;max-width:100%;height:100px;display:block;}
-    .swift-logo::before{content:'';position:absolute;inset:3px;border:1px solid rgba(199,162,72,0.3);border-radius:5px;pointer-events:none;}
+    .swift-logo::before{content:'';position:absolute;inset:3px;border:1px solid rgba(199,162,72,0.14);border-radius:5px;pointer-events:none;}
     .swift-logo-main{font-family:'Syne',sans-serif;font-size:clamp(0.85rem,1.35vw,1.3rem);font-weight:800;color:var(--white);letter-spacing:0.04em;text-transform:uppercase;line-height:1;white-space:nowrap;text-align:center;}
     .swift-logo-main .dot{display:inline-block;width:clamp(5px,0.6vw,9px);height:clamp(5px,0.6vw,9px);background:var(--white);border-radius:50%;margin:0 1px;vertical-align:middle;position:relative;top:-2px;}
     .swift-logo-sub{font-family:'Inter',sans-serif;font-size:clamp(0.3rem,0.7vw,0.48rem);font-weight:600;color:var(--white);letter-spacing:0.22em;text-transform:uppercase;margin-top:3px;white-space:nowrap;width:100%;text-align:center;}
@@ -1032,7 +1032,9 @@
     <input type="text" class="search-sync-input" id="nav-search-input" placeholder="Search phones, laptops, TVs..."
       oninput="searchProducts(this.value)"
       onkeydown="if(event.key==='Enter') searchProducts(this.value)"/>
-    <button class="nav-search-btn" aria-label="Search" onclick="searchProducts(document.getElementById('nav-search-input').value)">&#128269;</button>
+    <button class="nav-search-btn" aria-label="Search" onclick="searchProducts(document.getElementById('nav-search-input').value)">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.2" y2="16.2"/></svg>
+    </button>
   </div>
   <ul class="nav-links">
     <li><a href="#categories">Categories</a></li>

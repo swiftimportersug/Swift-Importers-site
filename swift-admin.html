@@ -501,7 +501,10 @@
     .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
     .modal-footer {
       padding: 14px 20px; border-top: 1px solid var(--border);
-      display: flex; justify-content: flex-end; gap: 10px;
+      display: flex; gap: 10px;
+    }
+    .modal-footer .btn-cancel, .modal-footer .btn-gold, .modal-footer button {
+      flex: 1; text-align: center;
     }
     .btn-cancel {
       background: var(--light); color: var(--black); border: none; padding: 9px 18px;
@@ -723,6 +726,18 @@
       .variant-row { gap: 8px; }
       table { font-size: 0.75rem; }
       th, td { padding: 8px 10px; }
+      /* Tables were clipping columns on mobile instead of letting you scroll to see
+         them — .table-wrap's overflow:hidden was cutting content off entirely. Now the
+         table keeps its natural full width and the wrapper scrolls horizontally, so
+         swiping left/right reveals every column instead of losing them. */
+      .table-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+      .table-wrap table{ width:max-content; min-width:100%; }
+      .table-wrap th:first-child, .table-wrap td:first-child{
+        position:sticky; left:0; z-index:2;
+        box-shadow:2px 0 4px rgba(0,0,0,0.06);
+      }
+      .table-wrap td:first-child{ background:#fff; }
+      .table-wrap th:first-child{ background:var(--black); }
       .tbl-search { width: 100%; }
       .section-hdr { flex-direction: column; align-items: flex-start; gap: 10px; }
 
@@ -1584,6 +1599,15 @@
     </div>
     <div class="modal-body">
       <input type="hidden" id="edit-id"/>
+      <div id="landing-link-box" style="display:none; background:#f3f0ff; border:1.5px solid #c9bdec; border-radius:10px; padding:12px 14px; margin-bottom:16px;">
+        <div style="font-size:0.78rem; font-weight:800; color:#5b3fa8; margin-bottom:6px;">📢 Ad Campaign Landing Page</div>
+        <div style="font-size:0.72rem; color:#888; margin-bottom:8px;">Use this link in Google/Facebook/Instagram/YouTube ads — it opens a single focused page for just this product, with a fast order form and no distractions.</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <input type="text" id="landing-link-input" readonly style="flex:1; min-width:200px; padding:9px 11px; border:1.5px solid var(--border); border-radius:7px; font-family:'Inter',monospace; font-size:0.76rem; background:#fff; color:#555;"/>
+          <button type="button" onclick="copyLandingLink()" style="background:#5b3fa8; color:#fff; border:none; padding:9px 16px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer; white-space:nowrap;">📋 Copy Link</button>
+        </div>
+        <div style="font-size:0.7rem; color:#888; margin-top:8px;">💡 Tip: edit the <code>campaign=</code> part of the link for each different ad, so you can tell them apart later — e.g. <code>campaign=fb-nov-earbuds</code> vs <code>campaign=ig-story-earbuds</code>.</div>
+      </div>
       <div class="form-row-2">
         <div class="form-group">
           <label>Product Name *</label>
@@ -5656,6 +5680,8 @@
     editingOriginalSnapshot = null;
     document.getElementById('modal-title').textContent = '+ Add New Product';
     document.getElementById('edit-id').value = '';
+    const landingBoxAdd = document.getElementById('landing-link-box');
+    if (landingBoxAdd) landingBoxAdd.style.display = 'none';
     document.getElementById('f-name').value = '';
     const catSelAdd = document.getElementById('f-cat');
     catSelAdd.innerHTML = categoryOptionsHtml('');
@@ -5715,6 +5741,19 @@
     document.getElementById('product-modal').classList.add('open');
   }
 
+  function copyLandingLink() {
+    const input = document.getElementById('landing-link-input');
+    if (!input) return;
+    input.select();
+    navigator.clipboard.writeText(input.value).then(() => {
+      showSuccessToast('📋 Link copied! Paste it into your ad.');
+    }).catch(() => {
+      // Fallback for browsers that block clipboard API
+      document.execCommand('copy');
+      showSuccessToast('📋 Link copied!');
+    });
+  }
+
   function openEditModal(id) {
     const p = products.find(x => x.id === id);
     if (!p) return;
@@ -5722,6 +5761,12 @@
     editingOriginalSnapshot = JSON.parse(JSON.stringify(p));
     document.getElementById('modal-title').textContent = '✏️ Edit Product';
     document.getElementById('edit-id').value = id;
+    const landingBox = document.getElementById('landing-link-box');
+    const landingInput = document.getElementById('landing-link-input');
+    if (landingBox && landingInput) {
+      landingInput.value = window.location.origin + '/landing.html?product=' + id + '&campaign=';
+      landingBox.style.display = 'block';
+    }
     document.getElementById('f-name').value = p.name;
     const catSelEdit = document.getElementById('f-cat');
     catSelEdit.innerHTML = categoryOptionsHtml(p.category || '');
