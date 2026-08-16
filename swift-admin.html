@@ -420,6 +420,7 @@
       overflow: hidden;
       box-shadow: 0 8px 18px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.5);
     }
+    .mobile-scroll-hint{ display:none; }
     table { width: 100%; border-collapse: collapse; }
     th {
       background: var(--black); color: #fff; padding: 11px 14px;
@@ -475,8 +476,7 @@
       to   { opacity: 1; transform: translateY(0) scale(1); }
     }
     .modal-hdr {
-      position: sticky; top: 0; background: rgba(255,255,255,0.5);
-      backdrop-filter: blur(24px) saturate(190%); -webkit-backdrop-filter: blur(24px) saturate(190%);
+      position: sticky; top: 0; background: #f4f2ec;
       padding: 18px 20px 14px;
       border-bottom: 1px solid rgba(255,255,255,0.6); display: flex;
       align-items: center; justify-content: space-between; border-radius: 18px 18px 0 0;
@@ -511,8 +511,7 @@
       border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer;
     }
     #product-modal .modal-footer {
-      position: sticky; bottom: 0; background: rgba(255,255,255,0.5);
-      backdrop-filter: blur(24px) saturate(190%); -webkit-backdrop-filter: blur(24px) saturate(190%);
+      position: sticky; bottom: 0; background: #f4f2ec;
       z-index: 5; border-radius: 0 0 18px 18px;
       box-shadow: 0 -4px 12px rgba(0,0,0,0.08);
     }
@@ -732,12 +731,7 @@
          swiping left/right reveals every column instead of losing them. */
       .table-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
       .table-wrap table{ width:max-content; min-width:100%; }
-      .table-wrap th:first-child, .table-wrap td:first-child{
-        position:sticky; left:0; z-index:2;
-        box-shadow:2px 0 4px rgba(0,0,0,0.06);
-      }
-      .table-wrap td:first-child{ background:#fff; }
-      .table-wrap th:first-child{ background:var(--black); }
+      .mobile-scroll-hint{ display:block; font-size:0.72rem; font-weight:700; color:#888; margin-bottom:6px; text-align:center; }
       .tbl-search { width: 100%; }
       .section-hdr { flex-direction: column; align-items: flex-start; gap: 10px; }
 
@@ -1230,6 +1224,7 @@
           <div id="hotdeals-manager" class="hd-grid"></div>
         </div>
 
+        <div class="mobile-scroll-hint">↔️ Swipe left/right to see all columns</div>
         <div class="table-wrap">
           <table>
             <thead>
