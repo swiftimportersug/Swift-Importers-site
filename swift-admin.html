@@ -147,7 +147,6 @@
     .sidebar {
       width: var(--sidebar-w);
       background: rgba(10,10,8,0.78);
-      backdrop-filter: blur(20px) saturate(150%); -webkit-backdrop-filter: blur(20px) saturate(150%);
       border-right: 1px solid rgba(255,255,255,0.07);
       min-height: 100vh;
       display: flex; flex-direction: column; position: fixed; top: 0; left: 0; z-index: 100;
@@ -237,7 +236,6 @@
     .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
     .stat-card {
       background: linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(246,245,240,0.78) 100%);
-      backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
       border-radius: 12px; padding: 12px 14px;
       border: 1px solid rgba(228,223,208,0.85);
       border-bottom: 3px solid #d9d2bd;
@@ -274,7 +272,6 @@
     /* ── FINANCE OVERVIEW ── */
     .fin-panel {
       background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(248,247,243,0.85) 100%);
-      backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
       border: 1px solid rgba(228,223,208,0.85); border-bottom: 3px solid #d9d2bd;
       border-radius: 14px; padding: 18px 20px; margin-bottom: 24px;
       box-shadow: 0 8px 18px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.5);
@@ -355,7 +352,6 @@
     /* ── 3D COLLAPSIBLE SECTION BOX (Promo Codes, Staff Names, etc.) ── */
     .admin-3d-box {
       background: linear-gradient(180deg, rgba(255,255,255,0.85) 0%, rgba(246,245,240,0.75) 100%);
-      backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
       border: 1px solid rgba(228,223,208,0.8);
       border-bottom: 4px solid #d9d2bd;
       border-radius: 16px;
@@ -390,7 +386,6 @@
          video box, coupon cards, inventory cards — every "box" in the system) ── */
     .glass-3d {
       background: linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(246,245,240,0.78) 100%) !important;
-      backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
       border: 1px solid rgba(228,223,208,0.85) !important;
       border-bottom: 3px solid #d9d2bd !important;
       border-radius: 12px !important;
@@ -413,7 +408,6 @@
     /* ── PRODUCT TABLE ── */
     .table-wrap {
       background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(248,247,243,0.85) 100%);
-      backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
       border-radius: 14px;
       border: 1px solid rgba(228,223,208,0.85);
       border-bottom: 3px solid #d9d2bd;
@@ -463,7 +457,6 @@
     #app-dialog-overlay { z-index: 900; }
     .modal-box {
       background: rgba(255,255,255,0.82);
-      backdrop-filter: blur(34px) saturate(190%); -webkit-backdrop-filter: blur(34px) saturate(190%);
       border: 1px solid rgba(255,255,255,0.7);
       border-top: 1px solid rgba(255,255,255,0.95);
       border-radius: 18px; width: 100%; max-width: 560px;
@@ -573,7 +566,6 @@
     /* ── LOW STOCK ALERTS ── */
     .alert-card {
       background: linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(246,245,240,0.78) 100%);
-      backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
       border-radius: 12px; border: 1px solid rgba(228,223,208,0.85);
       border-bottom: 3px solid #d9d2bd;
       padding: 16px 20px; margin-bottom: 10px; display: flex;
@@ -1717,7 +1709,7 @@
       <!-- PRODUCT VIDEO -->
       <div class="form-group">
         <label>Product Video (YouTube)</label>
-        <div style="background:linear-gradient(180deg, rgba(32,32,28,0.92) 0%, rgba(14,14,11,0.88) 100%); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); border:1px solid rgba(255,255,255,0.08); border-bottom:3px solid #000; border-radius:12px; padding:14px 16px; margin-bottom:10px; box-shadow:0 8px 18px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08);">
+        <div style="background:linear-gradient(180deg, rgba(32,32,28,0.92) 0%, rgba(14,14,11,0.88) 100%); -webkit-border:1px solid rgba(255,255,255,0.08); border-bottom:3px solid #000; border-radius:12px; padding:14px 16px; margin-bottom:10px; box-shadow:0 8px 18px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08);">
           <div style="font-size:0.72rem; font-weight:800; color:var(--gold); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:4px;">&#127916; YouTube Video</div>
           <div style="font-size:0.7rem; color:#888; margin-bottom:10px; line-height:1.6;">
             Paste any YouTube link and we'll convert it automatically.<br/>
@@ -1816,7 +1808,7 @@
         </label>
       </div>
 
-      <div style="background:linear-gradient(180deg, rgba(237,230,255,0.88) 0%, rgba(228,218,250,0.78) 100%); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); border:1px solid rgba(201,189,236,0.9); border-bottom:3px solid #b3a1e0; border-radius:12px; padding:14px 18px; margin-top:12px; box-shadow:0 8px 18px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.5);">
+      <div style="background:linear-gradient(180deg, rgba(237,230,255,0.88) 0%, rgba(228,218,250,0.78) 100%); -webkit-border:1px solid rgba(201,189,236,0.9); border-bottom:3px solid #b3a1e0; border-radius:12px; padding:14px 18px; margin-top:12px; box-shadow:0 8px 18px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.5);">
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
           <span style="font-size:1.3rem;">🎁</span>
           <div>
@@ -1856,7 +1848,7 @@
         </div>
       </div>
 
-      <div style="background:linear-gradient(180deg, rgba(224,247,232,0.88) 0%, rgba(210,240,220,0.78) 100%); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); border:1px solid rgba(168,220,192,0.9); border-bottom:3px solid #7fc79f; border-radius:12px; padding:14px 18px; margin-top:12px; box-shadow:0 8px 18px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.5);">
+      <div style="background:linear-gradient(180deg, rgba(224,247,232,0.88) 0%, rgba(210,240,220,0.78) 100%); -webkit-border:1px solid rgba(168,220,192,0.9); border-bottom:3px solid #7fc79f; border-radius:12px; padding:14px 18px; margin-top:12px; box-shadow:0 8px 18px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.5);">
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
           <span style="font-size:1.3rem;">🏷️</span>
           <div>
@@ -1909,7 +1901,7 @@
         </div>
       </div>
 
-      <div style="background:linear-gradient(180deg, rgba(224,241,253,0.88) 0%, rgba(206,232,250,0.78) 100%); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); border:1px solid rgba(169,209,240,0.9); border-bottom:3px solid #6bb0e6; border-radius:12px; padding:14px 18px; margin-top:12px; box-shadow:0 8px 18px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.5);">
+      <div style="background:linear-gradient(180deg, rgba(224,241,253,0.88) 0%, rgba(206,232,250,0.78) 100%); -webkit-border:1px solid rgba(169,209,240,0.9); border-bottom:3px solid #6bb0e6; border-radius:12px; padding:14px 18px; margin-top:12px; box-shadow:0 8px 18px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.5);">
           <div>
             <div style="font-size:0.82rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#2166a3;">Frequently Bought With This</div>
             <div style="font-size:0.72rem; color:#888; margin-top:2px;">Suggest complementary items — shown to customers at checkout so they can add them to their order with one tap.</div>
@@ -1921,7 +1913,7 @@
         <div id="f-fbw-list" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;"></div>
       </div>
 
-      <div style="background:linear-gradient(180deg, rgba(255,241,222,0.88) 0%, rgba(255,231,199,0.78) 100%); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); border:1px solid rgba(240,207,148,0.9); border-bottom:3px solid #e0a94a; border-radius:12px; padding:14px 18px; margin-top:12px; box-shadow:0 8px 18px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.5);">
+      <div style="background:linear-gradient(180deg, rgba(255,241,222,0.88) 0%, rgba(255,231,199,0.78) 100%); -webkit-border:1px solid rgba(240,207,148,0.9); border-bottom:3px solid #e0a94a; border-radius:12px; padding:14px 18px; margin-top:12px; box-shadow:0 8px 18px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.5);">
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
           <span style="font-size:1.3rem;">📦</span>
           <div>
@@ -5923,7 +5915,7 @@
   function addVariantRow(data = {}) {
     const row = document.createElement('div');
     row.className = 'variant-row';
-    row.style.cssText = 'background:linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(246,245,240,0.78) 100%); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); padding:16px; border-radius:12px; border:1px solid rgba(228,223,208,0.85); border-bottom:3px solid #d9d2bd; box-shadow:0 8px 18px rgba(0,0,0,0.08), 0 2px 5px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.55);';
+    row.style.cssText = 'background:linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(246,245,240,0.78) 100%); -webkit-padding:16px; border-radius:12px; border:1px solid rgba(228,223,208,0.85); border-bottom:3px solid #d9d2bd; box-shadow:0 8px 18px rgba(0,0,0,0.08), 0 2px 5px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.55);';
     const variantId = 'vimg_' + Date.now() + '_' + Math.random().toString(36).substr(2,5);
     let discountExpiresLocalValue = '';
     if (data.discountExpiresAt) {
@@ -7734,7 +7726,7 @@
     const wrap = document.createElement('div');
     wrap.className = 'image-row';
     wrap.draggable = true;
-    wrap.style.cssText = 'display:flex; gap:8px; align-items:center; margin-bottom:8px; background:linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(246,245,240,0.78) 100%); backdrop-filter:blur(10px) saturate(150%); -webkit-backdrop-filter:blur(10px) saturate(150%); border:1px solid rgba(228,223,208,0.85); border-bottom:2px solid #d9d2bd; border-radius:10px; padding:8px 10px; box-sizing:border-box; box-shadow:0 4px 10px rgba(0,0,0,0.06); transition:opacity 0.15s, border-color 0.15s, background 0.15s;';
+    wrap.style.cssText = 'display:flex; gap:8px; align-items:center; margin-bottom:8px; background:linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(246,245,240,0.78) 100%); -webkit-border:1px solid rgba(228,223,208,0.85); border-bottom:2px solid #d9d2bd; border-radius:10px; padding:8px 10px; box-sizing:border-box; box-shadow:0 4px 10px rgba(0,0,0,0.06); transition:opacity 0.15s, border-color 0.15s, background 0.15s;';
     wrap.addEventListener('dragstart', handleImageDragStart);
     wrap.addEventListener('dragover', handleImageDragOver);
     wrap.addEventListener('drop', handleImageDrop);
