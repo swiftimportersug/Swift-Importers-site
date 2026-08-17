@@ -462,6 +462,7 @@
       border-radius: 18px; width: 100%; max-width: 560px;
       max-height: 90vh;
       display: flex; flex-direction: column;
+      overflow: hidden;
       box-shadow: 0 25px 60px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.6);
       animation: slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1);
     }
@@ -483,7 +484,7 @@
       align-items: center; justify-content: center; color: #222;
       box-shadow: 0 3px 8px rgba(0,0,0,0.35), 0 1px 3px rgba(0,0,0,0.25);
     }
-    .modal-body { padding: 20px; overflow-y: auto; overflow-x: hidden; flex: 1; min-height: 0; }
+    .modal-body { padding: 20px; overflow-y: auto; overflow-x: hidden; flex: 1 1 auto; min-height: 0; }
     .form-group { margin-bottom: 14px; }
     .form-group label { display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 5px; color: #444; text-transform: uppercase; letter-spacing: 0.06em; }
     .form-group input, .form-group select, .form-group textarea {
@@ -510,6 +511,11 @@
       z-index: 5; border-radius: 0 0 18px 18px;
       box-shadow: 0 -4px 12px rgba(0,0,0,0.08);
       flex-shrink: 0;
+      display: flex;
+      width: 100%;
+      position: static;
+      box-sizing: border-box;
+      margin-top: auto;
     }
 
     /* ── VARIANTS ── */
