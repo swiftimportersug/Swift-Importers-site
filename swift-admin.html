@@ -461,9 +461,7 @@
       border-top: 1px solid rgba(255,255,255,0.95);
       border-radius: 18px; width: 100%; max-width: 560px;
       max-height: 90vh;
-      display: grid;
-      grid-template-rows: auto 1fr auto;
-      overflow: hidden;
+      display: flex; flex-direction: column;
       box-shadow: 0 25px 60px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.6);
       animation: slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1);
     }
@@ -485,7 +483,7 @@
       align-items: center; justify-content: center; color: #222;
       box-shadow: 0 3px 8px rgba(0,0,0,0.35), 0 1px 3px rgba(0,0,0,0.25);
     }
-    .modal-body { padding: 20px; overflow-y: auto; overflow-x: hidden; min-height: 0; }
+    .modal-body { padding: 20px; overflow-y: auto; overflow-x: hidden; flex: 1; min-height: 0; }
     .form-group { margin-bottom: 14px; }
     .form-group label { display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 5px; color: #444; text-transform: uppercase; letter-spacing: 0.06em; }
     .form-group input, .form-group select, .form-group textarea {
@@ -498,10 +496,7 @@
     .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
     .modal-footer {
       padding: 14px 20px; border-top: 1px solid var(--border);
-      display: flex; gap: 10px;
-      width: 100%;
-      box-sizing: border-box;
-      position: static;
+      display: flex; gap: 10px; flex-shrink: 0;
     }
     .modal-footer .btn-cancel, .modal-footer .btn-gold, .modal-footer button {
       flex: 1; text-align: center;
@@ -512,10 +507,9 @@
     }
     #product-modal .modal-footer {
       background: #f4f2ec;
-      z-index: 5;
-      border-radius: 0 0 18px 18px;
+      z-index: 5; border-radius: 0 0 18px 18px;
       box-shadow: 0 -4px 12px rgba(0,0,0,0.08);
-      position: static;
+      flex-shrink: 0;
     }
 
     /* ── VARIANTS ── */
@@ -1912,7 +1906,6 @@
             <div style="font-size:0.82rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#2166a3;">Frequently Bought With This</div>
             <div style="font-size:0.72rem; color:#888; margin-top:2px;">Suggest complementary items — shown to customers at checkout so they can add them to their order with one tap.</div>
           </div>
-        </div>
         <select id="f-fbw-add" onchange="addFrequentlyBoughtItem()" style="width:100%; padding:11px 13px; border:2px solid #a9d1f0; border-radius:8px; font-size:0.88rem; font-family:'Inter',sans-serif; background:#fff; color:#000; box-sizing:border-box;">
           <option value="">+ Add a product...</option>
         </select>
