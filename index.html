@@ -1683,6 +1683,24 @@
 
 <!-- CART MODAL -->
 <!-- MY ACCOUNT -->
+<!-- MY ORDERS POPUP -->
+<div class="modal-overlay" id="my-orders-modal" style="z-index:900;" onclick="if(event.target===this) closeOverlayEl(this);">
+  <div class="modal" style="max-height:80vh; overflow-y:auto; padding:24px;">
+    <button class="modal-close" onclick="closeOverlayEl(document.getElementById('my-orders-modal'))">✕</button>
+    <h2 style="font-size:1.2rem;">🧾 My Orders</h2>
+    <div id="my-orders-modal-body" style="margin-top:12px;"></div>
+  </div>
+</div>
+
+<!-- DAYS ACTIVE POPUP -->
+<div class="modal-overlay" id="days-active-modal" style="z-index:900;" onclick="if(event.target===this) closeOverlayEl(this);">
+  <div class="modal" style="max-height:75vh; overflow-y:auto; padding:24px;">
+    <button class="modal-close" onclick="closeOverlayEl(document.getElementById('days-active-modal'))">✕</button>
+    <h2 id="days-active-modal-title" style="font-size:1.2rem;">📅 Days Active</h2>
+    <div id="days-active-modal-body" style="margin-top:12px; font-size:0.85rem; color:#444; line-height:1.8;"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="account-modal">
   <div class="modal" style="max-width:380px;">
     <button class="modal-close" onclick="closeOverlayEl(document.getElementById('account-modal'))">X</button>
@@ -1752,24 +1770,23 @@
         <div id="active-order-delivery" style="background:rgba(255,255,255,0.08); border-radius:10px; padding:10px 12px; font-size:0.78rem; line-height:1.7; display:none;"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
-        <div onclick="jumpToPurchaseHistory()" style="background:var(--light);border-radius:10px;padding:12px;text-align:center;cursor:pointer;" title="View your orders">
+        <div onclick="openMyOrdersModal()" style="background:var(--light);border-radius:10px;padding:12px;text-align:center;cursor:pointer;" title="View your orders">
           <div id="account-dash-orders" style="font-size:1.3rem;font-weight:900;color:var(--black);"></div>
           <div style="font-size:0.68rem;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Orders</div>
         </div>
-        <div onclick="jumpToPurchaseHistory()" style="background:var(--light);border-radius:10px;padding:12px;text-align:center;cursor:pointer;" title="View your orders">
+        <div onclick="openMyOrdersModal()" style="background:var(--light);border-radius:10px;padding:12px;text-align:center;cursor:pointer;" title="View your orders">
           <div id="account-dash-spent" style="font-size:1.05rem;font-weight:900;color:var(--black);"></div>
           <div style="font-size:0.68rem;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Total Spent</div>
         </div>
-        <div onclick="toggleVisitDatesDetail(7)" style="background:var(--light);border-radius:10px;padding:12px;text-align:center;cursor:pointer;" title="See which days">
+        <div onclick="openDaysActiveModal(7)" style="background:var(--light);border-radius:10px;padding:12px;text-align:center;cursor:pointer;" title="See which days">
           <div id="account-dash-visits-7" style="font-size:1.3rem;font-weight:900;color:var(--black);"></div>
           <div style="font-size:0.68rem;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Days Active (7d)</div>
         </div>
-        <div onclick="toggleVisitDatesDetail(30)" style="background:var(--light);border-radius:10px;padding:12px;text-align:center;cursor:pointer;" title="See which days">
+        <div onclick="openDaysActiveModal(30)" style="background:var(--light);border-radius:10px;padding:12px;text-align:center;cursor:pointer;" title="See which days">
           <div id="account-dash-visits-30" style="font-size:1.3rem;font-weight:900;color:var(--black);"></div>
           <div style="font-size:0.68rem;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Days Active (30d)</div>
         </div>
       </div>
-      <div id="visit-dates-detail" style="display:none;background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;margin:-6px 0 16px;font-size:0.8rem;color:#444;line-height:1.7;"></div>
       <div id="account-dash-review-reminder" style="display:none;background:linear-gradient(160deg,#fff3d6,#ffe6b3);border:1.5px solid var(--gold);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:0.82rem;font-weight:700;color:#5a4310;"></div>
       <div id="account-dash-gold-note" style="display:none;background:linear-gradient(160deg,#fff8e6,#f5e2a0);border:1.5px solid #d4af37;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:0.8rem;font-weight:700;color:#5a4310;">
         🌟 Gold Member — you get an automatic 10% off every order, on top of any promo code!
@@ -4647,7 +4664,8 @@
     var d = o.delivery;
     if (d && d.type && d.type !== 'selfpick' && (d.bodaName || d.eta || d.plateNumber || d.location)) {
       var icons = { boda: '🏍️', taxi: '🚕', bus: '🚌' };
-      var html = (icons[d.type] || '🚚') + ' <strong>' + (d.bodaName || 'Driver') + '</strong>';
+      var modeLabels = { boda: 'Boda', taxi: 'Taxi', bus: 'Bus' };
+      var html = (icons[d.type] || '🚚') + ' <strong>' + (modeLabels[d.type] || 'Delivery') + ': ' + (d.bodaName || 'Driver') + '</strong>';
       if (d.bodaPhone) html += ' &middot; <a href="tel:' + d.bodaPhone + '" style="color:#4ade80;">' + d.bodaPhone + '</a>';
       if (d.plateNumber) html += '<br/>🔖 Plate: ' + d.plateNumber;
       if (d.eta) html += '<br/>⏱️ Expected: ' + d.eta;
@@ -5337,37 +5355,66 @@
     // (nav label stays text-based — avatar is a dashboard-only touch, keeps the nav compact)
   }
 
-  function jumpToPurchaseHistory() {
-    var body = document.getElementById('account-purchases-body');
-    var arrow = document.getElementById('account-purchases-arrow');
-    if (body.style.display === 'none' || !body.style.display) {
-      toggleAccountSection('purchases');
-    }
-    body.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  function openMyOrdersModal() {
+    if (!currentAccount) return;
+    var body = document.getElementById('my-orders-modal-body');
+    body.innerHTML = '<div style="font-size:0.85rem;color:var(--grey);text-align:center;padding:20px 0;">Loading...</div>';
+    openOverlayEl(document.getElementById('my-orders-modal'));
+    renderMyOrdersModalContent();
   }
 
-  function toggleVisitDatesDetail(days) {
-    var el = document.getElementById('visit-dates-detail');
+  async function renderMyOrdersModalContent() {
+    var body = document.getElementById('my-orders-modal-body');
+    if (!currentAccount || !window.fbDb || !window.fbFns || !body) return;
+    try {
+      var { collection, query, where, getDocs } = window.fbFns;
+      var q = query(collection(window.fbDb, 'orders'), where('accountId', '==', currentAccount.fbDocId));
+      var snap = await getDocs(q);
+      var ords = snap.docs.map(function(d){ return d.data(); }).sort(function(a,b){ return new Date(b.timestamp) - new Date(a.timestamp); });
+      if (ords.length === 0) {
+        body.innerHTML = '<div style="font-size:0.85rem;color:var(--grey);text-align:center;padding:20px 0;">No orders yet. Buy something to show your history here!</div>';
+        return;
+      }
+      var totalSpent = ords.reduce(function(s,o){ return s + (parseInt(o.orderTotal || o.subtotal) || 0); }, 0);
+      var statusLabels = { pending:'⏳ Pending', confirmed:'✅ Confirmed', closed:'✔ Completed' };
+      body.innerHTML =
+        '<div style="background:var(--light); border-radius:10px; padding:12px 14px; margin-bottom:14px; text-align:center;">' +
+          '<div style="font-size:1.3rem; font-weight:900;">' + fmtPrice(totalSpent) + '</div>' +
+          '<div style="font-size:0.68rem; color:var(--grey); font-weight:700; text-transform:uppercase;">Total Spent Across ' + ords.length + ' Order' + (ords.length===1?'':'s') + '</div>' +
+        '</div>' +
+        ords.map(function(o){
+          var items = (o.cartItems || []).map(function(c){ return c.name + ' x' + c.qty; }).join(', ');
+          return '<div style="border-bottom:1px solid var(--border); padding:10px 0;">' +
+            '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">' +
+              '<span style="font-size:0.8rem; font-weight:700;">' + fmtMessageTime(o.timestamp) + '</span>' +
+              '<span style="font-size:0.72rem; font-weight:800; color:' + (o.status==='closed'?'#2a9d50':'var(--gold-dark)') + ';">' + (statusLabels[o.status]||o.status) + '</span>' +
+            '</div>' +
+            '<div style="font-size:0.8rem; color:#555; margin-top:3px;">' + items + '</div>' +
+            '<div style="font-size:0.82rem; font-weight:800; margin-top:3px;">' + fmtPrice(o.orderTotal || o.subtotal || 0) + '</div>' +
+          '</div>';
+        }).join('');
+    } catch(e) {
+      body.innerHTML = '<div style="font-size:0.85rem;color:var(--grey);text-align:center;padding:20px 0;">Couldn\'t load your orders. Check your connection.</div>';
+      console.error(e);
+    }
+  }
+
+  function openDaysActiveModal(days) {
     if (!currentAccount) return;
+    document.getElementById('days-active-modal-title').textContent = '📅 Active in the Last ' + days + ' Days';
+    var body = document.getElementById('days-active-modal-body');
     var visitDates = currentAccount.visitDates || [];
-    var nowMs = Date.now();
-    var cutoff = nowMs - days * 24 * 60 * 60 * 1000;
+    var cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
     var matching = visitDates.filter(function(d){ return new Date(d).getTime() >= cutoff; })
       .sort(function(a,b){ return new Date(b) - new Date(a); });
-    var isOpen = el.style.display !== 'none';
-    if (isOpen && el.getAttribute('data-days') === String(days)) {
-      el.style.display = 'none';
-      return;
-    }
-    el.setAttribute('data-days', String(days));
     if (matching.length === 0) {
-      el.innerHTML = 'No visits recorded in the last ' + days + ' days.';
+      body.innerHTML = 'No visits recorded in the last ' + days + ' days.';
     } else {
-      el.innerHTML = '<strong>Active on:</strong><br/>' + matching.map(function(d){
-        return new Date(d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+      body.innerHTML = '<strong>' + matching.length + ' day' + (matching.length===1?'':'s') + ' active:</strong><br/><br/>' + matching.map(function(d){
+        return '📍 ' + new Date(d).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
       }).join('<br/>');
     }
-    el.style.display = 'block';
+    openOverlayEl(document.getElementById('days-active-modal'));
   }
 
   function toggleAccountSection(name) {
