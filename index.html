@@ -910,9 +910,14 @@
     #account-modal .modal-close, #saved-modal .modal-close, #messages-modal .modal-close{
       position:fixed !important; top:0 !important; left:50% !important; right:auto !important;
       transform:translateX(-50%); margin:0; z-index:20;
-      background:var(--white); width:100%; max-width:720px; height:52px;
+      background:var(--white) !important; width:100%; max-width:720px; height:52px;
       display:flex; align-items:center; padding:0 16px; box-sizing:border-box;
-      border-bottom:1px solid var(--border); font-size:0;
+      border-bottom:1px solid var(--border); border-radius:0 !important; box-shadow:none !important;
+      font-size:0;
+    }
+    #account-modal .modal-close:hover, #saved-modal .modal-close:hover, #messages-modal .modal-close:hover,
+    #account-modal .modal-close:active, #saved-modal .modal-close:active, #messages-modal .modal-close:active{
+      transform:translateX(-50%) !important; box-shadow:none !important;
     }
     #account-modal .modal-close::before, #saved-modal .modal-close::before, #messages-modal .modal-close::before{
       content:'\2039 Back'; font-size:0.95rem; font-weight:700; color:var(--black);
