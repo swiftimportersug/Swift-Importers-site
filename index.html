@@ -4688,8 +4688,8 @@
       var type = o.delivery && o.delivery.type;
       var driverLabel = type === 'boda' ? 'Boda Rider' : (type === 'taxi' || type === 'bus') ? 'Driver' : 'Rider/Driver';
       if (o.deliveryStage === 'handed') return '📦 Package Handed to ' + driverLabel;
-      if (o.deliveryStage === 'dispatched') return '🚀 Order Dispatched';
-      if (o.deliveryStage === 'on_the_way') return '✅ Confirmed — On the Way';
+      if (o.deliveryStage === 'on_the_way') return '🚚 On the Way';
+      if (o.deliveryStage === 'delivered') return '🎉 Delivered';
       return '✅ Confirmed';
     }
     return o.status;
@@ -4700,12 +4700,12 @@
   // Makes the current status impossible to miss — a bold colored badge plus a
   // Jumia/Uber-Eats-style step tracker, since that visual language is something even a
   // first-time customer instantly recognizes without needing to read anything closely.
-  var orderStageOrder = ['pending', 'handed', 'dispatched', 'on_the_way'];
+  var orderStageOrder = ['pending', 'handed', 'on_the_way', 'delivered'];
   var orderStageMeta = {
-    pending:     { icon:'📥', short:'Received',  color:'#f5a623', bg:'rgba(245,166,35,0.16)' },
-    handed:      { icon:'📦', short:'Handed',     color:'#4a9eff', bg:'rgba(74,158,255,0.16)' },
-    dispatched:  { icon:'🚀', short:'Dispatched', color:'#b46dff', bg:'rgba(180,109,255,0.16)' },
-    on_the_way:  { icon:'✅', short:'On the Way', color:'#4ade80', bg:'rgba(74,222,128,0.16)' }
+    pending:     { icon:'📥', short:'Received',    color:'#f5a623', bg:'rgba(245,166,35,0.16)' },
+    handed:      { icon:'📦', short:'Handed Over', color:'#4a9eff', bg:'rgba(74,158,255,0.16)' },
+    on_the_way:  { icon:'🚚', short:'On the Way',  color:'#b46dff', bg:'rgba(180,109,255,0.16)' },
+    delivered:   { icon:'🎉', short:'Delivered',   color:'#4ade80', bg:'rgba(74,222,128,0.16)' }
   };
 
   function renderOrderStageTracker(o) {
@@ -4727,7 +4727,7 @@
     if (o.status === 'confirmed' && orderStageOrder.indexOf(o.deliveryStage) > -1) stageKey = o.deliveryStage;
     var currentIndex = orderStageOrder.indexOf(stageKey);
     var meta = orderStageMeta[stageKey];
-    var label = stageKey === 'handed' ? 'Handed to ' + driverLabel : (stageKey === 'pending' ? 'Order Received — Being Prepared' : (stageKey === 'dispatched' ? 'Order Dispatched' : 'Confirmed — On the Way'));
+    var label = stageKey === 'handed' ? 'Handed to ' + driverLabel : (stageKey === 'pending' ? 'Order Received — Being Prepared' : (stageKey === 'on_the_way' ? 'On the Way' : 'Delivered'));
 
     badge.style.display = 'flex';
     badge.style.background = meta.bg; badge.style.color = meta.color; badge.style.border = '1.5px solid ' + meta.color;

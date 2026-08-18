@@ -4808,8 +4808,8 @@
             const driverLabel = o.delivery.type === 'boda' ? 'Boda Rider' : 'Driver';
             const stages = [
               { key: 'handed', label: '📦 Handed to ' + driverLabel },
-              { key: 'dispatched', label: '🚀 Dispatched' },
-              { key: 'on_the_way', label: '✅ On the Way' }
+              { key: 'on_the_way', label: '🚚 On the Way' },
+              { key: 'delivered', label: '🎉 Delivered' }
             ];
             return '<div style="width:100%; display:flex; gap:6px; margin-top:6px;">' +
               stages.map(s => {
