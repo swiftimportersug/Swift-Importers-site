@@ -124,6 +124,12 @@
         display:flex; align-items:center; justify-content:center; padding:0 3px;
         border:1.5px solid #141414;
       }
+      .mbn-badge::after{
+        content:''; position:absolute; inset:-2px; border-radius:50%;
+        background:var(--red); opacity:0.7;
+        animation:navBadgePing 1.6s cubic-bezier(0,0,0.2,1) infinite;
+        z-index:-1;
+      }
     }
     .account-btn.account-btn-gold{background:linear-gradient(160deg,#fff3d6,#f0d68a);color:#5a4310;border:1.5px solid #d4af37;}
     .account-btn.account-btn-silver{background:linear-gradient(160deg,#f2f2f2,#d8d8d8);color:#444;border:1.5px solid #a8a8a8;}
@@ -4701,7 +4707,7 @@
     if (lastSeenActiveOrderKey !== null && lastSeenActiveOrderKey !== changeKey) {
       playMessageAlertSound();
       hasUnseenOrderUpdate = true;
-      updateMainAccountBadge();
+      updateReviewNotificationBadges();
       // Toast is the guaranteed-visible channel — doesn't depend on the browser
       // notification permission being granted, so this always shows something.
       showToastMessage('🚚 Order update: ' + computeOrderStatusDisplay(o), '#2a9d50');
@@ -4947,9 +4953,10 @@
 
   function updateReviewNotificationBadges() {
     var hasPending = !!pendingReviewTarget;
+    var showBadge = hasPending || hasUnseenOrderUpdate;
     ['mbn-profile-badge','nav-dropdown-profile-badge'].forEach(function(id){
       var el = document.getElementById(id);
-      if (el) el.style.display = hasPending ? 'flex' : 'none';
+      if (el) el.style.display = showBadge ? 'flex' : 'none';
     });
     updateMainAccountBadge();
   }
@@ -5260,7 +5267,7 @@
     checkPendingReviewReminder();
     recordVisit();
     startActiveOrderListener();
-    if (hasUnseenOrderUpdate) { hasUnseenOrderUpdate = false; updateMainAccountBadge(); }
+    if (hasUnseenOrderUpdate) { hasUnseenOrderUpdate = false; updateReviewNotificationBadges(); }
     var tier = currentAccount.tier || 'standard';
     var spent = currentAccount.totalSpent || 0;
     document.getElementById('account-dash-name').textContent = currentAccount.name || '';
