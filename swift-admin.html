@@ -861,6 +861,7 @@
       <div style="background:#f3f0ff; border:1.5px solid #8a6fd6; border-radius:10px; padding:12px 14px; margin-bottom:16px;">
         <div style="font-size:0.78rem; font-weight:800; color:#5b3fa8; margin-bottom:8px;">🎖️ Manually Set Tier</div>
         <div style="font-size:0.7rem; color:#888; margin-bottom:8px;">Override their tier directly — useful for rewarding loyalty that doesn't show up in spend alone. This bypasses the usual spending thresholds.</div>
+        <div id="customer-detail-earned-tier" style="font-size:0.72rem; color:#5b3fa8; background:#fff; border:1px solid #d9cff2; border-radius:6px; padding:6px 10px; margin-bottom:10px;"></div>
         <div style="display:flex; gap:8px;">
           <select id="customer-detail-tier-select" style="flex:1; padding:9px 11px; border:1.5px solid var(--border); border-radius:7px; font-family:'Inter',sans-serif; font-size:0.82rem;">
             <option value="standard">Standard</option>
@@ -868,8 +869,9 @@
             <option value="gold">🥇 Gold</option>
             <option value="platinum">💎 Platinum</option>
           </select>
-          <button onclick="applyManualTierChange()" style="background:var(--black); color:#fff; border:none; padding:9px 16px; border-radius:7px; font-size:0.8rem; font-weight:700; cursor:pointer;">Apply</button>
+          <button onclick="applyManualTierChange()" style="background:var(--black); color:#fff; border:none; padding:9px 16px; border-radius:7px; font-size:0.8rem; font-weight:700; cursor:pointer; white-space:nowrap;">Apply</button>
         </div>
+        <button onclick="resetTierToEarned()" style="width:100%; margin-top:8px; background:#fff; border:1.5px solid #8a6fd6; color:#5b3fa8; padding:8px 12px; border-radius:7px; font-size:0.76rem; font-weight:700; cursor:pointer;">↩ Restore Their Earned Tier</button>
       </div>
 
       <div style="background:var(--light); border:1.5px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:16px;">
@@ -2208,6 +2210,13 @@
   }
   fetchTierSettings();
 
+  function calculateTierForSpend(totalSpent) {
+    if (totalSpent >= (tierSettings.platinumThreshold || Infinity)) return 'platinum';
+    if (totalSpent >= (tierSettings.goldThreshold || Infinity)) return 'gold';
+    if (totalSpent >= (tierSettings.silverThreshold || Infinity)) return 'silver';
+    return 'standard';
+  }
+
   function loadTierSettingsIntoForm() {
     document.getElementById('tier-silver-threshold').value = tierSettings.silverThreshold;
     document.getElementById('tier-silver-rate').value = tierSettings.silverRate;
@@ -2647,12 +2656,50 @@
         await updateDoc(doc(window.fbDb, 'customers', docId), { tier: newTier });
         if (c) c.tier = newTier;
         document.getElementById('customer-detail-tier').innerHTML = tierBadgeHtml(newTier);
+        refreshEarnedTierNote(c);
         showSuccessToast('✅ Tier updated!');
       } catch(e) {
         showAppAlert('Error updating tier. Check your connection.');
         console.error(e);
       }
     }, null, { icon: '🎖️', confirmText: 'Set Tier' });
+  }
+
+  function refreshEarnedTierNote(c) {
+    if (!c) return;
+    const earnedTier = calculateTierForSpend(c.totalSpent || 0);
+    const earnedTierLabel = { standard: 'Standard', silver: '🥈 Silver', gold: '🥇 Gold', platinum: '💎 Platinum' }[earnedTier];
+    const el = document.getElementById('customer-detail-earned-tier');
+    if (!el) return;
+    el.innerHTML = earnedTier === (c.tier || 'standard')
+      ? `🎯 Currently at their earned tier (${earnedTierLabel}, based on ${fmt(c.totalSpent||0)} spent).`
+      : `🎯 Earned from spend alone: <strong>${earnedTierLabel}</strong> (${fmt(c.totalSpent||0)} spent) — currently overridden.`;
+  }
+
+  // A manual override never erases what the customer actually earned — this reads their
+  // real totalSpent and restores exactly the tier that reflects, so admin never has to
+  // guess or manually recalculate it, and genuine progress is never lost to an undo.
+  async function resetTierToEarned() {
+    const docId = customerDetailTargetDocId;
+    if (!docId || !window.fbDb || !window.fbFns) return;
+    const c = allCustomersCache.find(x => x.fbDocId === docId);
+    if (!c) return;
+    const earnedTier = calculateTierForSpend(c.totalSpent || 0);
+    const earnedTierLabel = { standard:'Standard', silver:'🥈 Silver', gold:'🥇 Gold', platinum:'💎 Platinum' }[earnedTier];
+    showAppConfirm(`Restore ${c.name}'s tier to what they've actually earned from spending — ${earnedTierLabel} (${fmt(c.totalSpent||0)} spent)?`, async () => {
+      try {
+        const { doc, updateDoc } = window.fbFns;
+        await updateDoc(doc(window.fbDb, 'customers', docId), { tier: earnedTier });
+        c.tier = earnedTier;
+        document.getElementById('customer-detail-tier').innerHTML = tierBadgeHtml(earnedTier);
+        document.getElementById('customer-detail-tier-select').value = earnedTier;
+        refreshEarnedTierNote(c);
+        showSuccessToast('✅ Restored to earned tier!');
+      } catch(e) {
+        showAppAlert('Error updating tier. Check your connection.');
+        console.error(e);
+      }
+    }, null, { icon: '↩', confirmText: 'Restore' });
   }
 
 
@@ -2958,6 +3005,7 @@
     document.getElementById('customer-detail-orders-count').textContent = c.orderCount || 0;
     document.getElementById('customer-detail-spent').textContent = fmt(c.totalSpent || 0);
     document.getElementById('customer-detail-tier-select').value = c.tier || 'standard';
+    refreshEarnedTierNote(c);
     customerDetailTargetDocId = docId;
 
     const visitDates = c.visitDates || [];
