@@ -1243,15 +1243,15 @@
         </div>
 
         <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:20px;">
-          <div class="stat-card">
+          <div class="stat-card" onclick="jumpToTrackingTab('pending')" style="cursor:pointer;" title="View pending items">
             <div id="tracking-stat-pending-count" style="font-size:1.3rem; font-weight:900;">0</div>
             <div style="font-size:0.68rem; color:#888; font-weight:700; text-transform:uppercase;">Pending Items</div>
           </div>
-          <div class="stat-card">
+          <div class="stat-card" onclick="jumpToTrackingTab('pending')" style="cursor:pointer;" title="View pending items">
             <div id="tracking-stat-pending-value" style="font-size:1.05rem; font-weight:900; color:var(--gold-dark);">UGX 0</div>
             <div style="font-size:0.68rem; color:#888; font-weight:700; text-transform:uppercase;">Pending Value</div>
           </div>
-          <div class="stat-card">
+          <div class="stat-card" onclick="jumpToTrackingTab('received')" style="cursor:pointer;" title="View received items">
             <div id="tracking-stat-received-count" style="font-size:1.3rem; font-weight:900;">0</div>
             <div style="font-size:0.68rem; color:#888; font-weight:700; text-transform:uppercase;">Received Items</div>
           </div>
@@ -2306,6 +2306,12 @@
       showAppAlert('Error adding tracking item. Check your connection.');
       console.error(e);
     }
+  }
+
+  function jumpToTrackingTab(tab) {
+    switchTrackingTab(tab);
+    const tabsEl = document.getElementById('tracking-tab-' + tab);
+    if (tabsEl) tabsEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   function switchTrackingTab(tab) {
@@ -4622,7 +4628,8 @@
 
     const actions = isClosed
       ? `<button class="btn-reopen" onclick="updateOrderStatus('${o.fbDocId}','pending')">↩ Reopen</button>
-         <button class="btn-wa-order" onclick="window.open('${waLink}','_blank')">💬 WhatsApp</button>`
+         <button class="btn-wa-order" onclick="window.open('${waLink}','_blank')">💬 WhatsApp</button>
+         <button class="btn-wa-order" style="background:#fdecea; border-color:#f5c6c0; color:var(--red);" onclick="deleteClosedOrder('${o.fbDocId}')">🗑️ Delete</button>`
       : `<button class="btn-confirm" onclick="updateOrderStatus('${o.fbDocId}','confirmed')" ${o.status==='confirmed'?'style="opacity:0.5"':''}>
            ${o.status==='confirmed'?'✅ Confirmed':'✅ Confirm Order'}
          </button>
@@ -4840,6 +4847,29 @@
       return o.cartItems.reduce((s,c) => s + (c.price||0) * (c.qty||0), 0);
     }
     return (o.amountPaid||0) + (o.balanceDue||0);
+  }
+
+  async function deleteClosedOrder(docId) {
+    const o = orders.find(x => x.fbDocId === docId);
+    if (!o) return;
+    showAppConfirm(
+      'Permanently delete this closed order? If it deducted stock when it was closed, that stock will be restored automatically. This can\'t be undone.',
+      async () => {
+        try {
+          if (o.stockDeducted) {
+            await adjustStockForOrder(o, 1, 'Admin'); // restore stock — this order never actually happened
+          }
+          const { doc, deleteDoc } = window.fbFns;
+          await deleteDoc(doc(window.fbDb, 'orders', docId));
+          showSuccessToast('🗑️ Order deleted.');
+        } catch(e) {
+          showAppAlert('Error deleting order. Check your connection.');
+          console.error('[order] deleteClosedOrder failed:', e);
+        }
+      },
+      null,
+      { icon: '🗑️', confirmText: 'Delete Permanently' }
+    );
   }
 
   async function updateOrderStatus(docId, newStatus) {
