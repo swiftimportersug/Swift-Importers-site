@@ -4617,9 +4617,9 @@
     }
   }
 
-  function showBrowserNotification(latestMsg) {
+  function showBrowserNotification(latestMsg, title, onClickPage) {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    var title = 'New message from Swift Importers';
+    title = title || 'New message from Swift Importers';
     var options = {
       body: latestMsg && latestMsg.text ? latestMsg.text : 'You have a new message.',
       icon: 'https://em-content.zobj.net/source/apple/391/speech-balloon_1f4ac.png',
@@ -4635,7 +4635,7 @@
     } else if (navigator.serviceWorker && navigator.serviceWorker.ready) {
       navigator.serviceWorker.ready.then(function(reg){ reg.showNotification(title, options); }).catch(function(){});
     } else {
-      try { var n = new Notification(title, options); n.onclick = function(){ window.focus(); openMessagesPage(); n.close(); }; } catch(e) {}
+      try { var n = new Notification(title, options); n.onclick = function(){ window.focus(); (onClickPage || openMessagesPage)(); n.close(); }; } catch(e) {}
     }
   }
 
@@ -4697,8 +4697,11 @@
       playMessageAlertSound();
       hasUnseenOrderUpdate = true;
       updateMainAccountBadge();
+      // Toast is the guaranteed-visible channel — doesn't depend on the browser
+      // notification permission being granted, so this always shows something.
+      showToastMessage('🚚 Order update: ' + computeOrderStatusDisplay(o), '#2a9d50');
       if (document.visibilityState !== 'visible') {
-        showBrowserNotification({ text: computeOrderStatusDisplay(o) }); // reuses the same system notification path as messages
+        showBrowserNotification({ text: computeOrderStatusDisplay(o) }, 'Order Update — Swift Importers', function(){ openAccountEntry(); });
       }
     }
     lastSeenActiveOrderKey = changeKey;
