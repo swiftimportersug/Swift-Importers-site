@@ -916,6 +916,57 @@
   </div>
 
   <!-- CLOSE ORDER — payment confirmation -->
+  <!-- DELIVERY UPDATE MODAL -->
+  <div class="modal-overlay" id="delivery-update-modal">
+    <div class="modal-box modal-box-flex" style="max-width:440px;">
+      <div class="modal-hdr">
+        <h3>🚚 Delivery Info</h3>
+        <button class="modal-close-btn" onclick="document.getElementById('delivery-update-modal').classList.remove('open')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Mode of Transport</label>
+          <select id="dlv-type" onchange="onDeliveryTypeChange()">
+            <option value="boda">🏍️ Boda</option>
+            <option value="taxi">🚕 Taxi</option>
+            <option value="bus">🚌 Bus</option>
+            <option value="selfpick">🏪 Self Pick (Munyonyo store)</option>
+          </select>
+        </div>
+        <div id="dlv-driver-fields">
+          <div class="form-group">
+            <label>Driver / Rider Name</label>
+            <input type="text" id="dlv-name" placeholder="e.g. Musa"/>
+          </div>
+          <div class="form-group">
+            <label>Contact Phone</label>
+            <input type="tel" id="dlv-phone" placeholder="+256 7XX XXX XXX"/>
+          </div>
+          <div class="form-group" id="dlv-plate-wrap" style="display:none;">
+            <label>Car Number Plate</label>
+            <input type="text" id="dlv-plate" placeholder="e.g. UBA 123X" style="text-transform:uppercase;"/>
+          </div>
+          <div class="form-group">
+            <label>Expected Time (ETA)</label>
+            <input type="text" id="dlv-eta" placeholder="e.g. 30 minutes, or 2:30 PM"/>
+          </div>
+          <div class="form-group">
+            <label>Delivery Location</label>
+            <input type="text" id="dlv-location" placeholder="e.g. Opposite Shoprite, Ntinda"/>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Delivery Fee (optional, UGX)</label>
+            <input type="number" id="dlv-fee" min="0" placeholder="e.g. 5000"/>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" onclick="document.getElementById('delivery-update-modal').classList.remove('open')">Cancel</button>
+        <button class="btn-gold" onclick="saveDeliveryUpdate()">💾 Save</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="close-order-confirm-modal">
     <div class="modal-box" style="max-width:400px; text-align:center; padding:28px 24px;">
       <div style="font-size:2.1rem; margin-bottom:10px;">💰</div>
@@ -4741,12 +4792,17 @@
               🏪 Self Pick — collected at Munyonyo store
             </div>
           ` : ''}
-          ${o.delivery && o.delivery.type !== 'selfpick' ? `
+          ${o.delivery && o.delivery.type && o.delivery.type !== 'selfpick' ? `
             <div style="width:100%; margin-top:6px; background:#fff8e6; border:1px solid var(--gold); border-radius:8px; padding:8px 10px; font-size:0.76rem; color:#555;">
-              🏍️ <strong>${o.delivery.bodaName || 'Boda rider'}</strong>${o.delivery.bodaPhone ? ' &middot; ' + o.delivery.bodaPhone : ''}
+              ${{boda:'🏍️',taxi:'🚕',bus:'🚌'}[o.delivery.type] || '🚚'} <strong>${o.delivery.bodaName || 'Driver'}</strong>${o.delivery.bodaPhone ? ' &middot; ' + o.delivery.bodaPhone : ''}
+              ${o.delivery.plateNumber ? '<br/>🔖 Plate: ' + o.delivery.plateNumber : ''}
+              ${o.delivery.eta ? '<br/>⏱️ ETA: ' + o.delivery.eta : ''}
               ${o.delivery.location ? '<br/>📍 Delivered to: ' + o.delivery.location : ''}
-              ${o.delivery.bodaFee ? '<br/>💵 Boda fee: ' + fmt(o.delivery.bodaFee) : ''}
+              ${o.delivery.bodaFee ? '<br/>💵 Fee: ' + fmt(o.delivery.bodaFee) : ''}
             </div>
+          ` : ''}
+          ${!isClosed && o.status === 'confirmed' ? `
+            <button onclick="openDeliveryUpdateModal('${o.fbDocId}')" style="width:100%; margin-top:8px; background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:8px 10px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer;">🚚 ${o.delivery && o.delivery.type ? 'Update' : 'Set'} Delivery Info</button>
           ` : ''}
           ${o.pricing && (o.pricing.discount || o.pricing.otherFees) ? `
             <div style="width:100%; margin-top:6px; font-size:0.74rem; color:#777;">
@@ -4902,6 +4958,54 @@
       return o.cartItems.reduce((s,c) => s + (c.price||0) * (c.qty||0), 0);
     }
     return (o.amountPaid||0) + (o.balanceDue||0);
+  }
+
+  let deliveryUpdateTargetDocId = null;
+
+  function openDeliveryUpdateModal(docId) {
+    const o = orders.find(x => x.fbDocId === docId);
+    if (!o) return;
+    deliveryUpdateTargetDocId = docId;
+    const d = o.delivery || {};
+    document.getElementById('dlv-type').value = d.type || 'boda';
+    document.getElementById('dlv-name').value = d.bodaName || '';
+    document.getElementById('dlv-phone').value = d.bodaPhone || '';
+    document.getElementById('dlv-plate').value = d.plateNumber || '';
+    document.getElementById('dlv-eta').value = d.eta || '';
+    document.getElementById('dlv-location').value = d.location || o.exactLocation || '';
+    document.getElementById('dlv-fee').value = d.bodaFee || '';
+    onDeliveryTypeChange();
+    document.getElementById('delivery-update-modal').classList.add('open');
+  }
+
+  function onDeliveryTypeChange() {
+    const type = document.getElementById('dlv-type').value;
+    document.getElementById('dlv-driver-fields').style.display = type === 'selfpick' ? 'none' : 'block';
+    document.getElementById('dlv-plate-wrap').style.display = (type === 'taxi' || type === 'bus') ? 'block' : 'none';
+  }
+
+  async function saveDeliveryUpdate() {
+    const docId = deliveryUpdateTargetDocId;
+    if (!docId || !window.fbDb || !window.fbFns) return;
+    const type = document.getElementById('dlv-type').value;
+    const delivery = {
+      type,
+      bodaName: document.getElementById('dlv-name').value.trim(),
+      bodaPhone: document.getElementById('dlv-phone').value.trim(),
+      plateNumber: (type === 'taxi' || type === 'bus') ? document.getElementById('dlv-plate').value.trim().toUpperCase() : '',
+      eta: document.getElementById('dlv-eta').value.trim(),
+      location: document.getElementById('dlv-location').value.trim(),
+      bodaFee: parseInt(document.getElementById('dlv-fee').value) || 0
+    };
+    try {
+      const { doc, updateDoc } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'orders', docId), { delivery });
+      document.getElementById('delivery-update-modal').classList.remove('open');
+      showSuccessToast('✅ Delivery info updated — the customer will see this live.');
+    } catch(e) {
+      showAppAlert('Error saving delivery info. Check your connection.');
+      console.error('[order] saveDeliveryUpdate failed:', e);
+    }
   }
 
   async function deleteClosedOrder(docId) {
