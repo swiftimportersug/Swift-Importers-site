@@ -1535,8 +1535,8 @@
         </div>
 
         <div class="pd-actions">
-          <button class="pd-btn-cart" id="pd-btn-cart" onclick="pdAddToCart()">Add to Cart</button>
           <button class="pd-btn-buy" id="pd-btn-buy" onclick="pdBuyNow()">Buy Now</button>
+          <button class="pd-btn-cart" id="pd-btn-cart" onclick="pdAddToCart()">Add to Cart</button>
           <button class="pd-btn-wa" id="pd-btn-wa">
             <svg viewBox="0 0 32 32" fill="#fff" xmlns="http://www.w3.org/2000/svg" style="width:19px;height:19px;"><path d="M16.004 3C9.376 3 3.997 8.373 3.997 14.994c0 2.61.85 5.027 2.29 6.99L4.99 28.99l7.203-2.242c1.858.99 3.98 1.552 6.239 1.552h.005c6.628 0 12.007-5.373 12.007-11.994C30.444 8.685 25.065 3.312 16.436 3.002L16.004 3zm5.68 17.08c-.288.812-1.44 1.53-1.98 1.615-.507.08-1.146.114-1.85-.116-.427-.14-.977-.325-1.68-.637-2.958-1.276-4.888-4.24-5.036-4.437-.147-.198-1.207-1.606-1.207-3.064 0-1.458.766-2.174 1.037-2.472.27-.297.59-.372.786-.372.196 0 .393.002.564.01.181.008.424-.069.663.505.245.588.833 2.03.906 2.177.074.148.123.32.025.518-.099.198-.148.32-.294.494-.147.173-.31.386-.443.519-.147.148-.301.309-.13.605.172.297.766 1.264 1.645 2.048 1.13 1.007 2.083 1.32 2.38 1.468.297.148.47.124.643-.074.172-.198.74-.864.938-1.161.198-.297.396-.247.668-.148.271.099 1.723.812 2.019.96.297.148.494.222.567.346.074.124.074.72-.213 1.531z"/></svg>
           </button>
@@ -1742,22 +1742,24 @@
       <input type="file" id="profile-pic-camera-input" accept="image/*" capture="user" style="display:none;" onchange="handleProfilePictureSelect(this)"/>
       <div id="profile-pic-msg" style="display:none;margin:-8px 0 14px;font-size:0.76rem;font-weight:700;"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
-        <div style="background:var(--light);border-radius:10px;padding:12px;text-align:center;">
+        <div onclick="jumpToPurchaseHistory()" style="background:var(--light);border-radius:10px;padding:12px;text-align:center;cursor:pointer;" title="View your orders">
           <div id="account-dash-orders" style="font-size:1.3rem;font-weight:900;color:var(--black);"></div>
           <div style="font-size:0.68rem;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Orders</div>
         </div>
-        <div style="background:var(--light);border-radius:10px;padding:12px;text-align:center;">
+        <div onclick="jumpToPurchaseHistory()" style="background:var(--light);border-radius:10px;padding:12px;text-align:center;cursor:pointer;" title="View your orders">
           <div id="account-dash-spent" style="font-size:1.05rem;font-weight:900;color:var(--black);"></div>
           <div style="font-size:0.68rem;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Total Spent</div>
         </div>
-        <div style="background:var(--light);border-radius:10px;padding:12px;text-align:center;">
+        <div onclick="toggleVisitDatesDetail(7)" style="background:var(--light);border-radius:10px;padding:12px;text-align:center;cursor:pointer;" title="See which days">
           <div id="account-dash-visits-7" style="font-size:1.3rem;font-weight:900;color:var(--black);"></div>
           <div style="font-size:0.68rem;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Days Active (7d)</div>
         </div>
-        <div style="background:var(--light);border-radius:10px;padding:12px;text-align:center;">
+        <div onclick="toggleVisitDatesDetail(30)" style="background:var(--light);border-radius:10px;padding:12px;text-align:center;cursor:pointer;" title="See which days">
           <div id="account-dash-visits-30" style="font-size:1.3rem;font-weight:900;color:var(--black);"></div>
           <div style="font-size:0.68rem;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Days Active (30d)</div>
         </div>
+      </div>
+      <div id="visit-dates-detail" style="display:none;background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;margin:-6px 0 16px;font-size:0.8rem;color:#444;line-height:1.7;"></div>
       </div>
       <div id="account-dash-review-reminder" style="display:none;background:linear-gradient(160deg,#fff3d6,#ffe6b3);border:1.5px solid var(--gold);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:0.82rem;font-weight:700;color:#5a4310;"></div>
       <div id="account-dash-gold-note" style="display:none;background:linear-gradient(160deg,#fff8e6,#f5e2a0);border:1.5px solid #d4af37;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:0.8rem;font-weight:700;color:#5a4310;">
@@ -5269,6 +5271,39 @@
     }
     var navBtn = document.getElementById('nav-account-label');
     // (nav label stays text-based — avatar is a dashboard-only touch, keeps the nav compact)
+  }
+
+  function jumpToPurchaseHistory() {
+    var body = document.getElementById('account-purchases-body');
+    var arrow = document.getElementById('account-purchases-arrow');
+    if (body.style.display === 'none' || !body.style.display) {
+      toggleAccountSection('purchases');
+    }
+    body.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function toggleVisitDatesDetail(days) {
+    var el = document.getElementById('visit-dates-detail');
+    if (!currentAccount) return;
+    var visitDates = currentAccount.visitDates || [];
+    var nowMs = Date.now();
+    var cutoff = nowMs - days * 24 * 60 * 60 * 1000;
+    var matching = visitDates.filter(function(d){ return new Date(d).getTime() >= cutoff; })
+      .sort(function(a,b){ return new Date(b) - new Date(a); });
+    var isOpen = el.style.display !== 'none';
+    if (isOpen && el.getAttribute('data-days') === String(days)) {
+      el.style.display = 'none';
+      return;
+    }
+    el.setAttribute('data-days', String(days));
+    if (matching.length === 0) {
+      el.innerHTML = 'No visits recorded in the last ' + days + ' days.';
+    } else {
+      el.innerHTML = '<strong>Active on:</strong><br/>' + matching.map(function(d){
+        return new Date(d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+      }).join('<br/>');
+    }
+    el.style.display = 'block';
   }
 
   function toggleAccountSection(name) {

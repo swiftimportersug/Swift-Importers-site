@@ -351,7 +351,7 @@
 
     /* ── 3D COLLAPSIBLE SECTION BOX (Promo Codes, Staff Names, etc.) ── */
     .admin-3d-box {
-      background: linear-gradient(180deg, rgba(255,255,255,0.85) 0%, rgba(246,245,240,0.75) 100%);
+      background: #f7f6f2;
       border: 1px solid rgba(228,223,208,0.8);
       border-bottom: 4px solid #d9d2bd;
       border-radius: 16px;
@@ -460,10 +460,17 @@
       border: 1px solid rgba(255,255,255,0.7);
       border-top: 1px solid rgba(255,255,255,0.95);
       border-radius: 18px; width: 100%; max-width: 560px;
-      max-height: 90vh;
-      display: flex; flex-direction: column;
+      max-height: 90vh; overflow-y: auto; overflow-x: hidden;
       box-shadow: 0 25px 60px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.6);
       animation: slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    /* Opt-in layout for modals built with the .modal-hdr/.modal-body/.modal-footer
+       three-part structure — NOT the default, since most modals here are simple
+       freeform content and inheriting flex-column unintentionally broke their layout
+       and click handling. */
+    .modal-box.modal-box-flex {
+      display: flex; flex-direction: column;
+      overflow-y: hidden;
     }
     @keyframes slideUp {
       from { opacity: 0; transform: translateY(30px) scale(0.97); }
@@ -1584,7 +1591,7 @@
 
 <!-- ADD/EDIT PRODUCT MODAL -->
 <div class="modal-overlay" id="product-modal">
-  <div class="modal-box">
+  <div class="modal-box modal-box-flex">
     <div class="modal-hdr">
       <h3 id="modal-title">Add New Product</h3>
       <button class="modal-close-btn" onclick="closeModal()">✕</button>
@@ -6678,7 +6685,7 @@
 
 <!-- FINANCE ENTRY MODAL -->
 <div class="modal-overlay" id="finance-entry-modal">
-  <div class="modal-box" style="max-width:420px;">
+  <div class="modal-box modal-box-flex" style="max-width:420px;">
     <div class="modal-hdr">
       <h3 id="fin-modal-title">Add Income / Expense</h3>
       <button class="modal-close-btn" onclick="closeFinanceEntryModal()">✕</button>
@@ -6720,7 +6727,7 @@
 
 <!-- FINANCE BREAKDOWN MODAL -->
 <div class="modal-overlay" id="fin-breakdown-modal">
-  <div class="modal-box" style="max-width:500px;">
+  <div class="modal-box modal-box-flex" style="max-width:500px;">
     <div class="modal-hdr">
       <h3 id="fin-breakdown-title">Breakdown</h3>
       <button class="modal-close-btn" onclick="closeFinanceBreakdown()">✕</button>
@@ -6741,7 +6748,7 @@
 
 <!-- CASH SALE MODAL -->
 <div class="modal-overlay" id="cash-sale-modal">
-  <div class="modal-box" style="max-width:460px;">
+  <div class="modal-box modal-box-flex" style="max-width:460px;">
     <div class="modal-hdr">
       <h3>🛒 Record Cash Sale</h3>
       <button class="modal-close-btn" onclick="closeCashSaleModal()">✕</button>
@@ -7488,7 +7495,7 @@
 
 <!-- QUICK SCAN MODAL (opens from Inventory page icon + SKU field scan button) -->
 <div class="modal-overlay" id="quick-scan-modal">
-  <div class="modal-box" style="max-width:420px;">
+  <div class="modal-box modal-box-flex" style="max-width:420px;">
     <div class="modal-hdr">
       <h3>📷 Quick Scan</h3>
       <button class="modal-close-btn" onclick="closeQuickScanModal()">✕</button>
@@ -7639,7 +7646,7 @@
 </script>
 <!-- STOCK ADJUSTMENT MODAL -->
 <div class="modal-overlay" id="adjust-modal">
-  <div class="modal-box" style="max-width:460px;">
+  <div class="modal-box modal-box-flex" style="max-width:460px;">
     <div class="modal-hdr">
       <h3 id="adjust-title">📦 Adjust Stock</h3>
       <button class="modal-close-btn" onclick="document.getElementById('adjust-modal').classList.remove('open')">✕</button>
