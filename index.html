@@ -889,7 +889,16 @@
     .modal{background:var(--white);border-radius:12px;padding:32px;max-width:420px;width:90%;position:relative;}
     .modal h2{font-family:var(--serif);font-size:1.5rem;font-weight:600;margin-bottom:8px;}
     .modal p{color:#555;font-size:0.9rem;margin-bottom:20px;}
-    .modal-close{position:absolute;top:16px;right:16px;background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--grey);}
+    .modal-close{
+      position:absolute; top:14px; right:14px; width:32px; height:32px;
+      background:linear-gradient(160deg,#fff,#f0efe9); border:1px solid rgba(0,0,0,0.06);
+      border-radius:50%; font-size:1.1rem; cursor:pointer; color:#666;
+      display:flex; align-items:center; justify-content:center;
+      box-shadow:0 3px 8px rgba(0,0,0,0.14), 0 1px 2px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.9);
+      transition:transform 0.15s, box-shadow 0.15s;
+    }
+    .modal-close:hover{ box-shadow:0 4px 12px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.9); }
+    .modal-close:active{ transform:translateY(1px) scale(0.96); box-shadow:0 1px 3px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.9); }
     #account-modal.open, #saved-modal.open, #messages-modal.open{
       align-items:stretch !important; justify-content:center !important; padding:0 !important;
     }
@@ -4649,7 +4658,28 @@
     if (unsubscribeActiveOrder) { unsubscribeActiveOrder(); unsubscribeActiveOrder = null; }
     var card = document.getElementById('active-order-card');
     if (card) card.style.display = 'none';
+    lastSeenActiveOrderKey = null;
+    hasUnseenOrderUpdate = false;
   }
+
+  // Ordered delivery stages within status='confirmed' — richer than the old two-state
+  // system (Order Received / Confirmed), so the customer can see real progress.
+  function computeOrderStatusDisplay(o) {
+    if (!o) return '';
+    if (o.status === 'pending') return '⏳ Order Received — being prepared';
+    if (o.status === 'closed') return '✔ Completed';
+    if (o.status === 'confirmed') {
+      var type = o.delivery && o.delivery.type;
+      var driverLabel = type === 'boda' ? 'Boda Rider' : (type === 'taxi' || type === 'bus') ? 'Driver' : 'Rider/Driver';
+      if (o.deliveryStage === 'handed') return '📦 Package Handed to ' + driverLabel;
+      if (o.deliveryStage === 'dispatched') return '🚀 Order Dispatched';
+      if (o.deliveryStage === 'on_the_way') return '✅ Confirmed — On the Way';
+      return '✅ Confirmed';
+    }
+    return o.status;
+  }
+
+  var lastSeenActiveOrderKey = null; // "<orderId>:<status>:<deliveryStage>" — detects real changes only
 
   function renderActiveOrderCard(o) {
     var card = document.getElementById('active-order-card');
@@ -4658,8 +4688,21 @@
     card.style.display = 'block';
     var items = (o.cartItems || []).map(function(c){ return c.name + ' x' + c.qty; }).join(', ');
     document.getElementById('active-order-items').textContent = items || o.products || 'Your order';
-    var statusLabels = { pending: '⏳ Order received — being prepared', confirmed: '✅ Confirmed — on the way' };
-    document.getElementById('active-order-status').textContent = statusLabels[o.status] || o.status;
+    document.getElementById('active-order-status').textContent = computeOrderStatusDisplay(o);
+
+    // Detect a genuine change since we last rendered this order, to trigger the same
+    // notification treatment used for new messages — sound + pulsing badge on Account.
+    var changeKey = o.fbDocId + ':' + o.status + ':' + (o.deliveryStage || '');
+    if (lastSeenActiveOrderKey !== null && lastSeenActiveOrderKey !== changeKey) {
+      playMessageAlertSound();
+      hasUnseenOrderUpdate = true;
+      updateMainAccountBadge();
+      if (document.visibilityState !== 'visible') {
+        showBrowserNotification({ text: computeOrderStatusDisplay(o) }); // reuses the same system notification path as messages
+      }
+    }
+    lastSeenActiveOrderKey = changeKey;
+
     var deliveryEl = document.getElementById('active-order-delivery');
     var d = o.delivery;
     if (d && d.type && d.type !== 'selfpick' && (d.bodaName || d.eta || d.plateNumber || d.location)) {
@@ -4734,11 +4777,13 @@
   // One combined red-dot indicator on the top-level "Account" button itself, so on PC a
   // customer notices something's waiting for them (an unread message or a pending
   // review) without needing to open the dropdown first.
+  var hasUnseenOrderUpdate = false;
+
   function updateMainAccountBadge() {
     var unreadMessages = customerMessages.filter(function(m){ return m.sender === 'admin' && !m.read; }).length > 0;
     var hasPendingReview = !!pendingReviewTarget;
     var mainBadge = document.getElementById('nav-account-main-badge');
-    if (mainBadge) mainBadge.style.display = (unreadMessages || hasPendingReview) ? 'block' : 'none';
+    if (mainBadge) mainBadge.style.display = (unreadMessages || hasPendingReview || hasUnseenOrderUpdate) ? 'block' : 'none';
   }
 
   function toggleAccountDropdown(evt) {
@@ -5207,6 +5252,7 @@
     checkPendingReviewReminder();
     recordVisit();
     startActiveOrderListener();
+    if (hasUnseenOrderUpdate) { hasUnseenOrderUpdate = false; updateMainAccountBadge(); }
     var tier = currentAccount.tier || 'standard';
     var spent = currentAccount.totalSpent || 0;
     document.getElementById('account-dash-name').textContent = currentAccount.name || '';
@@ -5376,7 +5422,7 @@
         return;
       }
       var totalSpent = ords.reduce(function(s,o){ return s + (parseInt(o.orderTotal || o.subtotal) || 0); }, 0);
-      var statusLabels = { pending:'⏳ Pending', confirmed:'✅ Confirmed', closed:'✔ Completed' };
+      
       body.innerHTML =
         '<div style="background:var(--light); border-radius:10px; padding:12px 14px; margin-bottom:14px; text-align:center;">' +
           '<div style="font-size:1.3rem; font-weight:900;">' + fmtPrice(totalSpent) + '</div>' +
@@ -5387,7 +5433,7 @@
           return '<div style="border-bottom:1px solid var(--border); padding:10px 0;">' +
             '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">' +
               '<span style="font-size:0.8rem; font-weight:700;">' + fmtMessageTime(o.timestamp) + '</span>' +
-              '<span style="font-size:0.72rem; font-weight:800; color:' + (o.status==='closed'?'#2a9d50':'var(--gold-dark)') + ';">' + (statusLabels[o.status]||o.status) + '</span>' +
+              '<span style="font-size:0.72rem; font-weight:800; color:' + (o.status==='closed'?'#2a9d50':'var(--gold-dark)') + ';">' + computeOrderStatusDisplay(o) + '</span>' +
             '</div>' +
             '<div style="font-size:0.8rem; color:#555; margin-top:3px;">' + items + '</div>' +
             '<div style="font-size:0.82rem; font-weight:800; margin-top:3px;">' + fmtPrice(o.orderTotal || o.subtotal || 0) + '</div>' +
@@ -5479,13 +5525,13 @@
         body.innerHTML = '<div style="font-size:0.8rem;color:var(--grey);text-align:center;padding:10px;">No orders yet. Buy something to show purchase history!</div>';
         return;
       }
-      var statusLabels = { pending:'⏳ Pending', confirmed:'✅ Confirmed', closed:'✔ Completed' };
+      
       body.innerHTML = ords.map(function(o){
         var items = (o.cartItems || []).map(function(c){ return c.name + ' x' + c.qty; }).join(', ');
         return '<div style="border-bottom:1px solid var(--border); padding:8px 0;">' +
           '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">' +
             '<span style="font-size:0.78rem; font-weight:700;">' + fmtMessageTime(o.timestamp) + '</span>' +
-            '<span style="font-size:0.7rem; font-weight:800; color:' + (o.status==='closed'?'#2a9d50':'var(--gold-dark)') + ';">' + (statusLabels[o.status]||o.status) + '</span>' +
+            '<span style="font-size:0.7rem; font-weight:800; color:' + (o.status==='closed'?'#2a9d50':'var(--gold-dark)') + ';">' + computeOrderStatusDisplay(o) + '</span>' +
           '</div>' +
           '<div style="font-size:0.78rem; color:#555; margin-top:2px;">' + items + '</div>' +
           '<div style="font-size:0.8rem; font-weight:800; margin-top:2px;">' + fmtPrice(o.orderTotal || o.subtotal || 0) + '</div>' +

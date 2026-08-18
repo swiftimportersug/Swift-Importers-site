@@ -4804,6 +4804,20 @@
           ${!isClosed && o.status === 'confirmed' ? `
             <button onclick="openDeliveryUpdateModal('${o.fbDocId}')" style="width:100%; margin-top:8px; background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:8px 10px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer;">🚚 ${o.delivery && o.delivery.type ? 'Update' : 'Set'} Delivery Info</button>
           ` : ''}
+          ${!isClosed && o.status === 'confirmed' && o.delivery && o.delivery.type && o.delivery.type !== 'selfpick' ? (function(){
+            const driverLabel = o.delivery.type === 'boda' ? 'Boda Rider' : 'Driver';
+            const stages = [
+              { key: 'handed', label: '📦 Handed to ' + driverLabel },
+              { key: 'dispatched', label: '🚀 Dispatched' },
+              { key: 'on_the_way', label: '✅ On the Way' }
+            ];
+            return '<div style="width:100%; display:flex; gap:6px; margin-top:6px;">' +
+              stages.map(s => {
+                const active = o.deliveryStage === s.key;
+                return `<button onclick="updateDeliveryStage('${o.fbDocId}','${s.key}')" style="flex:1; background:${active ? 'var(--black)' : '#fff'}; color:${active ? '#fff' : '#555'}; border:1.5px solid ${active ? 'var(--black)' : 'var(--border)'}; padding:6px 4px; border-radius:6px; font-size:0.68rem; font-weight:700; cursor:pointer;">${s.label}</button>`;
+              }).join('') +
+            '</div>';
+          })() : ''}
           ${o.pricing && (o.pricing.discount || o.pricing.otherFees) ? `
             <div style="width:100%; margin-top:6px; font-size:0.74rem; color:#777;">
               Subtotal ${fmt(o.pricing.subtotal)}${o.pricing.discount ? ' &minus; discount ' + fmt(o.pricing.discount) : ''}${o.pricing.otherFees ? ' + fees ' + fmt(o.pricing.otherFees) : ''} = <strong>${fmt(o.pricing.total)}</strong>
@@ -4961,6 +4975,18 @@
   }
 
   let deliveryUpdateTargetDocId = null;
+
+  async function updateDeliveryStage(docId, stage) {
+    if (!docId || !window.fbDb || !window.fbFns) return;
+    try {
+      const { doc, updateDoc } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'orders', docId), { deliveryStage: stage });
+      showSuccessToast('✅ Updated — the customer will see this live.');
+    } catch(e) {
+      showAppAlert('Error updating delivery stage. Check your connection.');
+      console.error('[order] updateDeliveryStage failed:', e);
+    }
+  }
 
   function openDeliveryUpdateModal(docId) {
     const o = orders.find(x => x.fbDocId === docId);
