@@ -2021,6 +2021,13 @@
 <script>
   var products = [];
   var cart = [];
+  // Buy Now must never touch the persistent cart — it's a separate, temporary checkout
+  // path so items bought this way don't linger in the cart if checkout is abandoned,
+  // and don't get mixed in with whatever the customer already had saved there.
+  var isBuyNowCheckout = false;
+  var buyNowItems = [];
+  function getCheckoutItems() { return isBuyNowCheckout ? buyNowItems : cart; }
+  function exitBuyNowMode() { isBuyNowCheckout = false; buyNowItems = []; }
   var catIcons = {
     'Smartphones':'&#128241;','Laptops':'&#128187;','TVs':'&#128250;','Audio':'&#127911;',
     'Printers':'&#128424;','Accessories':'&#128268;','Cameras':'&#128247;','Home Appliances':'&#127968;','Other':'&#128230;'
@@ -2569,12 +2576,13 @@
     if (orderJustSubmitted) return; // already completed — nothing to warn about
 
     var savingsLine = '';
+    var checkoutItems = getCheckoutItems();
     if (checkoutAppliedPromoDiscount > 0) {
       savingsLine = 'You\'ll miss out on your promo code savings of ' + fmtPrice(checkoutAppliedPromoDiscount) + '!';
-    } else if (cart.some(function(c){ return c.promoApplied; })) {
+    } else if (checkoutItems.some(function(c){ return c.promoApplied; })) {
       savingsLine = 'You\'ll miss out on the promo code savings on your order!';
-    } else if (cart.length > 0) {
-      savingsLine = 'Your ' + cart.reduce(function(s,c){return s+c.qty;},0) + '-item order will be lost.';
+    } else if (checkoutItems.length > 0) {
+      savingsLine = 'Your ' + checkoutItems.reduce(function(s,c){return s+c.qty;},0) + '-item order will be lost.';
     }
 
     var msgEl = document.getElementById('checkout-leave-message');
@@ -2586,6 +2594,7 @@
   function checkoutLeaveConfirmed() {
     var modal = document.getElementById('checkout-leave-warning-modal');
     if (modal) modal.classList.remove('open');
+    if (isBuyNowCheckout) exitBuyNowMode();
     // Restore exactly where they were before checkout — the product they were viewing,
     // or their scroll position on the page — rather than leaving them stranded wherever
     // closeAllOverlays() happened to land when checkout began.
@@ -3655,6 +3664,7 @@
   }
 
   function pdAddToCart() {
+    exitBuyNowMode();
     var p = pdCurrentProduct;
     if (!p) return false;
     var hasVariants = p.variants.length>1;
@@ -3777,10 +3787,42 @@
   }
 
   function pdBuyNow() {
+    var p = pdCurrentProduct;
+    if (!p) return;
+    var hasVariants = p.variants.length > 1;
+    if (hasVariants && (pdCurrentVariantIdx === null || pdCurrentVariantIdx === undefined)) {
+      highlightVariantSelector();
+      return;
+    }
+    var v = p.variants[pdCurrentVariantIdx];
+    var available = parseInt(v.stock) || 0;
+    if (pdQty > available) { showAppAlert('Only ' + available + ' pieces available.'); return; }
+    if (pdAppliedPromoDiscount > 0 && checkoutAppliedPromoDiscount > 0) {
+      showAppAlert('You already have a site-wide promo code applied at checkout. Only one promo code can apply per order — remove that code first if you want to use this item\'s own promo instead.');
+      return;
+    }
+
+    var cartImg = v.variantImage || p.image || (p.images && p.images[0]) || '';
+    var itemName = p.name + (hasVariants ? ' - ' + v.name + (v.color ? ' (' + v.color + ')' : '') : '') + (pdAppliedPromoDiscount > 0 ? ' (Promo: ' + pdAppliedPromoCode + ')' : '');
+    buyNowItems = [{ cartKey: p.id + '_' + pdCurrentVariantIdx + '_buynow', id: p.id, name: itemName, price: pdEffectivePrice(v), cost: 0, icon: catIcons[p.category] || '', img: cartImg, qty: pdQty, variantIdx: pdCurrentVariantIdx, maxStock: available, promoApplied: pdAppliedPromoDiscount > 0 }];
+
+    // Same bundle behaviour as Add to Cart — if a bundle add-on is selected, it's part
+    // of this same "buy now" purchase too.
+    if (pdBundleSelected && p.bundleProductId) {
+      var bundleProd = products.find(function(x){ return x.id === p.bundleProductId; });
+      var bv = bundleProd && bundleProd.variants && bundleProd.variants[0];
+      if (bundleProd && bv) {
+        var bAvailable = parseInt(bv.stock) || 0;
+        if (bAvailable > 0) {
+          var bImg = bv.variantImage || bundleProd.image || (bundleProd.images && bundleProd.images[0]) || '';
+          buyNowItems.push({ cartKey: bundleProd.id + '_0_buynow', id: bundleProd.id, name: bundleProd.name + (bundleProd.variants.length > 1 ? ' - ' + bv.name : '') + ' (Bundle)', price: effectivePrice(bv), cost: 0, icon: catIcons[bundleProd.category] || '', img: bImg, qty: 1, variantIdx: 0, maxStock: bAvailable, promoApplied: false });
+        }
+      }
+    }
+
+    isBuyNowCheckout = true;
     captureCheckoutOrigin();
-    if (!pdAddToCart()) return;
     renderOrderItemsSummary();
-    // Close modal and scroll to form
     setTimeout(function(){
       closePdOverlay();
       document.getElementById('order').scrollIntoView({behavior:'smooth'});
@@ -3806,8 +3848,9 @@
     var itemsList = document.getElementById('order-items-list');
     var totalEl = document.getElementById('order-items-total');
     var hiddenField = document.getElementById('order-products-hidden');
+    var checkoutItems = getCheckoutItems();
 
-    if (cart.length === 0) {
+    if (checkoutItems.length === 0) {
       if (summary) summary.style.display = 'none';
       if (manualWrap) manualWrap.style.display = 'block';
       checkoutAppliedPromoCode = null;
@@ -3830,7 +3873,7 @@
     if (addPrompt) addPrompt.style.display = 'none';
 
     if (itemsList) {
-      itemsList.innerHTML = cart.map(function(c){
+      itemsList.innerHTML = checkoutItems.map(function(c){
         var thumb = c.img
           ? '<img src="'+c.img+'" alt="" style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid #a5d6a7;flex-shrink:0;" onerror="this.style.display=\'none\'"/>'
           : '<span style="width:36px;height:36px;border-radius:6px;background:#e3f2e3;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">'+(c.icon||'📦')+'</span>';
@@ -3841,7 +3884,7 @@
           '</div>';
       }).join('');
     }
-    var subtotal = cart.reduce(function(s,c){ return s + c.price * c.qty; }, 0);
+    var subtotal = checkoutItems.reduce(function(s,c){ return s + c.price * c.qty; }, 0);
     var totals = computeCheckoutTotals(subtotal);
     if (totalEl) {
       var lines = 'Subtotal: ' + fmtPrice(subtotal);
@@ -3938,10 +3981,11 @@
     var section = document.getElementById('checkout-fbw-section');
     var scroll = document.getElementById('checkout-fbw-scroll');
     if (!section || !scroll) return;
+    var checkoutItems = getCheckoutItems();
     var cartProductIds = {};
-    cart.forEach(function(c){ cartProductIds[c.id] = true; });
+    checkoutItems.forEach(function(c){ cartProductIds[c.id] = true; });
     var suggestedIds = [];
-    cart.forEach(function(c){
+    checkoutItems.forEach(function(c){
       var p = products.find(function(x){ return x.id === c.id; });
       if (!p || !Array.isArray(p.frequentlyBoughtWith)) return;
       p.frequentlyBoughtWith.forEach(function(sid){
@@ -4113,16 +4157,17 @@
     if (!v) return;
     var available = parseInt(v.stock) || 0;
     if (available <= 0) { showAppAlert('Sorry, that item is out of stock right now.'); return; }
-    var cartKey = p.id + '_0';
-    var existing = cart.find(function(c){ return c.cartKey === cartKey; });
+    var targetList = getCheckoutItems();
+    var cartKey = p.id + '_0' + (isBuyNowCheckout ? '_buynow' : '');
+    var existing = targetList.find(function(c){ return c.cartKey === cartKey; });
     if (existing) {
       if (existing.qty + 1 > available) { showAppAlert('Only ' + available + ' pieces available.'); return; }
       existing.qty += 1;
     } else {
       var cartImg = v.variantImage || p.image || (p.images && p.images[0]) || '';
-      cart.push({ cartKey:cartKey, id:p.id, name:p.name+(p.variants.length>1?' - '+v.name:''), price:effectivePrice(v), cost:0, icon:catIcons[p.category]||'', img:cartImg, qty:1, variantIdx:0, maxStock:available, promoApplied:false });
+      targetList.push({ cartKey:cartKey, id:p.id, name:p.name+(p.variants.length>1?' - '+v.name:''), price:effectivePrice(v), cost:0, icon:catIcons[p.category]||'', img:cartImg, qty:1, variantIdx:0, maxStock:available, promoApplied:false });
     }
-    updateCartCount();
+    if (!isBuyNowCheckout) updateCartCount();
     renderOrderItemsSummary();
     if (btn) {
       btn.textContent = '✓ Added';
@@ -4211,14 +4256,17 @@
   }
 
   function removeItemFromCheckout(cartKey) {
-    cart = cart.filter(function(c){ return c.cartKey !== cartKey; });
-    updateCartCount();
+    if (isBuyNowCheckout) {
+      buyNowItems = buyNowItems.filter(function(c){ return c.cartKey !== cartKey; });
+    } else {
+      cart = cart.filter(function(c){ return c.cartKey !== cartKey; });
+      updateCartCount();
+    }
     renderOrderItemsSummary();
   }
 
   function clearOrderSummary() {
-    cart = [];
-    updateCartCount();
+    if (isBuyNowCheckout) { exitBuyNowMode(); } else { cart = []; updateCartCount(); }
     checkoutAppliedPromoCode = null;
     checkoutAppliedPromoDiscount = 0;
     var summary = document.getElementById('order-items-summary');
@@ -4290,6 +4338,32 @@
     var fabCount = document.getElementById('floating-cart-fab-count');
     if (fabCount) fabCount.textContent = totalQty;
     syncCartFabVisibility();
+    persistCartForAccount();
+  }
+
+  // Debounced so rapid quantity +/- clicks don't spam Firestore with a write per click —
+  // only the settled state gets saved, shortly after the customer stops interacting.
+  var persistCartTimer = null;
+  function persistCartForAccount() {
+    if (!currentAccount || !window.fbDb || !window.fbFns) return;
+    clearTimeout(persistCartTimer);
+    persistCartTimer = setTimeout(function(){
+      try {
+        var { doc, updateDoc } = window.fbFns;
+        updateDoc(doc(window.fbDb, 'customers', currentAccount.fbDocId), { cartItems: cart }).catch(function(e){ console.error('[cart] failed to save:', e); });
+      } catch(e) { console.error('[cart] failed to save:', e); }
+    }, 800);
+  }
+
+  function restoreCartForAccount() {
+    if (!currentAccount) return;
+    // Only restore if the local cart is empty — avoids clobbering items the customer
+    // may have added as a guest just before signing in.
+    if (cart.length === 0 && Array.isArray(currentAccount.cartItems) && currentAccount.cartItems.length > 0) {
+      cart = currentAccount.cartItems;
+      updateCartCount();
+      renderOrderItemsSummary();
+    }
   }
 
   // The floating cart button shows whenever the cart has items, except while the cart
@@ -4542,6 +4616,7 @@
     checkPendingReviewReminder();
     recordVisit();
     startActiveOrderListener();
+    restoreCartForAccount();
         closeOverlayEl(document.getElementById('account-modal'));
         refreshCurrentProductGiftBox();
         return true;
@@ -4887,6 +4962,7 @@
     checkPendingReviewReminder();
     recordVisit();
     startActiveOrderListener();
+    restoreCartForAccount();
   }
 
   function renderMessagesThread() {
@@ -5099,6 +5175,7 @@
         checkPendingReviewReminder();
     recordVisit();
     startActiveOrderListener();
+    restoreCartForAccount();
       }, 1200);
     } catch(e) {
       msg.textContent = 'Something went wrong. Please try again.';
@@ -5265,6 +5342,7 @@
     checkPendingReviewReminder();
     recordVisit();
     startActiveOrderListener();
+    restoreCartForAccount();
   }
 
   async function accountSignupSubmit() {
@@ -5294,6 +5372,7 @@
     checkPendingReviewReminder();
     recordVisit();
     startActiveOrderListener();
+    restoreCartForAccount();
     } catch(e) {
       msg.textContent = 'Error creating your account. Please try again.';
       msg.style.display = 'block';
@@ -5329,6 +5408,7 @@
     checkPendingReviewReminder();
     recordVisit();
     startActiveOrderListener();
+    restoreCartForAccount();
     if (hasUnseenOrderUpdate) { hasUnseenOrderUpdate = false; updateReviewNotificationBadges(); }
     var tier = currentAccount.tier || 'standard';
     var spent = currentAccount.totalSpent || 0;
@@ -5664,6 +5744,12 @@
     stopMessagesListener();
     stopActiveOrderListener();
     updateMainAccountBadge();
+    // Clears the on-screen cart only — currentAccount is already null above, so
+    // updateCartCount()'s persist step correctly skips saving, meaning what's stored in
+    // Firestore for this account is untouched and will be restored next time they log in.
+    cart = [];
+    updateCartCount();
+    renderOrderItemsSummary();
     closeOverlayEl(document.getElementById('account-modal'));
   }
 
@@ -5706,6 +5792,7 @@
     checkPendingReviewReminder();
     recordVisit();
     startActiveOrderListener();
+    restoreCartForAccount();
         }
       }
     } catch(e) { /* silent — user can just sign in manually */ }
@@ -5787,6 +5874,7 @@
   }, { passive: true });
 
   function openCart() {
+    exitBuyNowMode();
     var list = document.getElementById('cart-items-list');
     list.innerHTML = '';
     if (cart.length===0) {
@@ -5898,14 +5986,15 @@
     }
     var submitBtn = document.querySelector('.order-form .submit-btn');
     if (submitBtn){ submitBtn.textContent='Processing...'; submitBtn.disabled=true; }
+    var checkoutItems = getCheckoutItems();
     if (window.fbDb && window.fbFns) {
-      var subtotalVal = cart.reduce(function(s,c){ return s + c.price * c.qty; }, 0);
+      var subtotalVal = checkoutItems.reduce(function(s,c){ return s + c.price * c.qty; }, 0);
       var totalsVal = computeCheckoutTotals(subtotalVal);
       var order = {
         customerName: nameVal, phone: phoneVal, deliveryArea: areaVal,
         exactLocation: (document.getElementById('exact-location') && document.getElementById('exact-location').value) || '',
         products: productsVal, paymentMethod: paymentVal, notes: notesVal,
-        cartItems: cart.map(function(c){ return {id:c.id, name:c.name, qty:c.qty, price:c.price, cost:c.cost||0, variantIdx:c.variantIdx}; }),
+        cartItems: checkoutItems.map(function(c){ return {id:c.id, name:c.name, qty:c.qty, price:c.price, cost:c.cost||0, variantIdx:c.variantIdx}; }),
         appliedPromoCode: totalsVal.usedDiscountType === 'promo' ? (checkoutAppliedPromoCode || null) : null,
         promoDiscount: totalsVal.usedDiscountType === 'promo' ? totalsVal.finalDiscount : 0,
         memberTier: currentAccount ? (currentAccount.tier || 'standard') : null,
@@ -5919,7 +6008,9 @@
         if (currentAccount) updateAccountAfterOrder(totalsVal.finalTotal);
       }).catch(function(e){console.error(e);});
     }
-    cart = []; updateCartCount();
+    // A successful Buy Now only clears the temporary buy-now items — the customer's
+    // real persistent cart (if they had one going before Buy Now) is left untouched.
+    if (isBuyNowCheckout) { exitBuyNowMode(); } else { cart = []; updateCartCount(); }
     // Reset form
     clearOrderSummary();
     if (document.getElementById('order-name')) document.getElementById('order-name').value = '';
