@@ -309,15 +309,22 @@
   // Same lightweight markup support as the main site's product descriptions
   function formatDescriptionHtml(text) {
     if (!text) return '';
-    var escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    var lines = escaped.split('\n');
-    return lines.map(function(line){
-      var trimmed = line.trim();
+    var lines = text.split('\n');
+    return lines.map(function(rawLine){
+      var trimmedRaw = rawLine.trim();
+      var imgMatch = trimmedRaw.match(/^!\[([^\]]*)\]\((\S+)\)$/);
+      if (imgMatch) {
+        var alt = imgMatch[1].replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+        var url = imgMatch[2].replace(/"/g, '%22');
+        return '<img src="' + url + '" alt="' + alt + '" style="width:100%;border-radius:10px;margin:10px 0;display:block;" onerror="this.style.display=\'none\'"/>';
+      }
+      var escaped = rawLine.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      var trimmed = escaped.trim();
       var inline = function(s){ return s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'); };
       if (trimmed.indexOf('## ') === 0) return '<div style="font-size:1.05em;font-weight:800;margin:10px 0 4px;">' + inline(trimmed.slice(3)) + '</div>';
       if (trimmed.indexOf('# ') === 0) return '<div style="font-size:1.2em;font-weight:900;margin:12px 0 6px;">' + inline(trimmed.slice(2)) + '</div>';
       if (trimmed === '') return '<div style="height:0.6em;"></div>';
-      return '<div>' + inline(line) + '</div>';
+      return '<div>' + inline(escaped) + '</div>';
     }).join('');
   }
 

@@ -1824,8 +1824,9 @@
           </div>
         </div>
         <div style="background:#fff8e6; border:1px solid #e0c060; border-radius:6px; padding:8px 12px; margin-bottom:8px; font-size:0.7rem; color:#7a5c10; line-height:1.6;">
-          ✨ <strong>You can format your text:</strong> start a line with <code># </code> for a big heading, <code>## </code> for a subheading, and wrap words in <code>**double asterisks**</code> to make them <strong>bold</strong>. Everything else is shown exactly as typed.
+          ✨ <strong>You can format your text:</strong> start a line with <code># </code> for a big heading, <code>## </code> for a subheading, and wrap words in <code>**double asterisks**</code> to make them <strong>bold</strong>. Use the "🖼️ Insert Image" button below to drop in a picture anywhere — write some text, add an image, write more, add another, as many times as you like.
         </div>
+        <button type="button" onclick="insertDescriptionImage('f-description')" style="background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:7px 14px; border-radius:7px; font-size:0.76rem; font-weight:700; cursor:pointer; margin-bottom:8px;">🖼️ Insert Image Here</button>
         <textarea id="f-description" rows="6"
           placeholder="e.g. The KZ Castor Pro is a premium in-ear monitor featuring dual dynamic drivers and 4 tuning switches. Comes with a detachable 2-pin silver-plated cable, 3 pairs of ear tips (S/M/L), and a storage pouch. Compatible with all devices via 3.5mm jack. Ideal for audiophiles and stage monitoring..."
           style="width:100%; padding:12px 14px; border:2px solid #e0c060; border-radius:8px; font-size:0.88rem; font-family:'Inter',sans-serif; outline:none; background:#fff; color:#000; resize:vertical; line-height:1.7; box-sizing:border-box;"
@@ -3509,6 +3510,23 @@
   window.doLogout = doLogout;
 
   // ── DESCRIPTION WORD COUNTER ──
+  function insertDescriptionImage(textareaId) {
+    var url = prompt('Paste the image URL to insert here:');
+    if (!url || !url.trim()) return;
+    var textarea = document.getElementById(textareaId);
+    if (!textarea) return;
+    var start = textarea.selectionStart;
+    var end = textarea.selectionEnd;
+    var before = textarea.value.substring(0, start);
+    var after = textarea.value.substring(end);
+    var insertion = '\n![](' + url.trim() + ')\n';
+    textarea.value = before + insertion + after;
+    var newCursorPos = (before + insertion).length;
+    textarea.focus();
+    textarea.setSelectionRange(newCursorPos, newCursorPos);
+    updateDescWordCount(textarea);
+  }
+
   function updateDescWordCount(textarea) {
     var wordCount = document.getElementById('desc-word-count');
     if (!wordCount) return;
@@ -4802,7 +4820,10 @@
             </div>
           ` : ''}
           ${!isClosed && o.status === 'confirmed' ? `
-            <button onclick="openDeliveryUpdateModal('${o.fbDocId}')" style="width:100%; margin-top:8px; background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:8px 10px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer;">🚚 ${o.delivery && o.delivery.type ? 'Update' : 'Set'} Delivery Info</button>
+            <div style="width:100%; display:flex; gap:6px; margin-top:8px;">
+              <button onclick="quickSetETA('${o.fbDocId}')" style="flex:1; background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:8px 10px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer;">⏱️ ${o.delivery && o.delivery.eta ? 'Update' : 'Set'} ETA</button>
+              <button onclick="openDeliveryUpdateModal('${o.fbDocId}')" style="flex:1; background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:8px 10px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer;">🚚 ${o.delivery && o.delivery.type ? 'Update' : 'Set'} Delivery Info</button>
+            </div>
           ` : ''}
           ${!isClosed && o.status === 'confirmed' && o.delivery && o.delivery.type && o.delivery.type !== 'selfpick' ? (function(){
             const driverLabel = o.delivery.type === 'boda' ? 'Boda Rider' : 'Driver';
@@ -4975,6 +4996,25 @@
   }
 
   let deliveryUpdateTargetDocId = null;
+
+  async function quickSetETA(docId) {
+    const o = orders.find(x => x.fbDocId === docId);
+    if (!o) return;
+    const currentEta = (o.delivery && o.delivery.eta) || '';
+    const eta = prompt('Estimated delivery time (e.g. "30 minutes", "Today by 5pm"):', currentEta);
+    if (eta === null) return; // cancelled
+    if (!window.fbDb || !window.fbFns) return;
+    try {
+      const { doc, updateDoc } = window.fbFns;
+      // Dot-notation updates just this one sub-field, leaving any other delivery info
+      // (driver, transport mode, etc.) that may already be set completely untouched.
+      await updateDoc(doc(window.fbDb, 'orders', docId), { 'delivery.eta': eta.trim() });
+      showSuccessToast('✅ Estimated delivery time updated — the customer will see this live.');
+    } catch(e) {
+      showAppAlert('Error updating ETA. Check your connection.');
+      console.error('[order] quickSetETA failed:', e);
+    }
+  }
 
   async function updateDeliveryStage(docId, stage) {
     if (!docId || !window.fbDb || !window.fbFns) return;
