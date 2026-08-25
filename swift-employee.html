@@ -3142,11 +3142,11 @@
           ` : ''}
           ${o.delivery && o.delivery.type && o.delivery.type !== 'selfpick' ? `
             <div style="width:100%; margin-top:6px; background:#fff8e6; border:1px solid var(--gold); border-radius:8px; padding:8px 10px; font-size:0.76rem; color:#555;">
-              ${{boda:'🏍️',taxi:'🚕',bus:'🚌'}[o.delivery.type] || '🚚'} <strong>${({boda:'Boda',taxi:'Taxi',bus:'Bus'}[o.delivery.type]) || 'Delivery'}: ${o.delivery.bodaName || 'Driver'}</strong>${o.delivery.bodaPhone ? ' &middot; ' + o.delivery.bodaPhone : ''}
-              ${o.delivery.plateNumber ? '<br/>🔖 Plate: ' + o.delivery.plateNumber : ''}
-              ${o.delivery.eta ? '<br/>⏱️ ETA: ' + o.delivery.eta : ''}
-              ${o.delivery.location ? '<br/>📍 Delivered to: ' + o.delivery.location : ''}
-              ${o.delivery.bodaFee ? '<br/>💵 Fee: ' + fmt(o.delivery.bodaFee) : ''}
+              ${{boda:'🏍️',taxi:'🚕',bus:'🚌'}[o.delivery.type] || '🚚'} <strong>${({boda:'Boda Rider',taxi:'Taxi Driver',bus:'Bus Driver'}[o.delivery.type]) || 'Delivery'}: ${o.delivery.bodaName || 'Driver'}</strong>${o.delivery.bodaPhone ? ' &middot; ' + o.delivery.bodaPhone : ''}
+              ${o.delivery.plateNumber ? '<br/><span style="color:#999;">🔖 Plate Number: </span><span style="color:#333;font-weight:600;">' + o.delivery.plateNumber + '</span>' : ''}
+              ${o.delivery.eta ? '<br/><span style="color:#999;">⏱️ Expected In: </span><span style="color:#333;font-weight:600;">' + o.delivery.eta + '</span>' : ''}
+              ${o.delivery.location ? '<br/><span style="color:#999;">📍 Delivering to: </span><span style="color:#333;font-weight:600;">' + o.delivery.location + '</span>' : ''}
+              ${o.delivery.bodaFee ? '<br/><span style="color:#999;">💵 Fee: </span><span style="color:#333;font-weight:600;">' + fmt(o.delivery.bodaFee) + '</span>' : ''}
             </div>
           ` : ''}
           ${!isClosed && o.status === 'confirmed' ? `

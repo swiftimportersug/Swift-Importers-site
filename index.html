@@ -81,6 +81,13 @@
     .nav-dropdown-badge{
       background:var(--red); color:#fff; font-size:0.6rem; font-weight:800;
       min-width:16px; height:16px; border-radius:20px; display:flex; align-items:center; justify-content:center; padding:0 4px;
+      position:relative;
+    }
+    .nav-dropdown-badge.pulsing::after{
+      content:''; position:absolute; inset:-3px; border-radius:50%;
+      background:inherit; opacity:0.7;
+      animation:navBadgePing 1.6s cubic-bezier(0,0,0.2,1) infinite;
+      z-index:-1;
     }
     .nav-account-main-badge{
       position:absolute; top:-4px; right:-4px;
@@ -1074,6 +1081,7 @@
       </button>
       <div id="nav-account-dropdown" class="nav-account-dropdown">
         <button onclick="closeAccountDropdown();openAccountEntry();">👤 <span style="flex:1;">Profile</span><span id="nav-dropdown-profile-badge" class="nav-dropdown-badge" style="display:none;">!</span></button>
+        <button onclick="closeAccountDropdown();openMyOrdersModal();">🧾 <span style="flex:1;">My Orders</span><span id="nav-dropdown-orders-badge" class="nav-dropdown-badge" style="display:none;background:#2a9d50;"></span></button>
         <button onclick="closeAccountDropdown();openSavedPage();">🔖 <span>Saved</span></button>
         <button onclick="closeAccountDropdown();openMessagesPage();">💬 <span style="flex:1;">Messages</span><span id="nav-dropdown-messages-badge" class="nav-dropdown-badge" style="display:none;"></span></button>
       </div>
@@ -3883,9 +3891,9 @@
     if (itemsList) {
       itemsList.innerHTML = checkoutItems.map(function(c){
         var thumb = c.img
-          ? '<img src="'+c.img+'" alt="" style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid #a5d6a7;flex-shrink:0;" onerror="this.style.display=\'none\'"/>'
-          : '<span style="width:36px;height:36px;border-radius:6px;background:#e3f2e3;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">'+(c.icon||'📦')+'</span>';
-        return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #d5ecc7;font-size:0.83rem;color:#1b5e20;">' +
+          ? '<img src="'+c.img+'" alt="" style="width:58px;height:58px;border-radius:8px;object-fit:cover;border:1px solid #a5d6a7;flex-shrink:0;" onerror="this.style.display=\'none\'"/>'
+          : '<span style="width:58px;height:58px;border-radius:8px;background:#e3f2e3;display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0;">'+(c.icon||'📦')+'</span>';
+        return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #d5ecc7;font-size:0.83rem;color:#1b5e20;">' +
           '<span style="display:flex;align-items:center;gap:8px;min-width:0;">' + thumb + '<span style="font-weight:600;overflow:hidden;text-overflow:ellipsis;">' + c.name + ' &times;' + c.qty + '</span></span>' +
           '<span style="display:flex;align-items:center;gap:8px;flex-shrink:0;"><span style="font-weight:700;">' + fmtPrice(c.price * c.qty) + '</span>' +
           '<button onclick="removeItemFromCheckout(\'' + c.cartKey + '\')" style="background:none;border:none;color:#c0392b;cursor:pointer;font-size:0.85rem;padding:0 2px;" title="Remove">&times;</button></span>' +
@@ -4757,6 +4765,8 @@
     if (unsubscribeActiveOrder) { unsubscribeActiveOrder(); unsubscribeActiveOrder = null; }
     var card = document.getElementById('active-order-card');
     if (card) card.style.display = 'none';
+    var ordersBadge = document.getElementById('nav-dropdown-orders-badge');
+    if (ordersBadge) ordersBadge.style.display = 'none';
     lastSeenActiveOrderKey = null;
     hasUnseenOrderUpdate = false;
   }
@@ -4839,9 +4849,15 @@
 
   function renderActiveOrderCard(o) {
     var card = document.getElementById('active-order-card');
+    var ordersBadge = document.getElementById('nav-dropdown-orders-badge');
     if (!card) return;
-    if (!o) { card.style.display = 'none'; return; }
+    if (!o) {
+      card.style.display = 'none';
+      if (ordersBadge) ordersBadge.style.display = 'none';
+      return;
+    }
     card.style.display = 'block';
+    if (ordersBadge) { ordersBadge.style.display = 'flex'; ordersBadge.classList.add('pulsing'); }
     var items = (o.cartItems || []).map(function(c){ return c.name + ' x' + c.qty; }).join(', ');
     document.getElementById('active-order-items').textContent = items || o.products || 'Your order';
     renderOrderStageTracker(o);
@@ -4866,12 +4882,13 @@
     var d = o.delivery;
     if (d && d.type && d.type !== 'selfpick' && (d.bodaName || d.eta || d.plateNumber || d.location)) {
       var icons = { boda: '🏍️', taxi: '🚕', bus: '🚌' };
-      var modeLabels = { boda: 'Boda', taxi: 'Taxi', bus: 'Bus' };
+      var modeLabels = { boda: 'Boda Rider', taxi: 'Taxi Driver', bus: 'Bus Driver' };
+      var labelStyle = 'opacity:0.55;';
       var html = (icons[d.type] || '🚚') + ' <strong>' + (modeLabels[d.type] || 'Delivery') + ': ' + (d.bodaName || 'Driver') + '</strong>';
       if (d.bodaPhone) html += ' &middot; <a href="tel:' + d.bodaPhone + '" style="color:#4ade80;">' + d.bodaPhone + '</a>';
-      if (d.plateNumber) html += '<br/>🔖 Plate: ' + d.plateNumber;
-      if (d.eta) html += '<br/>⏱️ Expected: ' + d.eta;
-      if (d.location) html += '<br/>📍 Delivering to: ' + d.location;
+      if (d.plateNumber) html += '<br/><span style="' + labelStyle + '">🔖 Plate Number: </span>' + d.plateNumber;
+      if (d.eta) html += '<br/><span style="' + labelStyle + '">⏱️ Expected In: </span>' + d.eta;
+      if (d.location) html += '<br/><span style="' + labelStyle + '">📍 Delivering to: </span>' + d.location;
       deliveryEl.innerHTML = html;
       deliveryEl.style.display = 'block';
     } else if (d && d.type === 'selfpick') {

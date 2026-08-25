@@ -822,6 +822,15 @@
     </div>
   </div>
 
+  <!-- CUSTOMER DAYS ACTIVE DETAIL -->
+  <div class="modal-overlay" id="customer-days-active-modal" onclick="if(event.target===this) this.classList.remove('open');" style="z-index:850;">
+    <div class="modal-box" style="max-width:380px; padding:24px;">
+      <div style="font-size:1.1rem; font-weight:800; margin-bottom:4px;" id="customer-days-active-title">📅 Days Active</div>
+      <div id="customer-days-active-body" style="margin-top:10px; font-size:0.85rem; color:#444; line-height:1.8; max-height:50vh; overflow-y:auto;"></div>
+      <button onclick="document.getElementById('customer-days-active-modal').classList.remove('open')" style="width:100%; margin-top:16px; background:var(--light); border:none; color:#777; padding:11px; border-radius:6px; font-size:0.85rem; font-weight:700; cursor:pointer;">Close</button>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="reset-customer-code-modal" onclick="if(event.target===this) this.classList.remove('open');" style="z-index:850;">
     <div class="modal-box" style="max-width:380px; padding:24px;">
       <div style="font-size:1rem; font-weight:800; margin-bottom:4px;">Reset Code</div>
@@ -847,19 +856,19 @@
         <div id="customer-detail-tier"></div>
       </div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:16px 0;">
-        <div style="background:var(--light); border-radius:8px; padding:10px; text-align:center;">
+        <div onclick="jumpToCustomerOrders()" style="background:var(--light); border-radius:8px; padding:10px; text-align:center; cursor:pointer;" title="View their orders">
           <div id="customer-detail-orders-count" style="font-size:1.2rem; font-weight:900;"></div>
           <div style="font-size:0.66rem; color:#888; font-weight:700; text-transform:uppercase;">Orders</div>
         </div>
-        <div style="background:var(--light); border-radius:8px; padding:10px; text-align:center;">
+        <div onclick="jumpToCustomerOrders()" style="background:var(--light); border-radius:8px; padding:10px; text-align:center; cursor:pointer;" title="View their orders">
           <div id="customer-detail-spent" style="font-size:1.05rem; font-weight:900;"></div>
           <div style="font-size:0.66rem; color:#888; font-weight:700; text-transform:uppercase;">Total Spent</div>
         </div>
-        <div style="background:var(--light); border-radius:8px; padding:10px; text-align:center;">
+        <div onclick="openCustomerDaysActiveDetail(7)" style="background:var(--light); border-radius:8px; padding:10px; text-align:center; cursor:pointer;" title="See which days">
           <div id="customer-detail-visits-7" style="font-size:1.2rem; font-weight:900;"></div>
           <div style="font-size:0.66rem; color:#888; font-weight:700; text-transform:uppercase;">Days Active (7d)</div>
         </div>
-        <div style="background:var(--light); border-radius:8px; padding:10px; text-align:center;">
+        <div onclick="openCustomerDaysActiveDetail(30)" style="background:var(--light); border-radius:8px; padding:10px; text-align:center; cursor:pointer;" title="See which days">
           <div id="customer-detail-visits-30" style="font-size:1.2rem; font-weight:900;"></div>
           <div style="font-size:0.66rem; color:#888; font-weight:700; text-transform:uppercase;">Days Active (30d)</div>
         </div>
@@ -3040,6 +3049,33 @@
     openResetCustomerCode(docId, c.name, c.phone);
   }
 
+  function jumpToCustomerOrders() {
+    const body = document.getElementById('customer-detail-orders-body');
+    if (body.style.display === 'none' || !body.style.display) {
+      toggleCustomerDetailSection('orders');
+    }
+    body.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function openCustomerDaysActiveDetail(days) {
+    const docId = customerDetailTargetDocId;
+    const c = allCustomersCache.find(x => x.fbDocId === docId);
+    if (!c) return;
+    document.getElementById('customer-days-active-title').textContent = '📅 Active in the Last ' + days + ' Days';
+    const body = document.getElementById('customer-days-active-body');
+    const visitDates = c.visitDates || [];
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    const matching = visitDates.filter(d => new Date(d).getTime() >= cutoff).sort((a,b) => new Date(b) - new Date(a));
+    if (matching.length === 0) {
+      body.innerHTML = 'No visits recorded in the last ' + days + ' days.';
+    } else {
+      body.innerHTML = '<strong>' + matching.length + ' day' + (matching.length===1?'':'s') + ' active:</strong><br/><br/>' + matching.map(d =>
+        '📍 ' + new Date(d).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+      ).join('<br/>');
+    }
+    document.getElementById('customer-days-active-modal').classList.add('open');
+  }
+
   function toggleCustomerDetailSection(name) {
     const body = document.getElementById('customer-detail-' + name + '-body');
     const arrow = document.getElementById('customer-detail-' + name + '-arrow');
@@ -4812,11 +4848,11 @@
           ` : ''}
           ${o.delivery && o.delivery.type && o.delivery.type !== 'selfpick' ? `
             <div style="width:100%; margin-top:6px; background:#fff8e6; border:1px solid var(--gold); border-radius:8px; padding:8px 10px; font-size:0.76rem; color:#555;">
-              ${{boda:'🏍️',taxi:'🚕',bus:'🚌'}[o.delivery.type] || '🚚'} <strong>${({boda:'Boda',taxi:'Taxi',bus:'Bus'}[o.delivery.type]) || 'Delivery'}: ${o.delivery.bodaName || 'Driver'}</strong>${o.delivery.bodaPhone ? ' &middot; ' + o.delivery.bodaPhone : ''}
-              ${o.delivery.plateNumber ? '<br/>🔖 Plate: ' + o.delivery.plateNumber : ''}
-              ${o.delivery.eta ? '<br/>⏱️ ETA: ' + o.delivery.eta : ''}
-              ${o.delivery.location ? '<br/>📍 Delivered to: ' + o.delivery.location : ''}
-              ${o.delivery.bodaFee ? '<br/>💵 Fee: ' + fmt(o.delivery.bodaFee) : ''}
+              ${{boda:'🏍️',taxi:'🚕',bus:'🚌'}[o.delivery.type] || '🚚'} <strong>${({boda:'Boda Rider',taxi:'Taxi Driver',bus:'Bus Driver'}[o.delivery.type]) || 'Delivery'}: ${o.delivery.bodaName || 'Driver'}</strong>${o.delivery.bodaPhone ? ' &middot; ' + o.delivery.bodaPhone : ''}
+              ${o.delivery.plateNumber ? '<br/><span style="color:#999;">🔖 Plate Number: </span><span style="color:#333;font-weight:600;">' + o.delivery.plateNumber + '</span>' : ''}
+              ${o.delivery.eta ? '<br/><span style="color:#999;">⏱️ Expected In: </span><span style="color:#333;font-weight:600;">' + o.delivery.eta + '</span>' : ''}
+              ${o.delivery.location ? '<br/><span style="color:#999;">📍 Delivering to: </span><span style="color:#333;font-weight:600;">' + o.delivery.location + '</span>' : ''}
+              ${o.delivery.bodaFee ? '<br/><span style="color:#999;">💵 Fee: </span><span style="color:#333;font-weight:600;">' + fmt(o.delivery.bodaFee) + '</span>' : ''}
             </div>
           ` : ''}
           ${!isClosed && o.status === 'confirmed' ? `
