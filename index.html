@@ -1333,11 +1333,12 @@
 
       <div class="form-group">
         <label>Payment Method *</label>
-        <select id="order-payment">
+        <select id="order-payment" onchange="handlePaymentMethodChange()">
           <option value="">Choose payment</option>
           <option>MTN Mobile Money</option><option>Airtel Money</option>
           <option>Cash on Delivery</option><option>Visa / Mastercard</option>
         </select>
+        <div id="payment-copy-hint" style="display:none; font-size:0.76rem; color:#2a9d50; font-weight:700; margin-top:6px;"></div>
       </div>
       <div class="form-group"><label>Notes (optional)</label><input id="order-notes" type="text" placeholder="e.g. specific colour, delivery time preference"/></div>
       <button class="submit-btn" onclick="submitOrder()">Send Order</button>
@@ -3878,6 +3879,59 @@
     }, 300);
   }
 
+  // Same numbers already shown in the "We accept your payment" section on the
+  // homepage — kept in one place here so the copy-to-clipboard behavior always
+  // matches what's publicly advertised.
+  var MOBILE_MONEY_NUMBERS = {
+    mtn: '0767 853 353',
+    airtel: '0746 811 272'
+  };
+
+  // "To Be Shipped" items can't be paid Cash on Delivery, since there's no delivery
+  // happening at order time — only Mobile Money now, or cash in person at the store.
+  var lastPaymentOptionsWereShippedMode = null; // avoids rebuilding/resetting on every keystroke
+  function updatePaymentOptionsForCheckout(hasShippedItems) {
+    if (lastPaymentOptionsWereShippedMode === hasShippedItems) return;
+    lastPaymentOptionsWereShippedMode = hasShippedItems;
+    var sel = document.getElementById('order-payment');
+    if (!sel) return;
+    var currentVal = sel.value;
+    var options = hasShippedItems
+      ? ['MTN Mobile Money', 'Airtel Money', 'Cash Payment (In Person)']
+      : ['MTN Mobile Money', 'Airtel Money', 'Cash on Delivery', 'Visa / Mastercard'];
+    sel.innerHTML = '<option value="">Choose payment</option>' +
+      options.map(function(o){ return '<option>' + o + '</option>'; }).join('');
+    // Keep the previous choice selected if it's still a valid option; otherwise reset
+    // so the customer consciously picks one of the options that's actually available.
+    if (options.indexOf(currentVal) > -1) {
+      sel.value = currentVal;
+    } else {
+      sel.value = '';
+      var hint = document.getElementById('payment-copy-hint');
+      if (hint) hint.style.display = 'none';
+    }
+  }
+
+  function handlePaymentMethodChange() {
+    var sel = document.getElementById('order-payment');
+    var hint = document.getElementById('payment-copy-hint');
+    if (!sel) return;
+    var val = sel.value;
+    var number = val === 'MTN Mobile Money' ? MOBILE_MONEY_NUMBERS.mtn
+               : val === 'Airtel Money' ? MOBILE_MONEY_NUMBERS.airtel
+               : null;
+    if (number) {
+      navigator.clipboard.writeText(number).then(function(){
+        if (hint) { hint.style.display = 'block'; hint.textContent = '✓ ' + number + ' copied — paste it in your ' + val + ' app.'; }
+        showToastMessage('📋 ' + number + ' copied to clipboard', '#2a9d50');
+      }).catch(function(){
+        if (hint) { hint.style.display = 'block'; hint.textContent = 'Send payment to: ' + number; }
+      });
+    } else if (hint) {
+      hint.style.display = 'none';
+    }
+  }
+
   function renderOrderItemsSummary() {
     var summary = document.getElementById('order-items-summary');
     var manualWrap = document.getElementById('order-manual-products-wrap');
@@ -3932,6 +3986,7 @@
     });
     var shippedSubtotal = shippedItems.reduce(function(s,c){ return s + c.price * c.qty; }, 0);
     var hasShippedItems = shippedItems.length > 0;
+    updatePaymentOptionsForCheckout(hasShippedItems);
     var balanceDueOnDelivery = Math.round(shippedSubtotal * 0.7);
     var commitmentPortion = shippedSubtotal - balanceDueOnDelivery;
     var dueNow = Math.max(0, totals.finalTotal - balanceDueOnDelivery);
@@ -4354,6 +4409,7 @@
     if (manualWrap) manualWrap.style.display = 'block';
     if (addPrompt) addPrompt.style.display = 'block';
     if (hiddenField) hiddenField.value = '';
+    lastPaymentOptionsWereShippedMode = null;
     hideBackToCheckoutFab();
   }
 
