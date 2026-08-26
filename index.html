@@ -1818,6 +1818,7 @@
         <div id="active-order-stage-badge" style="display:none; align-items:center; gap:8px; padding:9px 14px; border-radius:9px; margin-bottom:12px; font-size:0.88rem; font-weight:800;"></div>
         <div id="active-order-steps" style="display:none; margin-bottom:14px;"></div>
         <div id="active-order-delivery" style="background:rgba(255,255,255,0.08); border-radius:10px; padding:10px 12px; font-size:0.78rem; line-height:1.7; display:none;"></div>
+        <div id="active-order-footer"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
         <div onclick="openMyOrdersModal()" style="background:var(--light);border-radius:10px;padding:12px;text-align:center;cursor:pointer;" title="View your orders">
@@ -1983,6 +1984,10 @@
   <div class="modal" style="text-align:center;">
     <h2 style="color:#2a9d50;">Order Received!</h2>
     <p style="margin-top:8px;">Thank you! We will confirm your order via SMS or WhatsApp within 30 minutes.</p>
+    <div id="success-reference-box" style="display:none; background:#eaf2ff; border:1.5px solid #4a9eff; border-radius:8px; padding:12px 14px; margin:14px 0 0; font-size:0.85rem; color:#1a4a8a; text-align:left;">
+      <strong>Your reference code: <span id="success-reference-code" style="letter-spacing:0.5px;"></span></strong><br/>
+      Include this when sending Mobile Money, or share it with us on WhatsApp along with your payment screenshot — it's how we match your payment to your order quickly.
+    </div>
     <div style="background:var(--light);border-radius:8px;padding:16px;margin:16px 0;font-size:0.85rem;color:#555;text-align:left;">
       <strong>What's next:</strong><br/>
       Watch for our WhatsApp confirmation<br/>
@@ -4893,6 +4898,7 @@
   function computeOrderStatusDisplay(o) {
     if (!o) return '';
     if (o.status === 'pending') return '⏳ Order Received — being prepared';
+    if (o.status === 'cancelled') return '❌ Cancelled';
     if (o.status === 'closed') return '✔ Completed';
     if (o.status === 'confirmed') {
       var type = o.delivery && o.delivery.type;
@@ -4950,6 +4956,60 @@
     var stageKey = 'pending';
     if (o.status === 'confirmed' && orderStageOrder.indexOf(o.deliveryStage) > -1) stageKey = o.deliveryStage;
     return stageKey;
+  }
+
+  // Single source of truth: whether payment must be confirmed by admin before this
+  // order can be processed (used both for the customer's cancel window and to decide
+  // what admin has to do first). "Cash on Delivery" is the only method where money
+  // hasn't changed hands yet at order time.
+  function requiresPaymentGateCustomer(o) {
+    return !!(o && (o.hasShippedItems || (o.paymentMethod && o.paymentMethod !== 'Cash on Delivery')));
+  }
+
+  // Cancellation window:
+  // - Payment-gated orders (Mobile Money, Cash Payment In Person, anything shipped):
+  //   cancellable only while still 'pending' — once admin confirms payment received,
+  //   money has changed hands and further changes go through admin (possible refund).
+  // - Cash on Delivery local orders: cancellable any time before the item is actually
+  //   handed to the boda/rider for delivery, since nothing has been paid yet.
+  function customerCanCancelOrder(o) {
+    if (!o || o.status === 'closed' || o.status === 'cancelled') return false;
+    if (requiresPaymentGateCustomer(o)) return o.status === 'pending';
+    return !(o.deliveryStage === 'handed' || o.deliveryStage === 'on_the_way' || o.deliveryStage === 'delivered');
+  }
+
+  function cancelMyOrder(docId) {
+    if (!docId) return;
+    showAppConfirm('Cancel this order? This cannot be undone.', function(){
+      if (!window.fbDb || !window.fbFns) return;
+      var { doc, updateDoc } = window.fbFns;
+      updateDoc(doc(window.fbDb, 'orders', docId), {
+        status: 'cancelled', cancelledBy: 'customer', cancelledAt: new Date().toISOString()
+      }).then(function(){
+        showToastMessage('Order cancelled.', '#c0392b');
+      }).catch(function(e){
+        showAppAlert('Could not cancel — check your connection and try again.');
+        console.error('[order] cancelMyOrder failed:', e);
+      });
+    }, null, { icon: '❌', confirmText: 'Yes, Cancel Order' });
+  }
+
+  // Reference code (last 6 chars of the Firestore doc ID, same code shown in admin) —
+  // this is what lets us match a Mobile Money payment or WhatsApp screenshot back to
+  // the right order among hundreds coming in per day.
+  function buildOrderReferenceAndCancelHtml(o) {
+    var code = o.fbDocId ? o.fbDocId.slice(-6).toUpperCase() : null;
+    var html = '';
+    if (code && requiresPaymentGateCustomer(o) && o.status === 'pending') {
+      html += '<div style="background:rgba(255,255,255,0.08); border-radius:8px; padding:8px 10px; font-size:0.76rem; color:rgba(255,255,255,0.85); margin-top:8px; line-height:1.5;">' +
+        '💳 Reference Code: <strong style="letter-spacing:0.5px;">' + code + '</strong><br/>' +
+        '<span style="color:rgba(255,255,255,0.55);">Include this when sending Mobile Money, or share it with us on WhatsApp along with your payment screenshot.</span>' +
+      '</div>';
+    }
+    if (customerCanCancelOrder(o)) {
+      html += '<button onclick="cancelMyOrder(\'' + o.fbDocId + '\')" style="width:100%; margin-top:10px; background:rgba(220,53,69,0.14); border:1.5px solid rgba(220,53,69,0.45); color:#ff9090; padding:9px; border-radius:8px; font-size:0.78rem; font-weight:700; cursor:pointer;">✕ Cancel Order</button>';
+    }
+    return html;
   }
 
   function buildOrderStageBadgeHtml(o) {
@@ -5071,6 +5131,8 @@
     } else {
       deliveryEl.style.display = 'none';
     }
+    var footerEl = document.getElementById('active-order-footer');
+    if (footerEl) footerEl.innerHTML = buildOrderReferenceAndCancelHtml(o);
   }
 
   function startMessagesListener() {
@@ -5772,14 +5834,14 @@
       var { collection, query, where, getDocs } = window.fbFns;
       var q = query(collection(window.fbDb, 'orders'), where('accountId', '==', currentAccount.fbDocId));
       var snap = await getDocs(q);
-      var ords = snap.docs.map(function(d){ return d.data(); }).sort(function(a,b){ return new Date(b.timestamp) - new Date(a.timestamp); });
+      var ords = snap.docs.map(function(d){ return { fbDocId: d.id, ...d.data() }; }).sort(function(a,b){ return new Date(b.timestamp) - new Date(a.timestamp); });
       if (ords.length === 0) {
         body.innerHTML = '<div style="font-size:0.85rem;color:var(--grey);text-align:center;padding:20px 0;">No orders yet. Buy something to show your history here!</div>';
         return;
       }
       var totalSpent = ords.reduce(function(s,o){ return s + (parseInt(o.orderTotal || o.subtotal) || 0); }, 0);
       var activeOrders = ords.filter(function(o){ return o.status === 'pending' || o.status === 'confirmed'; });
-      var closedOrders = ords.filter(function(o){ return o.status === 'closed'; });
+      var closedOrders = ords.filter(function(o){ return o.status === 'closed' || o.status === 'cancelled'; });
 
       var html = '<div style="background:var(--light); border-radius:10px; padding:12px 14px; margin-bottom:18px; text-align:center;">' +
           '<div style="font-size:1.3rem; font-weight:900;">' + fmtPrice(totalSpent) + '</div>' +
@@ -5803,6 +5865,7 @@
             '<div style="display:flex; align-items:center; gap:8px; padding:9px 14px; border-radius:9px; margin-bottom:12px; font-size:0.88rem; font-weight:800; ' + badgeData.style + '">' + badgeData.html + '</div>' +
             (stepsHtml ? '<div style="margin-bottom:14px;">' + stepsHtml + '</div>' : '') +
             (deliveryHtml ? '<div style="background:rgba(255,255,255,0.08); border-radius:10px; padding:10px 12px; font-size:0.78rem; line-height:1.7;">' + deliveryHtml + '</div>' : '') +
+            buildOrderReferenceAndCancelHtml(o) +
             '<div style="font-size:0.72rem; color:rgba(255,255,255,0.5); margin-top:10px;">Ordered ' + fmtMessageTime(o.timestamp) + ' &middot; ' + fmtPrice(o.orderTotal || o.subtotal || 0) + '</div>' +
           '</div>';
         }).join('');
@@ -5820,7 +5883,7 @@
           return '<div style="border-bottom:1px solid var(--border); padding:10px 0;">' +
             '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">' +
               '<span style="font-size:0.8rem; font-weight:700;">' + fmtMessageTime(o.timestamp) + '</span>' +
-              '<span style="font-size:0.72rem; font-weight:800; color:#2a9d50;">' + computeOrderStatusDisplay(o) + '</span>' +
+              '<span style="font-size:0.72rem; font-weight:800; color:' + (o.status === 'cancelled' ? 'var(--red)' : '#2a9d50') + ';">' + computeOrderStatusDisplay(o) + '</span>' +
             '</div>' +
             '<div style="font-size:0.8rem; color:#555; margin-top:3px;">' + items + '</div>' +
             '<div style="font-size:0.82rem; font-weight:800; margin-top:3px;">' + fmtPrice(o.orderTotal || o.subtotal || 0) + '</div>' +
@@ -5921,7 +5984,7 @@
         return '<div style="border-bottom:1px solid var(--border); padding:8px 0;">' +
           '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">' +
             '<span style="font-size:0.78rem; font-weight:700;">' + fmtMessageTime(o.timestamp) + '</span>' +
-            '<span style="font-size:0.7rem; font-weight:800; color:' + (o.status==='closed'?'#2a9d50':'var(--gold-dark)') + ';">' + computeOrderStatusDisplay(o) + '</span>' +
+            '<span style="font-size:0.7rem; font-weight:800; color:' + (o.status==='cancelled'?'var(--red)':(o.status==='closed'?'#2a9d50':'var(--gold-dark)')) + ';">' + computeOrderStatusDisplay(o) + '</span>' +
           '</div>' +
           '<div style="font-size:0.78rem; color:#555; margin-top:2px;">' + items + '</div>' +
           '<div style="font-size:0.8rem; font-weight:800; margin-top:2px;">' + fmtPrice(o.orderTotal || o.subtotal || 0) + '</div>' +
@@ -6253,10 +6316,19 @@
         importStage: hasShippedItemsVal ? 'ordered' : null,
         status: 'pending', timestamp: new Date().toISOString()
       };
-      window.fbFns.addDoc(window.fbFns.collection(window.fbDb,'orders'), order).then(function(){
+      window.fbFns.addDoc(window.fbFns.collection(window.fbDb,'orders'), order).then(function(docRef){
         if (currentAccount) updateAccountAfterOrder(totalsVal.finalTotal);
+        var requiresGate = hasShippedItemsVal || (paymentVal && paymentVal !== 'Cash on Delivery');
+        var refBox = document.getElementById('success-reference-box');
+        var refCode = document.getElementById('success-reference-code');
+        if (requiresGate && refBox && refCode && docRef && docRef.id) {
+          refCode.textContent = docRef.id.slice(-6).toUpperCase();
+          refBox.style.display = 'block';
+        }
       }).catch(function(e){console.error(e);});
     }
+    var successRefBoxReset = document.getElementById('success-reference-box');
+    if (successRefBoxReset) successRefBoxReset.style.display = 'none';
     // A successful Buy Now only clears the temporary buy-now items — the customer's
     // real persistent cart (if they had one going before Buy Now) is left untouched.
     if (isBuyNowCheckout) { exitBuyNowMode(); } else { cart = []; updateCartCount(); }

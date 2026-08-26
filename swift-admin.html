@@ -988,6 +988,33 @@
     </div>
   </div>
 
+  <!-- PAYMENT RECEIVED — first-step gate before an order can be processed -->
+  <div class="modal-overlay" id="payment-received-confirm-modal">
+    <div class="modal-box" style="max-width:400px; text-align:center; padding:28px 24px;">
+      <div style="font-size:2.1rem; margin-bottom:10px;">💰</div>
+      <div style="font-size:1.02rem; font-weight:800; color:#222; margin-bottom:6px;">Has Payment Been Received?</div>
+      <div id="payment-received-context" style="font-size:0.8rem; color:#888; margin-bottom:20px;"></div>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <button class="btn-gold" style="width:100%; padding:12px; font-size:0.88rem;" onclick="handlePaymentReceivedChoice('yes')">✅ Yes — Fully Paid</button>
+        <button style="width:100%; background:#fff3e0; border:1.5px solid #e8a020; color:#b87d12; padding:11px; border-radius:7px; font-weight:700; font-size:0.86rem; cursor:pointer; font-family:'Inter',sans-serif;" onclick="handlePaymentReceivedChoice('partial')">⚠️ Partial Payment</button>
+        <button style="width:100%; background:var(--light); border:none; color:#555; padding:11px; border-radius:7px; font-weight:700; font-size:0.86rem; cursor:pointer; font-family:'Inter',sans-serif;" onclick="handlePaymentReceivedChoice('no')">✕ No, Not Yet</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="payment-received-partial-modal">
+    <div class="modal-box" style="max-width:400px; padding:24px;">
+      <div style="font-size:1rem; font-weight:800; margin-bottom:6px; color:#222;">Enter Amount Received</div>
+      <div id="payment-received-partial-context" style="font-size:0.78rem; color:#888; margin-bottom:14px; line-height:1.5;"></div>
+      <input type="number" id="payment-received-partial-input" placeholder="e.g. 50000" min="0"
+        style="width:100%; padding:12px 14px; border:1.5px solid var(--border); border-radius:8px; font-size:1rem; font-family:'Inter',sans-serif; box-sizing:border-box; margin-bottom:16px;"/>
+      <div style="display:flex; gap:10px;">
+        <button class="btn-cancel" style="flex:1;" onclick="document.getElementById('payment-received-partial-modal').classList.remove('open')">Cancel</button>
+        <button class="btn-gold" style="flex:1;" onclick="confirmPaymentReceivedPartial()">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <!-- CLOSE ORDER — partial amount entry -->
   <div class="modal-overlay" id="partial-amount-modal">
     <div class="modal-box" style="max-width:400px; padding:24px;">
@@ -1472,13 +1499,20 @@
           <button class="period-tab" data-period="month" onclick="setOrdersPeriod('open','month')">This Month</button>
           <button class="period-tab" data-period="all" onclick="setOrdersPeriod('open','all')">All Time</button>
         </div>
-        <div style="display:flex; gap:8px; margin-bottom:14px; border-bottom:1.5px solid var(--border);">
+        <div style="display:flex; gap:8px; margin-bottom:14px; border-bottom:1.5px solid var(--border); flex-wrap:wrap;">
           <button id="open-orders-subtab-all" onclick="switchOpenOrdersTab('all')" style="background:none; border:none; padding:10px 6px; font-size:0.85rem; font-weight:800; color:var(--black); border-bottom:2.5px solid var(--gold); cursor:pointer; font-family:'Inter',sans-serif;">📋 All</button>
+          <button id="open-orders-subtab-awaiting" onclick="switchOpenOrdersTab('awaiting')" style="background:none; border:none; padding:10px 10px; font-size:0.85rem; font-weight:800; color:var(--grey); border-bottom:2.5px solid transparent; cursor:pointer; font-family:'Inter',sans-serif; display:flex; align-items:center; gap:6px;">
+            💰 Awaiting Payment
+            <span id="open-orders-awaiting-badge" style="background:var(--red); color:#fff; font-size:0.65rem; font-weight:700; padding:2px 7px; border-radius:20px; display:none;"></span>
+          </button>
           <button id="open-orders-subtab-toship" onclick="switchOpenOrdersTab('toship')" style="background:none; border:none; padding:10px 10px; font-size:0.85rem; font-weight:800; color:var(--grey); border-bottom:2.5px solid transparent; cursor:pointer; font-family:'Inter',sans-serif; display:flex; align-items:center; gap:6px;">
             ✈️ To Ship
             <span id="open-orders-toship-badge" style="background:var(--red); color:#fff; font-size:0.65rem; font-weight:700; padding:2px 7px; border-radius:20px; display:none;"></span>
           </button>
         </div>
+        <input type="text" id="open-orders-search" class="tbl-search" style="width:100%; margin-bottom:14px; box-sizing:border-box;"
+          placeholder="🔍 Search by reference code, item, customer name, or phone..."
+          oninput="renderOpenOrders(this.value)"/>
         <div id="open-orders-list"></div>
       </div>
 
@@ -4393,13 +4427,15 @@
   let openOrdersPeriod = 'today';
   let closedOrdersPeriod = 'today';
   let stockOverviewPeriod = 'today';
-  let openOrdersSubTab = 'all'; // 'all' | 'toship'
+  let openOrdersSubTab = 'all'; // 'all' | 'awaiting' | 'toship'
 
   function switchOpenOrdersTab(tab) {
     openOrdersSubTab = tab;
     const allBtn = document.getElementById('open-orders-subtab-all');
+    const awaitBtn = document.getElementById('open-orders-subtab-awaiting');
     const shipBtn = document.getElementById('open-orders-subtab-toship');
     if (allBtn) { allBtn.style.color = tab === 'all' ? 'var(--black)' : 'var(--grey)'; allBtn.style.borderBottomColor = tab === 'all' ? 'var(--gold)' : 'transparent'; }
+    if (awaitBtn) { awaitBtn.style.color = tab === 'awaiting' ? 'var(--black)' : 'var(--grey)'; awaitBtn.style.borderBottomColor = tab === 'awaiting' ? 'var(--gold)' : 'transparent'; }
     if (shipBtn) { shipBtn.style.color = tab === 'toship' ? 'var(--black)' : 'var(--grey)'; shipBtn.style.borderBottomColor = tab === 'toship' ? 'var(--gold)' : 'transparent'; }
     renderOpenOrders();
   }
@@ -4788,11 +4824,19 @@
     return 'Standard';
   }
 
+  function requiresPaymentGate(o) {
+    return !!(o.hasShippedItems || (o.paymentMethod && o.paymentMethod !== 'Cash on Delivery'));
+  }
+  function getPaymentGateExpectedAmount(o) {
+    return o.hasShippedItems ? (o.amountDueNow || 0) : getOrderTotal(o);
+  }
+
   function renderOrderCard(o, isClosed) {
     const statusMap = {
       pending: '<span class="order-status-badge status-pending">⏳ Pending</span>',
       confirmed: '<span class="order-status-badge status-confirmed">✅ Confirmed</span>',
-      closed: '<span class="order-status-badge status-closed">✔ Closed</span>'
+      closed: '<span class="order-status-badge status-closed">✔ Closed</span>',
+      cancelled: '<span class="order-status-badge" style="background:#fdecea;color:var(--red);">❌ Cancelled</span>'
     };
     const badge = statusMap[o.status] || statusMap.pending;
     const waMsg = encodeURIComponent(
@@ -4807,15 +4851,25 @@
       ? `<button class="btn-close-order" style="background:#e8820c;" onclick="openCloseOrderConfirm('${o.fbDocId}')">🟠 Balance Due: ${fmt(o.balanceDue||0)}</button>`
       : `<button class="btn-close-order" onclick="openCloseOrderConfirm('${o.fbDocId}')">📦 Close Order</button>`;
 
+    const cancelBtn = `<button class="btn-wa-order" style="background:#fdecea; border-color:#f5c6c0; color:var(--red);" onclick="cancelOrder('${o.fbDocId}')">❌ Cancel Order</button>`;
+
+    let confirmBtn;
+    if (o.status === 'confirmed') {
+      confirmBtn = `<button class="btn-confirm" style="opacity:0.5">✅ Confirmed</button>`;
+    } else if (requiresPaymentGate(o)) {
+      confirmBtn = `<button class="btn-confirm" onclick="openPaymentReceivedConfirm('${o.fbDocId}')">💰 Confirm Payment Received</button>`;
+    } else {
+      confirmBtn = `<button class="btn-confirm" onclick="updateOrderStatus('${o.fbDocId}','confirmed')">✅ Confirm Order</button>`;
+    }
+
     const actions = isClosed
       ? `<button class="btn-reopen" onclick="updateOrderStatus('${o.fbDocId}','pending')">↩ Reopen</button>
          <button class="btn-wa-order" onclick="window.open('${waLink}','_blank')">💬 WhatsApp</button>
          <button class="btn-wa-order" style="background:#fdecea; border-color:#f5c6c0; color:var(--red);" onclick="deleteClosedOrder('${o.fbDocId}')">🗑️ Delete</button>`
-      : `<button class="btn-confirm" onclick="updateOrderStatus('${o.fbDocId}','confirmed')" ${o.status==='confirmed'?'style="opacity:0.5"':''}>
-           ${o.status==='confirmed'?'✅ Confirmed':'✅ Confirm Order'}
-         </button>
+      : `${confirmBtn}
          ${closeOrderBtn}
-         <button class="btn-wa-order" onclick="window.open('${waLink}','_blank')">💬 WhatsApp</button>`;
+         <button class="btn-wa-order" onclick="window.open('${waLink}','_blank')">💬 WhatsApp</button>
+         ${cancelBtn}`;
 
     const cleanPhone = (o.phone || '').replace(/[^0-9+]/g, '');
     const phoneLink = cleanPhone
@@ -4954,29 +5008,56 @@
       </div>`;
   }
 
-  function renderOpenOrders() {
+  function renderOpenOrders(searchQuery) {
     const list = document.getElementById('open-orders-list');
     if (!list) return;
+
+    const searchInput = document.getElementById('open-orders-search');
+    if (searchQuery === undefined && searchInput) searchQuery = searchInput.value;
+    if (searchInput && searchQuery !== undefined && searchInput.value !== searchQuery) searchInput.value = searchQuery;
+
     let open = orders.filter(o => o.status === 'pending' || o.status === 'confirmed');
     open = open.filter(o => isInPeriod(o.timestamp, openOrdersPeriod));
 
-    // "To Ship" badge count ignores the period filter — it's a to-do count, not a
-    // historical view, so it should always reflect everything currently in transit.
+    // Both badge counts ignore the period filter — they're to-do counts, not a
+    // historical view, so they should always reflect everything currently pending.
     const toShipAll = orders.filter(o => (o.status === 'pending' || o.status === 'confirmed') && o.hasShippedItems);
     const toShipBadge = document.getElementById('open-orders-toship-badge');
     if (toShipBadge) {
       if (toShipAll.length > 0) { toShipBadge.textContent = toShipAll.length; toShipBadge.style.display = 'inline-block'; }
       else { toShipBadge.style.display = 'none'; }
     }
+    const awaitingAll = orders.filter(o => o.status === 'pending' && requiresPaymentGate(o));
+    const awaitingBadge = document.getElementById('open-orders-awaiting-badge');
+    if (awaitingBadge) {
+      if (awaitingAll.length > 0) { awaitingBadge.textContent = awaitingAll.length; awaitingBadge.style.display = 'inline-block'; }
+      else { awaitingBadge.style.display = 'none'; }
+    }
 
     if (openOrdersSubTab === 'toship') open = open.filter(o => o.hasShippedItems);
+    if (openOrdersSubTab === 'awaiting') open = open.filter(o => o.status === 'pending' && requiresPaymentGate(o));
+
+    const q = (searchQuery || '').trim().toLowerCase();
+    if (q) {
+      open = open.filter(o => {
+        const itemText = (o.products || (o.cartItems ? o.cartItems.map(i => i.name).join(' ') : '')).toLowerCase();
+        const customerName = (o.customerName || '').toLowerCase();
+        const phone = (o.phone || '').toLowerCase();
+        const refCode = (o.fbDocId ? o.fbDocId.slice(-6) : '').toLowerCase();
+        return itemText.includes(q) || customerName.includes(q) || phone.includes(q) || refCode.includes(q);
+      });
+    }
 
     const periodLabel = { today: 'today', week: 'this week', month: 'this month', all: 'all time' }[openOrdersPeriod];
-    document.getElementById('open-orders-count').textContent = open.length + ' order' + (open.length !== 1 ? 's' : '') + ' — ' + periodLabel;
+    document.getElementById('open-orders-count').textContent = open.length + ' order' + (open.length !== 1 ? 's' : '') + ' — ' + periodLabel + (q ? ' (filtered)' : '');
     if (open.length === 0) {
-      list.innerHTML = openOrdersSubTab === 'toship'
-        ? '<div class="orders-empty">✈️ No items to ship ' + periodLabel + '!</div>'
-        : '<div class="orders-empty">🎉 No open orders ' + periodLabel + '!</div>';
+      list.innerHTML = q
+        ? '<div class="orders-empty">No orders match "' + searchQuery + '" ' + periodLabel + '.</div>'
+        : (openOrdersSubTab === 'toship'
+          ? '<div class="orders-empty">✈️ No items to ship ' + periodLabel + '!</div>'
+          : (openOrdersSubTab === 'awaiting'
+            ? '<div class="orders-empty">💰 No orders awaiting payment ' + periodLabel + '!</div>'
+            : '<div class="orders-empty">🎉 No open orders ' + periodLabel + '!</div>'));
       return;
     }
     list.innerHTML = open.map(o => renderOrderCard(o, false)).join('');
@@ -4991,7 +5072,7 @@
     if (searchQuery === undefined && searchInput) searchQuery = searchInput.value;
     if (searchInput && searchQuery !== undefined && searchInput.value !== searchQuery) searchInput.value = searchQuery;
 
-    let closed = orders.filter(o => o.status === 'closed');
+    let closed = orders.filter(o => o.status === 'closed' || o.status === 'cancelled');
     closed = closed.filter(o => isInPeriod(o.timestamp, closedOrdersPeriod));
     const q = (searchQuery || '').trim().toLowerCase();
 
@@ -5003,7 +5084,8 @@
         const bodaName = (o.delivery && o.delivery.bodaName || '').toLowerCase();
         const bodaPhone = (o.delivery && o.delivery.bodaPhone || '').toLowerCase();
         const recordedBy = (o.recordedBy || '').toLowerCase();
-        return itemText.includes(q) || customerName.includes(q) || phone.includes(q) || bodaName.includes(q) || bodaPhone.includes(q) || recordedBy.includes(q);
+        const refCode = (o.fbDocId ? o.fbDocId.slice(-6) : '').toLowerCase();
+        return itemText.includes(q) || customerName.includes(q) || phone.includes(q) || bodaName.includes(q) || bodaPhone.includes(q) || recordedBy.includes(q) || refCode.includes(q);
       });
     }
 
@@ -5330,6 +5412,107 @@
         showOrderCompletedToast();
       } catch(e) { showAppAlert('Error updating order. Check your connection.'); console.error(e); }
     }, null, { icon: '💰', confirmText: 'Mark as Paid' });
+  }
+
+  // ── PAYMENT RECEIVED — the gate before a Mobile Money / Cash-in-Person / shipped
+  // order can be processed. Reuses the same amountPaid/balanceDue/paymentStatus
+  // fields the close-order flow already uses, so the "⚠️ Balance owed" banner and
+  // "Mark Paid" button keep working exactly as before all the way to close. For
+  // shipped orders, "fully paid" here means the 30% commitment fee, not the whole
+  // order — the remaining 70% stays tracked as balanceDue, due on delivery.
+  var paymentReceivedTargetDocId = null;
+  function openPaymentReceivedConfirm(docId) {
+    const o = orders.find(x => x.fbDocId === docId);
+    if (!o) return;
+    paymentReceivedTargetDocId = docId;
+    const expected = getPaymentGateExpectedAmount(o);
+    const label = o.hasShippedItems ? '30% Commitment Fee Expected: ' : 'Order Total: ';
+    document.getElementById('payment-received-context').textContent = label + fmt(expected);
+    document.getElementById('payment-received-confirm-modal').classList.add('open');
+  }
+
+  async function handlePaymentReceivedChoice(choice) {
+    document.getElementById('payment-received-confirm-modal').classList.remove('open');
+    const docId = paymentReceivedTargetDocId;
+    paymentReceivedTargetDocId = null;
+    if (!docId) return;
+    const o = orders.find(x => x.fbDocId === docId);
+    if (!o) return;
+
+    if (choice === 'yes') {
+      const expected = getPaymentGateExpectedAmount(o);
+      const total = getOrderTotal(o);
+      const balance = Math.max(0, total - expected);
+      try {
+        await window.fbFns.updateDoc(window.fbFns.doc(window.fbDb, 'orders', docId), {
+          amountPaid: expected, balanceDue: balance, paymentStatus: balance > 0 ? 'partial' : 'paid'
+        });
+        await updateOrderStatus(docId, 'confirmed');
+        showSuccessToast('✅ Payment confirmed — order is now being processed.');
+      } catch(e) { showAppAlert('Error updating order. Check your connection.'); console.error('[order] handlePaymentReceivedChoice failed:', e); }
+    } else if (choice === 'partial') {
+      openPaymentReceivedPartialModal(docId);
+    }
+    // 'no' — dialog is already closed above; order stays pending, nothing else to do.
+  }
+
+  var paymentReceivedPartialTargetDocId = null;
+  function openPaymentReceivedPartialModal(docId) {
+    paymentReceivedPartialTargetDocId = docId;
+    const o = orders.find(x => x.fbDocId === docId);
+    if (!o) return;
+    const expected = getPaymentGateExpectedAmount(o);
+    const label = o.hasShippedItems ? 'Commitment fee expected: ' : 'Order total: ';
+    document.getElementById('payment-received-partial-context').textContent = label + fmt(expected);
+    document.getElementById('payment-received-partial-input').value = '';
+    document.getElementById('payment-received-partial-modal').classList.add('open');
+    setTimeout(() => document.getElementById('payment-received-partial-input').focus(), 150);
+  }
+
+  async function confirmPaymentReceivedPartial() {
+    const docId = paymentReceivedPartialTargetDocId;
+    if (!docId) return;
+    const input = document.getElementById('payment-received-partial-input');
+    const amountNow = parseInt(input.value) || 0;
+    if (amountNow <= 0) { showAppAlert('Please enter the amount received.'); return; }
+
+    const o = orders.find(x => x.fbDocId === docId);
+    if (!o) return;
+    const total = getOrderTotal(o);
+    const balance = Math.max(0, total - amountNow);
+
+    document.getElementById('payment-received-partial-modal').classList.remove('open');
+    paymentReceivedPartialTargetDocId = null;
+
+    try {
+      await window.fbFns.updateDoc(window.fbFns.doc(window.fbDb, 'orders', docId), {
+        amountPaid: amountNow, balanceDue: balance, paymentStatus: 'partial'
+      });
+      await updateOrderStatus(docId, 'confirmed');
+      showSuccessToast('✅ Partial payment recorded — order is now being processed. ' + fmt(balance) + ' still due.');
+    } catch(e) { showAppAlert('Error updating order. Check your connection.'); console.error('[order] confirmPaymentReceivedPartial failed:', e); }
+  }
+
+  // ── CANCEL ORDER — admin can cancel for any reason (customer mistake, out of
+  // stock, etc). Stock is only ever deducted at close time, so there's nothing to
+  // restore unless this order was somehow closed-then-cancelled (defensive check).
+  async function cancelOrder(docId) {
+    const o = orders.find(x => x.fbDocId === docId);
+    if (!o) return;
+    const reason = (prompt('Reason for cancelling this order (optional):', '') || '').trim();
+    showAppConfirm('Cancel this order? The customer will see it as cancelled.', async function(){
+      if (!window.fbDb || !window.fbFns) return;
+      const { doc, updateDoc } = window.fbFns;
+      try {
+        const updates = { status: 'cancelled', cancelledBy: 'Admin', cancellationReason: reason, cancelledAt: new Date().toISOString() };
+        if (o.stockDeducted) {
+          await adjustStockForOrder(o, 1, 'Admin');
+          updates.stockDeducted = false;
+        }
+        await updateDoc(doc(window.fbDb, 'orders', docId), updates);
+        showSuccessToast('❌ Order cancelled.');
+      } catch(e) { showAppAlert('Error cancelling order. Check your connection.'); console.error('[order] cancelOrder failed:', e); }
+    }, null, { icon: '❌', confirmText: 'Cancel Order' });
   }
 
   // ── RENDER ALL ──
