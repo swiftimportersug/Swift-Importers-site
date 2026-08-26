@@ -1472,6 +1472,13 @@
           <button class="period-tab" data-period="month" onclick="setOrdersPeriod('open','month')">This Month</button>
           <button class="period-tab" data-period="all" onclick="setOrdersPeriod('open','all')">All Time</button>
         </div>
+        <div style="display:flex; gap:8px; margin-bottom:14px; border-bottom:1.5px solid var(--border);">
+          <button id="open-orders-subtab-all" onclick="switchOpenOrdersTab('all')" style="background:none; border:none; padding:10px 6px; font-size:0.85rem; font-weight:800; color:var(--black); border-bottom:2.5px solid var(--gold); cursor:pointer; font-family:'Inter',sans-serif;">📋 All</button>
+          <button id="open-orders-subtab-toship" onclick="switchOpenOrdersTab('toship')" style="background:none; border:none; padding:10px 10px; font-size:0.85rem; font-weight:800; color:var(--grey); border-bottom:2.5px solid transparent; cursor:pointer; font-family:'Inter',sans-serif; display:flex; align-items:center; gap:6px;">
+            ✈️ To Ship
+            <span id="open-orders-toship-badge" style="background:var(--red); color:#fff; font-size:0.65rem; font-weight:700; padding:2px 7px; border-radius:20px; display:none;"></span>
+          </button>
+        </div>
         <div id="open-orders-list"></div>
       </div>
 
@@ -4386,6 +4393,16 @@
   let openOrdersPeriod = 'today';
   let closedOrdersPeriod = 'today';
   let stockOverviewPeriod = 'today';
+  let openOrdersSubTab = 'all'; // 'all' | 'toship'
+
+  function switchOpenOrdersTab(tab) {
+    openOrdersSubTab = tab;
+    const allBtn = document.getElementById('open-orders-subtab-all');
+    const shipBtn = document.getElementById('open-orders-subtab-toship');
+    if (allBtn) { allBtn.style.color = tab === 'all' ? 'var(--black)' : 'var(--grey)'; allBtn.style.borderBottomColor = tab === 'all' ? 'var(--gold)' : 'transparent'; }
+    if (shipBtn) { shipBtn.style.color = tab === 'toship' ? 'var(--black)' : 'var(--grey)'; shipBtn.style.borderBottomColor = tab === 'toship' ? 'var(--gold)' : 'transparent'; }
+    renderOpenOrders();
+  }
 
   function isInPeriod(dateStr, period) {
     if (period === 'all') return true;
@@ -4859,6 +4876,27 @@
               ${o.delivery.bodaFee ? '<br/><span style="color:#999;">💵 Fee: </span><span style="color:#333;font-weight:600;">' + fmt(o.delivery.bodaFee) + '</span>' : ''}
             </div>
           ` : ''}
+          ${!isClosed && o.status === 'confirmed' && o.hasShippedItems ? (function(){
+            const stages = [
+              { key: 'ordered',   label: '🧾 Ordered' },
+              { key: 'shipped',   label: '📦 Shipped' },
+              { key: 'customs',   label: '🛃 At Customs' },
+              { key: 'warehouse', label: '🏭 At Warehouse' }
+            ];
+            const current = o.importStage || 'ordered';
+            return '<div style="width:100%; margin-top:8px;">' +
+              '<div style="font-size:0.68rem; font-weight:800; color:#8a5a00; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:5px;">✈️ Import Progress</div>' +
+              '<div style="display:flex; gap:6px;">' +
+                stages.map(s => {
+                  const active = current === s.key;
+                  return `<button onclick="updateImportStage('${o.fbDocId}','${s.key}')" style="flex:1; background:${active ? '#8a5a00' : '#fff'}; color:${active ? '#fff' : '#555'}; border:1.5px solid ${active ? '#8a5a00' : 'var(--border)'}; padding:6px 4px; border-radius:6px; font-size:0.66rem; font-weight:700; cursor:pointer;">${s.label}</button>`;
+                }).join('') +
+              '</div>' +
+              (current === 'warehouse'
+                ? '<div style="font-size:0.72rem; color:#2a9d50; font-weight:700; margin-top:5px;">✅ At warehouse — set delivery info below to send it out.</div>'
+                : '<div style="font-size:0.72rem; color:#999; margin-top:5px;">Set delivery info below once this reaches the warehouse.</div>') +
+            '</div>';
+          })() : ''}
           ${!isClosed && o.status === 'confirmed' ? `
             <div style="width:100%; display:flex; gap:6px; margin-top:8px;">
               <button onclick="quickSetETA('${o.fbDocId}')" style="flex:1; background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:8px 10px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer;">⏱️ ${o.delivery && o.delivery.eta ? 'Update' : 'Set'} ETA</button>
@@ -4921,10 +4959,25 @@
     if (!list) return;
     let open = orders.filter(o => o.status === 'pending' || o.status === 'confirmed');
     open = open.filter(o => isInPeriod(o.timestamp, openOrdersPeriod));
+
+    // "To Ship" badge count ignores the period filter — it's a to-do count, not a
+    // historical view, so it should always reflect everything currently in transit.
+    const toShipAll = orders.filter(o => (o.status === 'pending' || o.status === 'confirmed') && o.hasShippedItems);
+    const toShipBadge = document.getElementById('open-orders-toship-badge');
+    if (toShipBadge) {
+      if (toShipAll.length > 0) { toShipBadge.textContent = toShipAll.length; toShipBadge.style.display = 'inline-block'; }
+      else { toShipBadge.style.display = 'none'; }
+    }
+
+    if (openOrdersSubTab === 'toship') open = open.filter(o => o.hasShippedItems);
+
     const periodLabel = { today: 'today', week: 'this week', month: 'this month', all: 'all time' }[openOrdersPeriod];
     document.getElementById('open-orders-count').textContent = open.length + ' order' + (open.length !== 1 ? 's' : '') + ' — ' + periodLabel;
     if (open.length === 0) {
-      list.innerHTML = '<div class="orders-empty">🎉 No open orders ' + periodLabel + '!</div>'; return;
+      list.innerHTML = openOrdersSubTab === 'toship'
+        ? '<div class="orders-empty">✈️ No items to ship ' + periodLabel + '!</div>'
+        : '<div class="orders-empty">🎉 No open orders ' + periodLabel + '!</div>';
+      return;
     }
     list.innerHTML = open.map(o => renderOrderCard(o, false)).join('');
   }
@@ -5070,6 +5123,18 @@
     } catch(e) {
       showAppAlert('Error updating delivery stage. Check your connection.');
       console.error('[order] updateDeliveryStage failed:', e);
+    }
+  }
+
+  async function updateImportStage(docId, stage) {
+    if (!docId || !window.fbDb || !window.fbFns) return;
+    try {
+      const { doc, updateDoc } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'orders', docId), { importStage: stage });
+      showSuccessToast('✅ Updated — the customer will see this live.');
+    } catch(e) {
+      showAppAlert('Error updating import stage. Check your connection.');
+      console.error('[order] updateImportStage failed:', e);
     }
   }
 

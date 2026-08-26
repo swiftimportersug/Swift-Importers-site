@@ -1270,6 +1270,10 @@
         <div id="order-items-list"></div>
         <div id="order-items-total" style="font-size:0.85rem;font-weight:800;color:#1b5e20;margin-top:8px;padding-top:8px;border-top:1px solid #a5d6a7;"></div>
         <div id="checkout-shipped-notice" style="display:none; background:linear-gradient(160deg,#fff3d6,#ffe6b3); border:1.5px solid #e0b74a; border-radius:10px; padding:12px 14px; margin-top:10px;"></div>
+        <div id="checkout-shipped-account-prompt" style="display:none; background:linear-gradient(160deg,#eaf2ff,#dbe9ff); border:1.5px solid #4a9eff; border-radius:10px; padding:12px 14px; margin-top:10px; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+          <div style="font-size:0.8rem; color:#1a4a8a; line-height:1.5; flex:1; min-width:200px;"><strong>📱 Track your shipment step-by-step</strong><br/>Create a free account to watch this item move from Ordered → Shipped → Customs → Delivered.</div>
+          <button onclick="openAccountEntry()" style="background:#1a4a8a; color:#fff; border:none; padding:9px 16px; border-radius:7px; font-size:0.8rem; font-weight:700; cursor:pointer; white-space:nowrap;">Create Free Account</button>
+        </div>
 
         <!-- SITE-WIDE PROMO CODE (applies to whole order, based on order total) -->
         <div id="checkout-promo-section" style="margin-top:10px; padding-top:10px; border-top:1px dashed #a5d6a7;">
@@ -3944,6 +3948,14 @@
       }
     }
 
+    // Guests ordering a shipped item get a soft, skippable nudge to create an account
+    // so they can actually watch the tracking steps — order still goes through as a
+    // guest if they ignore it.
+    var shippedAccountPromptEl = document.getElementById('checkout-shipped-account-prompt');
+    if (shippedAccountPromptEl) {
+      shippedAccountPromptEl.style.display = (hasShippedItems && !currentAccount) ? 'flex' : 'none';
+    }
+
     if (totalEl) {
       var lines = 'Subtotal: ' + fmtPrice(subtotal);
       if (totals.usedDiscountType === 'promo') {
@@ -4829,26 +4841,60 @@
     if (o.status === 'confirmed') {
       var type = o.delivery && o.delivery.type;
       var driverLabel = type === 'boda' ? 'Boda Rider' : (type === 'taxi' || type === 'bus') ? 'Driver' : 'Rider/Driver';
-      if (o.deliveryStage === 'handed') return '📦 Package Handed to ' + driverLabel;
-      if (o.deliveryStage === 'on_the_way') return '🚚 On the Way';
-      if (o.deliveryStage === 'delivered') return '🎉 Delivered';
-      return '✅ Confirmed';
+      var stageKeyDisp = orderCurrentStageKey(o);
+      var dispLabels = {
+        ordered: '🧾 Order Placed — Awaiting Shipment',
+        shipped: '📦 Shipped — In Transit',
+        customs: '🛃 Clearing Customs (Entebbe)',
+        warehouse: '🏭 Arrived at Our Warehouse',
+        handed: '📦 Package Handed to ' + driverLabel,
+        on_the_way: '🚚 On the Way',
+        delivered: '🎉 Delivered'
+      };
+      return dispLabels[stageKeyDisp] || '✅ Confirmed';
     }
     return o.status;
   }
 
-  var lastSeenActiveOrderKey = null; // "<orderId>:<status>:<deliveryStage>" — detects real changes only
+  var lastSeenActiveOrderKey = null; // "<orderId>:<status>:<deliveryStage>:<importStage>" — detects real changes only
 
   // Makes the current status impossible to miss — a bold colored badge plus a
   // Jumia/Uber-Eats-style step tracker, since that visual language is something even a
   // first-time customer instantly recognizes without needing to read anything closely.
   var orderStageOrder = ['pending', 'handed', 'on_the_way', 'delivered'];
+  // Orders that include a "To Be Shipped" item get a longer, single continuous
+  // journey: the import leg flows straight into the same local-delivery leg used by
+  // every other order — same component, same animation, just more steps.
+  var importStageOrder = ['ordered', 'shipped', 'customs', 'warehouse'];
+  var shippedStageOrder = importStageOrder.concat(orderStageOrder.slice(1)); // drop local 'pending', import stages cover that phase
   var orderStageMeta = {
     pending:     { icon:'📥', short:'Received',    color:'#f5a623', bg:'rgba(245,166,35,0.16)' },
-    handed:      { icon:'📦', short:'Handed Over', color:'#4a9eff', bg:'rgba(74,158,255,0.16)' },
+    ordered:     { icon:'🧾', short:'Ordered',     color:'#f5a623', bg:'rgba(245,166,35,0.16)' },
+    shipped:     { icon:'📦', short:'Shipped',     color:'#4a9eff', bg:'rgba(74,158,255,0.16)' },
+    customs:     { icon:'🛃', short:'At Customs',  color:'#e2a336', bg:'rgba(226,163,54,0.16)' },
+    warehouse:   { icon:'🏭', short:'Warehouse',   color:'#b46dff', bg:'rgba(180,109,255,0.16)' },
+    handed:      { icon:'📦', short:'Sent Out',    color:'#4a9eff', bg:'rgba(74,158,255,0.16)' },
     on_the_way:  { icon:'🚚', short:'On the Way',  color:'#b46dff', bg:'rgba(180,109,255,0.16)' },
     delivered:   { icon:'🎉', short:'Delivered',   color:'#4ade80', bg:'rgba(74,222,128,0.16)' }
   };
+
+  // Single source of truth: which stage list applies, and which stage within it is
+  // "current" — used by the badge, the step tracker, and the status text alike.
+  function orderStageList(o) {
+    return (o && o.hasShippedItems) ? shippedStageOrder : orderStageOrder;
+  }
+  function orderCurrentStageKey(o) {
+    if (!o) return 'pending';
+    if (o.hasShippedItems) {
+      // Once local delivery has actually started, that takes over from import tracking.
+      if (o.status === 'confirmed' && orderStageOrder.slice(1).indexOf(o.deliveryStage) > -1) return o.deliveryStage;
+      if (o.importStage && importStageOrder.indexOf(o.importStage) > -1) return o.importStage;
+      return 'ordered';
+    }
+    var stageKey = 'pending';
+    if (o.status === 'confirmed' && orderStageOrder.indexOf(o.deliveryStage) > -1) stageKey = o.deliveryStage;
+    return stageKey;
+  }
 
   function buildOrderStageBadgeHtml(o) {
     if (o.delivery && o.delivery.type === 'selfpick') {
@@ -4856,22 +4902,31 @@
     }
     var type = o.delivery && o.delivery.type;
     var driverLabel = type === 'boda' ? 'Boda Rider' : (type === 'taxi' || type === 'bus') ? 'Driver' : 'Rider/Driver';
-    var stageKey = 'pending';
-    if (o.status === 'confirmed' && orderStageOrder.indexOf(o.deliveryStage) > -1) stageKey = o.deliveryStage;
+    var stageKey = orderCurrentStageKey(o);
     var meta = orderStageMeta[stageKey];
-    var label = stageKey === 'handed' ? 'Handed to ' + driverLabel : (stageKey === 'pending' ? 'Order Received — Being Prepared' : (stageKey === 'on_the_way' ? 'On the Way' : 'Delivered'));
+    var labels = {
+      ordered: 'Order Placed — Awaiting Shipment',
+      shipped: 'Shipped — In Transit to Uganda',
+      customs: 'Clearing Customs (Entebbe)',
+      warehouse: 'Arrived at Our Warehouse',
+      pending: 'Order Received — Being Prepared',
+      handed: 'Handed to ' + driverLabel,
+      on_the_way: 'On the Way',
+      delivered: 'Delivered'
+    };
     return {
       style: 'background:' + meta.bg + '; color:' + meta.color + '; border:1.5px solid ' + meta.color + ';',
-      html: '<span style="font-size:1.15rem; display:inline-block; animation:orderStagePulse 1.6s ease-in-out infinite;">' + meta.icon + '</span> ' + label
+      html: '<span style="font-size:1.15rem; display:inline-block; animation:orderStagePulse 1.6s ease-in-out infinite;">' + meta.icon + '</span> ' + labels[stageKey]
     };
   }
 
   function buildOrderStepsHtml(o) {
     if (o.delivery && o.delivery.type === 'selfpick') return null;
-    var stageKey = 'pending';
-    if (o.status === 'confirmed' && orderStageOrder.indexOf(o.deliveryStage) > -1) stageKey = o.deliveryStage;
-    var currentIndex = orderStageOrder.indexOf(stageKey);
-    var dotsRow = orderStageOrder.map(function(key, i){
+    var stageOrderList = orderStageList(o);
+    var stageKey = orderCurrentStageKey(o);
+    var currentIndex = stageOrderList.indexOf(stageKey);
+    var lblFontSize = stageOrderList.length > 4 ? '0.5rem' : '0.56rem';
+    var dotsRow = stageOrderList.map(function(key, i){
       var m = orderStageMeta[key];
       var done = i < currentIndex;
       var active = i === currentIndex;
@@ -4879,12 +4934,12 @@
       var dotSize = active ? '15px' : '10px';
       var dotHtml = '<div style="width:' + dotSize + '; height:' + dotSize + '; border-radius:50%; background:' + dotColor + '; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:0.6rem;' +
         (active ? ' box-shadow:0 0 0 5px ' + m.bg + '; animation:orderStagePulse 1.6s ease-in-out infinite;' : '') + '">' + (done ? '<span style="color:#0a2e18; font-size:0.6rem; font-weight:900;">✓</span>' : '') + '</div>';
-      var lineHtml = i < orderStageOrder.length - 1 ? '<div style="flex:1; height:2px; background:' + (i < currentIndex ? '#4ade80' : 'rgba(255,255,255,0.15)') + ';"></div>' : '';
+      var lineHtml = i < stageOrderList.length - 1 ? '<div style="flex:1; height:2px; background:' + (i < currentIndex ? '#4ade80' : 'rgba(255,255,255,0.15)') + ';"></div>' : '';
       return dotHtml + lineHtml;
     }).join('');
-    var labelsRow = orderStageOrder.map(function(key, i){
+    var labelsRow = stageOrderList.map(function(key, i){
       var active = i === currentIndex;
-      return '<span style="font-size:0.56rem; flex:1; text-align:' + (i===0?'left':(i===orderStageOrder.length-1?'right':'center')) + '; color:' + (active ? '#fff' : 'rgba(255,255,255,0.42)') + '; font-weight:' + (active ? '800' : '600') + ';">' + orderStageMeta[key].short + '</span>';
+      return '<span style="font-size:' + lblFontSize + '; flex:1; text-align:' + (i===0?'left':(i===stageOrderList.length-1?'right':'center')) + '; color:' + (active ? '#fff' : 'rgba(255,255,255,0.42)') + '; font-weight:' + (active ? '800' : '600') + ';">' + orderStageMeta[key].short + '</span>';
     }).join('');
     return '<div style="display:flex; align-items:center;">' + dotsRow + '</div>' +
       '<div style="display:flex; margin-top:5px;">' + labelsRow + '</div>';
@@ -4934,7 +4989,7 @@
 
     // Detect a genuine change since we last rendered this order, to trigger the same
     // notification treatment used for new messages — sound + pulsing badge on Account.
-    var changeKey = o.fbDocId + ':' + o.status + ':' + (o.deliveryStage || '');
+    var changeKey = o.fbDocId + ':' + o.status + ':' + (o.deliveryStage || '') + ':' + (o.importStage || '');
     if (lastSeenActiveOrderKey !== null && lastSeenActiveOrderKey !== changeKey) {
       playMessageAlertSound();
       hasUnseenOrderUpdate = true;
@@ -6137,6 +6192,9 @@
         hasShippedItems: hasShippedItemsVal,
         amountDueNow: amountDueNowVal,
         balanceDueOnDelivery: balanceDueOnDeliveryVal,
+        // Import journey stage — set the moment the order is placed so it appears in
+        // admin's "To Ship" section immediately, no admin action needed.
+        importStage: hasShippedItemsVal ? 'ordered' : null,
         status: 'pending', timestamp: new Date().toISOString()
       };
       window.fbFns.addDoc(window.fbFns.collection(window.fbDb,'orders'), order).then(function(){

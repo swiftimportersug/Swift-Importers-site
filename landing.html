@@ -209,7 +209,9 @@
           <input type="text" id="order-notes" placeholder="e.g. specific colour, delivery time preference"/>
         </div>
 
-        <div class="order-total-row">
+        <div id="landing-shipped-notice" style="display:none; background:linear-gradient(160deg,#fff3d6,#ffe6b3); border:1.5px solid #e0b74a; border-radius:10px; padding:12px 14px; margin-bottom:14px;"></div>
+
+        <div class="order-total-row" id="order-total-row">
           <span>Total</span>
           <span id="order-total-display">UGX 0</span>
         </div>
@@ -451,7 +453,30 @@
       if (pct > 0) html += '<span class="price-save">' + pct + '% OFF</span>';
     }
     row.innerHTML = html;
-    document.getElementById('order-total-display').textContent = fmtPrice(withPromo * landingQty);
+
+    var orderSubtotal = withPromo * landingQty;
+    var noticeEl = document.getElementById('landing-shipped-notice');
+    var totalDisplay = document.getElementById('order-total-display');
+
+    // "To Be Shipped" items only need a 30% commitment fee now — the remaining 70%
+    // is due once the item physically arrives in Kampala (2–3 weeks) — same split the
+    // main storefront checkout uses.
+    if (p.condition === 'To Be Shipped') {
+      var balanceDueOnDelivery = Math.round(orderSubtotal * 0.7);
+      var dueNow = orderSubtotal - balanceDueOnDelivery;
+      if (noticeEl) {
+        noticeEl.style.display = 'block';
+        noticeEl.innerHTML =
+          '<div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;"><span style="font-size:1.1rem;">✈️</span><span style="font-weight:800; font-size:0.84rem; color:#6b4a00;">Shipped From Abroad</span></div>' +
+          '<div style="font-size:0.78rem; color:#6b4a00; line-height:1.6;">Arrives in Uganda in <strong>2–3 weeks</strong>. Pay just the <strong>30% commitment fee</strong> (' + fmtPrice(dueNow) + ') today — the remaining <strong>' + fmtPrice(balanceDueOnDelivery) + '</strong> is due only once it reaches Kampala.</div>';
+      }
+      if (totalDisplay) {
+        totalDisplay.innerHTML = '<strong style="color:#8a5a00;">Pay Now: ' + fmtPrice(dueNow) + '</strong><br/><span style="color:#999; font-size:0.85em; font-weight:600;">Balance on Delivery: ' + fmtPrice(balanceDueOnDelivery) + '</span>';
+      }
+    } else {
+      if (noticeEl) noticeEl.style.display = 'none';
+      if (totalDisplay) totalDisplay.textContent = fmtPrice(orderSubtotal);
+    }
   }
 
   function getLocationLanding() {
@@ -506,6 +531,13 @@
     var unitPrice = landingPromoDiscount > 0 ? Math.max(0, base - landingPromoDiscount) : base;
     var subtotal = unitPrice * landingQty;
 
+    // Landing page checkout previously charged full price regardless of product
+    // condition — shipped items now use the same 30%-now/70%-on-delivery split as
+    // the main storefront checkout.
+    var isShippedProduct = landingProduct.condition === 'To Be Shipped';
+    var balanceDueOnDeliveryVal = isShippedProduct ? Math.round(subtotal * 0.7) : 0;
+    var amountDueNowVal = isShippedProduct ? (subtotal - balanceDueOnDeliveryVal) : subtotal;
+
     var order = {
       customerName: document.getElementById('order-name').value.trim(),
       phone: document.getElementById('order-phone').value.trim(),
@@ -522,6 +554,10 @@
       accountId: null,
       subtotal: subtotal,
       orderTotal: subtotal,
+      hasShippedItems: isShippedProduct,
+      amountDueNow: amountDueNowVal,
+      balanceDueOnDelivery: balanceDueOnDeliveryVal,
+      importStage: isShippedProduct ? 'ordered' : null,
       status: 'pending',
       timestamp: new Date().toISOString(),
       // What makes this different from a normal storefront order — lets you see in the
