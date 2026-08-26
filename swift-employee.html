@@ -3118,6 +3118,21 @@
     return o.hasShippedItems ? (o.amountDueNow || 0) : getOrderTotal(o);
   }
 
+  // Prefers cartItems (structured, real product IDs) over the plain o.products text,
+  // since only cartItems lets us look up the SKU from live inventory — this is what
+  // lets admin/employee jump straight to the right shelf/warehouse spot.
+  function buildOrderItemsDisplay(o) {
+    if (o.cartItems && o.cartItems.length) {
+      return o.cartItems.map(i => {
+        const prod = products.find(p => p.id === i.id);
+        const skuPart = prod && prod.sku ? ' — SKU: ' + prod.sku : '';
+        return i.name + ' x' + i.qty + skuPart + (i.isFree ? '  🎁 FREE' : '');
+      }).join('\n');
+    }
+    if (o.products) return o.products;
+    return '⚠️ No item details recorded for this order — check WhatsApp/notes for what was ordered.';
+  }
+
   function renderOrderCard(o, isClosed) {
     const statusMap = {
       pending: '<span class="order-status-badge status-pending">⏳ Pending</span>',
@@ -3201,7 +3216,7 @@
             <div class="order-card-time">${fmtOrderTime(o.timestamp)}</div>
           </div>
         </div>
-        <div class="order-card-items">${o.products || (o.cartItems ? o.cartItems.map(i => i.name + ' x' + i.qty + (i.isFree ? '  🎁 FREE' : '')).join('\n') : '—')}</div>
+        <div class="order-card-items">${buildOrderItemsDisplay(o)}</div>
         <div class="order-card-meta">
           ${o.recordedBy ? `<div style="width:100%; margin-bottom:6px; display:flex; gap:6px; flex-wrap:wrap;"><span style="display:inline-flex; align-items:center; gap:5px; background:${o.recordedByRole === 'admin' ? '#eef2ff' : '#fff8e6'}; color:${o.recordedByRole === 'admin' ? '#3b3ba0' : 'var(--gold-dark)'}; border:1px solid ${o.recordedByRole === 'admin' ? '#c7cbf7' : 'var(--gold)'}; font-size:0.7rem; font-weight:800; padding:3px 10px; border-radius:20px;">${o.recordedByRole === 'admin' ? '⚙️' : '👤'} Recorded by: ${o.recordedBy}</span>${o.store ? `<span style="display:inline-flex; align-items:center; gap:5px; background:var(--light); color:#444; border:1px solid var(--border); font-size:0.7rem; font-weight:800; padding:3px 10px; border-radius:20px;">🏬 ${o.store}</span>` : ''}</div>` : ''}
           <span>📍 ${o.deliveryArea || '—'}</span>
