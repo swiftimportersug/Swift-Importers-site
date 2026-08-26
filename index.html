@@ -750,6 +750,21 @@
       .order-form-arrow{ width:48px; height:48px; bottom:22px; }
       .order-form-arrow svg{ width:24px; height:24px; }
     }
+    .reference-code-banner{
+      display:none; position:fixed; left:12px; right:12px; bottom:20px; z-index:650;
+      max-width:480px; margin:0 auto;
+      background:linear-gradient(135deg,#1a4a8a,#123563); color:#fff; border-radius:16px;
+      padding:14px 16px; box-shadow:0 12px 32px rgba(0,0,0,0.4);
+      font-family:'Inter',sans-serif;
+      animation:referenceCodeBannerIn 0.35s ease;
+    }
+    @keyframes referenceCodeBannerIn{
+      from{ transform:translateY(20px); opacity:0; }
+      to{ transform:translateY(0); opacity:1; }
+    }
+    @media(max-width:768px){
+      .reference-code-banner{ bottom:78px; }
+    }
     .wa-popup{
       position:fixed; bottom:82px; right:26px; z-index:499;
       width:270px; max-width:calc(100vw - 32px);
@@ -1412,6 +1427,22 @@
 <button class="back-to-checkout-fab" id="back-to-checkout-fab" onclick="goBackToCheckout()">
   🛒 Back to Checkout
 </button>
+
+<!-- PERSISTENT REFERENCE CODE BANNER — shown right after an order needing payment
+     confirmation is placed, and stays on screen (independent of the success modal,
+     any overlay-close logic, or checkout-guard history navigation) until the
+     customer explicitly dismisses it, since losing this code is a real problem. -->
+<div class="reference-code-banner" id="reference-code-banner">
+  <div style="display:flex; align-items:flex-start; gap:10px;">
+    <span style="font-size:1.4rem; line-height:1;">💳</span>
+    <div style="flex:1; min-width:0;">
+      <div style="font-size:0.68rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:#8fc4ff; margin-bottom:3px;">Your Reference Code — Save This</div>
+      <div style="font-size:1.2rem; font-weight:900; letter-spacing:1px; margin-bottom:5px;" id="reference-code-banner-code"></div>
+      <div style="font-size:0.76rem; color:rgba(255,255,255,0.85); line-height:1.5;">Include this when sending Mobile Money, or share it with us on WhatsApp along with your payment screenshot.</div>
+    </div>
+    <button onclick="dismissReferenceCodeBanner()" aria-label="Dismiss" style="background:rgba(255,255,255,0.15); border:none; color:#fff; width:26px; height:26px; border-radius:50%; font-size:0.9rem; cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center;">✕</button>
+  </div>
+</div>
 
 <!-- FLOATING CART BUTTON (appears once cart has items, stays until order is submitted) -->
 <button class="floating-cart-fab" id="floating-cart-fab" onclick="openCart()" type="button">
@@ -4962,6 +4993,33 @@
   // order can be processed (used both for the customer's cancel window and to decide
   // what admin has to do first). "Cash on Delivery" is the only method where money
   // hasn't changed hands yet at order time.
+  // Persistent reference-code banner — deliberately NOT a modal/overlay, so it can't
+  // be swept away by history.back() (checkout guard), a mis-tap outside a dialog, or
+  // the customer simply closing the success popup too quickly. Survives a reload too
+  // (via localStorage) for a day, in case they close the tab right after ordering.
+  var REFERENCE_CODE_STORAGE_KEY = 'swiftReferenceCodeBanner';
+  function showReferenceCodeBanner(code) {
+    var banner = document.getElementById('reference-code-banner');
+    var codeEl = document.getElementById('reference-code-banner-code');
+    if (!banner || !codeEl || !code) return;
+    codeEl.textContent = code;
+    banner.style.display = 'block';
+    try { localStorage.setItem(REFERENCE_CODE_STORAGE_KEY, JSON.stringify({ code: code, ts: Date.now() })); } catch(e) {}
+  }
+  function dismissReferenceCodeBanner() {
+    var banner = document.getElementById('reference-code-banner');
+    if (banner) banner.style.display = 'none';
+    try { localStorage.removeItem(REFERENCE_CODE_STORAGE_KEY); } catch(e) {}
+  }
+  function restoreReferenceCodeBannerIfRecent() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(REFERENCE_CODE_STORAGE_KEY) || 'null');
+      if (saved && saved.code && (Date.now() - saved.ts) < 24 * 60 * 60 * 1000) {
+        showReferenceCodeBanner(saved.code);
+      }
+    } catch(e) {}
+  }
+
   function requiresPaymentGateCustomer(o) {
     return !!(o && (o.hasShippedItems || (o.paymentMethod && o.paymentMethod !== 'Cash on Delivery')));
   }
@@ -6322,8 +6380,13 @@
         var refBox = document.getElementById('success-reference-box');
         var refCode = document.getElementById('success-reference-code');
         if (requiresGate && refBox && refCode && docRef && docRef.id) {
-          refCode.textContent = docRef.id.slice(-6).toUpperCase();
+          var code = docRef.id.slice(-6).toUpperCase();
+          refCode.textContent = code;
           refBox.style.display = 'block';
+          // The modal itself can be dismissed or interrupted (mobile back-gesture,
+          // the checkout-guard's own history.back(), etc.) — this banner is
+          // deliberately independent of that, so the code stays visible regardless.
+          showReferenceCodeBanner(code);
         }
       }).catch(function(e){console.error(e);});
     }
@@ -6554,6 +6617,7 @@
   document.addEventListener('DOMContentLoaded', function() {
     applyDeviceClass();
     loadStorefrontProducts();
+    restoreReferenceCodeBannerIfRecent();
     var gallery = document.getElementById('pd-gallery');
     if (gallery) {
       gallery.addEventListener('touchstart', pdTouchStart, {passive: true});
