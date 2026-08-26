@@ -1269,6 +1269,7 @@
         <div style="font-size:0.7rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#2e7d32;margin-bottom:8px;">Items in your order</div>
         <div id="order-items-list"></div>
         <div id="order-items-total" style="font-size:0.85rem;font-weight:800;color:#1b5e20;margin-top:8px;padding-top:8px;border-top:1px solid #a5d6a7;"></div>
+        <div id="checkout-shipped-notice" style="display:none; background:linear-gradient(160deg,#fff3d6,#ffe6b3); border:1.5px solid #e0b74a; border-radius:10px; padding:12px 14px; margin-top:10px;"></div>
 
         <!-- SITE-WIDE PROMO CODE (applies to whole order, based on order total) -->
         <div id="checkout-promo-section" style="margin-top:10px; padding-top:10px; border-top:1px dashed #a5d6a7;">
@@ -1521,6 +1522,17 @@
         <div class="pd-price" id="pd-price"></div>
         <div id="pd-discount-countdown" style="display:none; margin-top:6px;"></div>
         <div class="pd-stock-status" id="pd-stock-status"></div>
+
+        <!-- IMPORT / TO BE SHIPPED NOTICE -->
+        <div id="pd-shipped-notice" style="display:none; background:linear-gradient(160deg,#fff3d6,#ffe6b3); border:1.5px solid #e0b74a; border-radius:12px; padding:14px 16px; margin-top:12px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+            <span style="font-size:1.2rem;">📦</span>
+            <span style="font-weight:800; font-size:0.88rem; color:#6b4a00;">This Item Ships From Abroad</span>
+          </div>
+          <div style="font-size:0.8rem; color:#6b4a00; line-height:1.6;">
+            Not in stock locally yet — once ordered, it arrives in Uganda in <strong>2–3 weeks</strong>. You only pay a <strong>30% commitment fee</strong> today; the remaining <strong>70% is due on delivery</strong> once it reaches Kampala.
+          </div>
+        </div>
 
         <!-- FREE GIFT WITH PURCHASE -->
         <div id="pd-gift-box" style="display:none;"></div>
@@ -2804,15 +2816,18 @@
     document.getElementById('pd-breadcrumb').textContent = p.category;
     document.getElementById('pd-category').textContent = p.category;
     var condBadge = document.getElementById('pd-condition-badge');
+    var shippedNotice = document.getElementById('pd-shipped-notice');
+    if (shippedNotice) shippedNotice.style.display = (p.condition === 'To Be Shipped') ? 'block' : 'none';
     if (condBadge) {
       if (p.condition && p.condition !== 'Brand New') {
         var condColors = {
           'Refurbished': { bg:'#e0f0fd', text:'#2166a3', border:'#a9d1f0' },
           'Used': { bg:'#fff3e0', text:'#b87d12', border:'#f0cf94' },
-          'UK Used': { bg:'#f3f0ff', text:'#5b3fa8', border:'#c9bdec' }
+          'UK Used': { bg:'#f3f0ff', text:'#5b3fa8', border:'#c9bdec' },
+          'To Be Shipped': { bg:'#fff3e0', text:'#8a5a00', border:'#f0b74a' }
         };
         var cc = condColors[p.condition] || { bg:'#f0f0f0', text:'#555', border:'#ccc' };
-        condBadge.textContent = p.condition;
+        condBadge.textContent = p.condition === 'To Be Shipped' ? '📦 To Be Shipped' : p.condition;
         condBadge.style.background = cc.bg;
         condBadge.style.color = cc.text;
         condBadge.style.border = '1px solid ' + cc.border;
@@ -3902,6 +3917,31 @@
     }
     var subtotal = checkoutItems.reduce(function(s,c){ return s + c.price * c.qty; }, 0);
     var totals = computeCheckoutTotals(subtotal);
+
+    // Items with condition 'To Be Shipped' only need a 30% commitment fee now — the
+    // rest is due once the item physically arrives in Kampala (2–3 weeks).
+    var shippedItems = checkoutItems.filter(function(c){
+      var prod = products.find(function(p){ return p.id === c.id; });
+      return prod && prod.condition === 'To Be Shipped';
+    });
+    var shippedSubtotal = shippedItems.reduce(function(s,c){ return s + c.price * c.qty; }, 0);
+    var hasShippedItems = shippedItems.length > 0;
+    var balanceDueOnDelivery = Math.round(shippedSubtotal * 0.7);
+    var commitmentPortion = shippedSubtotal - balanceDueOnDelivery;
+    var dueNow = Math.max(0, totals.finalTotal - balanceDueOnDelivery);
+
+    var shippedNoticeEl = document.getElementById('checkout-shipped-notice');
+    if (shippedNoticeEl) {
+      if (hasShippedItems) {
+        shippedNoticeEl.style.display = 'block';
+        shippedNoticeEl.innerHTML =
+          '<div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;"><span style="font-size:1.1rem;">📦</span><span style="font-weight:800; font-size:0.84rem; color:#6b4a00;">Includes an Item Shipped From Abroad</span></div>' +
+          '<div style="font-size:0.78rem; color:#6b4a00; line-height:1.6;">Arrives in Uganda in <strong>2–3 weeks</strong>. Pay just the <strong>30% commitment fee</strong> (' + fmtPrice(commitmentPortion) + ') today — the remaining <strong>' + fmtPrice(balanceDueOnDelivery) + '</strong> is due only once it reaches Kampala.</div>';
+      } else {
+        shippedNoticeEl.style.display = 'none';
+      }
+    }
+
     if (totalEl) {
       var lines = 'Subtotal: ' + fmtPrice(subtotal);
       if (totals.usedDiscountType === 'promo') {
@@ -3916,7 +3956,14 @@
       lines += totals.finalDiscount > 0
         ? '<br><span style="color:#2a9d50;">Total: ' + fmtPrice(totals.finalTotal) + '</span>'
         : '';
-      totalEl.innerHTML = totals.finalDiscount > 0 ? lines : 'Total: ' + fmtPrice(subtotal);
+      if (hasShippedItems) {
+        lines = (totals.finalDiscount > 0 ? lines : 'Subtotal: ' + fmtPrice(subtotal)) +
+          '<br><strong style="color:#8a5a00;">Pay Now: ' + fmtPrice(dueNow) + '</strong>' +
+          '<br><span style="color:#999; font-size:0.9em;">Balance on Delivery: ' + fmtPrice(balanceDueOnDelivery) + '</span>';
+        totalEl.innerHTML = lines;
+      } else {
+        totalEl.innerHTML = totals.finalDiscount > 0 ? lines : 'Total: ' + fmtPrice(subtotal);
+      }
     }
 
     var itemLines = cart.map(function(c){ return c.name + ' x' + c.qty + ' (' + fmtPrice(c.price * c.qty) + ')'; }).join('\n') +
@@ -6063,6 +6110,14 @@
     if (window.fbDb && window.fbFns) {
       var subtotalVal = checkoutItems.reduce(function(s,c){ return s + c.price * c.qty; }, 0);
       var totalsVal = computeCheckoutTotals(subtotalVal);
+      var shippedItemsVal = checkoutItems.filter(function(c){
+        var prod = products.find(function(p){ return p.id === c.id; });
+        return prod && prod.condition === 'To Be Shipped';
+      });
+      var shippedSubtotalVal = shippedItemsVal.reduce(function(s,c){ return s + c.price * c.qty; }, 0);
+      var hasShippedItemsVal = shippedItemsVal.length > 0;
+      var balanceDueOnDeliveryVal = hasShippedItemsVal ? Math.round(shippedSubtotalVal * 0.7) : 0;
+      var amountDueNowVal = hasShippedItemsVal ? Math.max(0, totalsVal.finalTotal - balanceDueOnDeliveryVal) : totalsVal.finalTotal;
       var order = {
         customerName: nameVal, phone: phoneVal, deliveryArea: areaVal,
         exactLocation: (document.getElementById('exact-location') && document.getElementById('exact-location').value) || '',
@@ -6075,6 +6130,11 @@
         accountId: currentAccount ? currentAccount.fbDocId : null,
         subtotal: subtotalVal,
         orderTotal: totalsVal.finalTotal,
+        // Import/pre-order payment split — only set when the order actually includes a
+        // 'To Be Shipped' item, so normal orders are completely unaffected.
+        hasShippedItems: hasShippedItemsVal,
+        amountDueNow: amountDueNowVal,
+        balanceDueOnDelivery: balanceDueOnDeliveryVal,
         status: 'pending', timestamp: new Date().toISOString()
       };
       window.fbFns.addDoc(window.fbFns.collection(window.fbDb,'orders'), order).then(function(){

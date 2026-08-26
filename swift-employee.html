@@ -1487,12 +1487,16 @@
       <div class="form-row-2">
         <div class="form-group">
           <label>🏷️ Item Condition</label>
-          <select id="f-condition">
+          <select id="f-condition" onchange="document.getElementById('f-condition-shipped-note').style.display = this.value === 'To Be Shipped' ? 'block' : 'none';">
             <option value="Brand New">Brand New</option>
             <option value="Refurbished">Refurbished</option>
             <option value="Used">Used</option>
             <option value="UK Used">UK Used</option>
+            <option value="To Be Shipped">📦 To Be Shipped (Imported)</option>
           </select>
+          <div id="f-condition-shipped-note" style="display:none; margin-top:8px; background:#fff3e0; border:1px solid #f0cf94; border-radius:7px; padding:10px 12px; font-size:0.74rem; color:#8a5a00; line-height:1.6;">
+            📦 This tells customers the item isn't in stock yet — it ships from abroad, arrives in Uganda in <strong>2–3 weeks</strong>, and they only pay a <strong>30% commitment fee</strong> now, with the remaining <strong>70% due on delivery</strong>. This applies automatically wherever this product is shown or bought.
+          </div>
         </div>
         <div class="form-group">
           <label style="display:flex; align-items:center; justify-content:space-between;">
@@ -3174,6 +3178,11 @@
               Subtotal ${fmt(o.pricing.subtotal)}${o.pricing.discount ? ' &minus; discount ' + fmt(o.pricing.discount) : ''}${o.pricing.otherFees ? ' + fees ' + fmt(o.pricing.otherFees) : ''} = <strong>${fmt(o.pricing.total)}</strong>
             </div>
           ` : ''}
+          ${o.hasShippedItems ? `
+            <div style="width:100%; margin-top:6px; background:#fff3e0; border:1.5px solid #e0b74a; border-radius:8px; padding:8px 10px; font-size:0.78rem; color:#6b4a00;">
+              📦 <strong>Includes imported item(s)</strong> — collect <strong>${fmt(o.amountDueNow)}</strong> now, remaining <strong>${fmt(o.balanceDueOnDelivery)}</strong> due on delivery (2–3 weeks).
+            </div>
+          ` : ''}
           ${o.appliedPromoCode && o.promoDiscount > 0 ? `
             <div style="width:100%; margin-top:6px; background:#e8f4fd; border:1px solid #5aa9e6; border-radius:8px; padding:6px 10px; font-size:0.76rem; color:#2166a3; font-weight:700;">
               🏷️ Promo code <strong>${o.appliedPromoCode}</strong> applied: &minus;${fmt(o.promoDiscount)}
@@ -4424,6 +4433,7 @@
     document.getElementById('f-warehouse-cover-image-2').value = '';
     updateWarehouseCoverPreview();
     document.getElementById('f-condition').value = 'Brand New';
+    document.getElementById('f-condition-shipped-note').style.display = 'none';
     document.getElementById('f-promo-eligible').checked = true;
     updatePromoEligibleSliderStyle();
     document.getElementById('f-description').value = '';
@@ -4476,6 +4486,7 @@
     document.getElementById('f-warehouse-cover-image-2').value = p.warehouseCoverImage2 || '';
     updateWarehouseCoverPreview();
     document.getElementById('f-condition').value = p.condition || 'Brand New';
+    document.getElementById('f-condition-shipped-note').style.display = (p.condition === 'To Be Shipped') ? 'block' : 'none';
     document.getElementById('f-promo-eligible').checked = p.promoEligible !== false;
     updatePromoEligibleSliderStyle();
     document.getElementById('f-description').value = p.description || '';
