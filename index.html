@@ -1414,8 +1414,11 @@
 <!-- VARIANT SELECTION TOAST -->
 <div class="variant-toast" id="variant-toast">⚠️ Please Select Your Variant</div>
 
-<!-- GENERIC APP DIALOG (replaces native alert()/confirm() popups) -->
-<div class="modal-overlay" id="app-dialog-overlay">
+<!-- GENERIC APP DIALOG (replaces native alert()/confirm() popups) — z-index deliberately
+     higher than every other modal (900/950 elsewhere), since this dialog is routinely
+     opened ON TOP OF an already-open modal (Account, My Orders, etc.) for confirms
+     like Cancel Order. Without this it renders invisibly behind whatever's already open. -->
+<div class="modal-overlay" id="app-dialog-overlay" style="z-index:1000;">
   <div class="modal" style="text-align:center; max-width:360px;">
     <div id="app-dialog-icon" style="font-size:2rem; margin-bottom:8px;">⚠️</div>
     <p id="app-dialog-message" style="margin-top:4px; white-space:pre-line;"></p>
