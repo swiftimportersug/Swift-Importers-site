@@ -1492,10 +1492,10 @@
             <option value="Refurbished">Refurbished</option>
             <option value="Used">Used</option>
             <option value="UK Used">UK Used</option>
-            <option value="To Be Shipped">📦 To Be Shipped (Imported)</option>
+            <option value="To Be Shipped">✈️ To Be Shipped (Imported)</option>
           </select>
           <div id="f-condition-shipped-note" style="display:none; margin-top:8px; background:#fff3e0; border:1px solid #f0cf94; border-radius:7px; padding:10px 12px; font-size:0.74rem; color:#8a5a00; line-height:1.6;">
-            📦 This tells customers the item isn't in stock yet — it ships from abroad, arrives in Uganda in <strong>2–3 weeks</strong>, and they only pay a <strong>30% commitment fee</strong> now, with the remaining <strong>70% due on delivery</strong>. This applies automatically wherever this product is shown or bought.
+            ✈️ This tells customers the item isn't in stock yet — it ships from abroad, arrives in Uganda in <strong>2–3 weeks</strong>, and they only pay a <strong>30% commitment fee</strong> now, with the remaining <strong>70% due on delivery</strong>. This applies automatically wherever this product is shown or bought.
           </div>
         </div>
         <div class="form-group">
@@ -3180,7 +3180,7 @@
           ` : ''}
           ${o.hasShippedItems ? `
             <div style="width:100%; margin-top:6px; background:#fff3e0; border:1.5px solid #e0b74a; border-radius:8px; padding:8px 10px; font-size:0.78rem; color:#6b4a00;">
-              📦 <strong>Includes imported item(s)</strong> — collect <strong>${fmt(o.amountDueNow)}</strong> now, remaining <strong>${fmt(o.balanceDueOnDelivery)}</strong> due on delivery (2–3 weeks).
+              ✈️ <strong>Includes imported item(s)</strong> — collect <strong>${fmt(o.amountDueNow)}</strong> now, remaining <strong>${fmt(o.balanceDueOnDelivery)}</strong> due on delivery (2–3 weeks).
             </div>
           ` : ''}
           ${o.appliedPromoCode && o.promoDiscount > 0 ? `

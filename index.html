@@ -1526,7 +1526,7 @@
         <!-- IMPORT / TO BE SHIPPED NOTICE -->
         <div id="pd-shipped-notice" style="display:none; background:linear-gradient(160deg,#fff3d6,#ffe6b3); border:1.5px solid #e0b74a; border-radius:12px; padding:14px 16px; margin-top:12px;">
           <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-            <span style="font-size:1.2rem;">📦</span>
+            <span style="font-size:1.2rem;">✈️</span>
             <span style="font-weight:800; font-size:0.88rem; color:#6b4a00;">This Item Ships From Abroad</span>
           </div>
           <div style="font-size:0.8rem; color:#6b4a00; line-height:1.6;">
@@ -2263,11 +2263,13 @@
       }
       var escaped = rawLine.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       var trimmed = escaped.trim();
-      if (trimmed.indexOf('## ') === 0) {
-        return '<div style="font-size:1.05em;font-weight:800;margin:10px 0 4px;">' + formatDescriptionInline(trimmed.slice(3)) + '</div>';
+      var h2Match = trimmed.match(/^##\s*(.*)$/);
+      if (h2Match) {
+        return '<div style="font-size:1.05em;font-weight:800;margin:10px 0 4px;">' + formatDescriptionInline(h2Match[1]) + '</div>';
       }
-      if (trimmed.indexOf('# ') === 0) {
-        return '<div style="font-size:1.2em;font-weight:900;margin:12px 0 6px;">' + formatDescriptionInline(trimmed.slice(2)) + '</div>';
+      var h1Match = trimmed.match(/^#\s*(.*)$/);
+      if (h1Match) {
+        return '<div style="font-size:1.2em;font-weight:900;margin:12px 0 6px;">' + formatDescriptionInline(h1Match[1]) + '</div>';
       }
       if (trimmed === '') return '<div style="height:0.6em;"></div>';
       return '<div>' + formatDescriptionInline(escaped) + '</div>';
@@ -2827,7 +2829,7 @@
           'To Be Shipped': { bg:'#fff3e0', text:'#8a5a00', border:'#f0b74a' }
         };
         var cc = condColors[p.condition] || { bg:'#f0f0f0', text:'#555', border:'#ccc' };
-        condBadge.textContent = p.condition === 'To Be Shipped' ? '📦 To Be Shipped' : p.condition;
+        condBadge.textContent = p.condition === 'To Be Shipped' ? '✈️ To Be Shipped' : p.condition;
         condBadge.style.background = cc.bg;
         condBadge.style.color = cc.text;
         condBadge.style.border = '1px solid ' + cc.border;
@@ -3935,7 +3937,7 @@
       if (hasShippedItems) {
         shippedNoticeEl.style.display = 'block';
         shippedNoticeEl.innerHTML =
-          '<div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;"><span style="font-size:1.1rem;">📦</span><span style="font-weight:800; font-size:0.84rem; color:#6b4a00;">Includes an Item Shipped From Abroad</span></div>' +
+          '<div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;"><span style="font-size:1.1rem;">✈️</span><span style="font-weight:800; font-size:0.84rem; color:#6b4a00;">Includes an Item Shipped From Abroad</span></div>' +
           '<div style="font-size:0.78rem; color:#6b4a00; line-height:1.6;">Arrives in Uganda in <strong>2–3 weeks</strong>. Pay just the <strong>30% commitment fee</strong> (' + fmtPrice(commitmentPortion) + ') today — the remaining <strong>' + fmtPrice(balanceDueOnDelivery) + '</strong> is due only once it reaches Kampala.</div>';
       } else {
         shippedNoticeEl.style.display = 'none';
