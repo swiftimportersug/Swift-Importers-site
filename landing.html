@@ -67,6 +67,29 @@
 
   .desc-box{background:var(--light);border-radius:10px;padding:14px 16px;margin-bottom:18px;font-size:0.85rem;color:#444;line-height:1.7;}
 
+  /* Description dropdown — collapsed by default so it doesn't eat up the page;
+     lives under the gallery on desktop, same spot it always occupied on mobile. */
+  .desc-dropdown{background:var(--light); border-radius:10px; margin:14px 5vw 18px; overflow:hidden;}
+  .desc-dropdown summary{list-style:none; cursor:pointer; padding:14px 16px; font-weight:700; font-size:0.85rem; display:flex; align-items:center; justify-content:space-between; color:#333;}
+  .desc-dropdown summary::-webkit-details-marker{display:none;}
+  .desc-dropdown .chevron{transition:transform 0.2s ease; font-size:0.8rem; color:var(--grey);}
+  .desc-dropdown[open] .chevron{transform:rotate(180deg);}
+  .desc-dropdown-body{padding:0 16px 16px; font-size:0.85rem; color:#444; line-height:1.7;}
+
+  /* Two-column layout on wider screens: gallery + description on the left,
+     everything else (title/price/order form) on the right, so it's all visible
+     at once instead of one long scroll. Mobile keeps the original single-column
+     stacked layout untouched below this breakpoint. */
+  @media(min-width:860px){
+    .wrap{max-width:1140px;}
+    .pdp-grid{display:grid; grid-template-columns:1fr 1fr; gap:56px; align-items:start; padding-top:28px;}
+    .pdp-left{position:sticky; top:28px;}
+    .gallery-main{border-radius:14px;}
+    .gallery-thumbs{padding:10px 0;}
+    .desc-dropdown{margin:14px 0 0;}
+    .product-body{padding:0;}
+  }
+
   .trust-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px;}
   .trust-pill{background:var(--light);border-radius:20px;padding:6px 12px;font-size:0.72rem;font-weight:700;color:#555;display:flex;align-items:center;gap:5px;}
 
@@ -131,93 +154,105 @@
   </div>
 
   <div id="product-content">
-    <div class="gallery-main">
-      <img id="gallery-main-img" src="" alt=""/>
-    </div>
-    <div class="gallery-thumbs" id="gallery-thumbs"></div>
+    <div class="pdp-grid">
+      <div class="pdp-left">
+        <div class="gallery-main">
+          <img id="gallery-main-img" src="" alt=""/>
+        </div>
+        <div class="gallery-thumbs" id="gallery-thumbs"></div>
 
-    <div class="product-body">
-      <div class="product-name" id="product-name"></div>
-      <div class="price-row" id="price-row"></div>
-
-      <div id="promo-banner" class="promo-banner" style="display:none;">
-        <div class="promo-banner-title">🎟️ Limited Time Offer</div>
-        <div class="promo-code-chip" id="promo-code-chip" onclick="copyPromoCodeLanding()"></div>
-        <div class="promo-timer" id="promo-timer"></div>
+        <details class="desc-dropdown" id="desc-dropdown" style="display:none;">
+          <summary>
+            <span>📄 Product Description</span>
+            <span class="chevron">▾</span>
+          </summary>
+          <div class="desc-dropdown-body" id="desc-box"></div>
+        </details>
       </div>
 
-      <div class="variant-section" id="variant-section" style="display:none;">
-        <div class="variant-label">Choose an option</div>
-        <div class="variant-options" id="variant-options"></div>
-      </div>
+      <div class="pdp-right">
+        <div class="product-body">
+          <div class="product-name" id="product-name"></div>
+          <div class="price-row" id="price-row"></div>
 
-      <div class="qty-row">
-        <span style="font-size:0.8rem;font-weight:700;color:var(--grey);">Quantity</span>
-        <button class="qty-btn" onclick="changeQty(-1)">−</button>
-        <span class="qty-val" id="qty-val">1</span>
-        <button class="qty-btn" onclick="changeQty(1)">+</button>
-      </div>
+          <div id="promo-banner" class="promo-banner" style="display:none;">
+            <div class="promo-banner-title">🎟️ Limited Time Offer</div>
+            <div class="promo-code-chip" id="promo-code-chip" onclick="copyPromoCodeLanding()"></div>
+            <div class="promo-timer" id="promo-timer"></div>
+          </div>
 
-      <div class="desc-box" id="desc-box" style="display:none;"></div>
+          <div class="variant-section" id="variant-section" style="display:none;">
+            <div class="variant-label">Choose an option</div>
+            <div class="variant-options" id="variant-options"></div>
+          </div>
 
-      <div class="trust-row">
-        <span class="trust-pill">🚚 Fast Kampala Delivery</span>
-        <span class="trust-pill">✅ Genuine Products</span>
-        <span class="trust-pill">💬 WhatsApp Support</span>
-      </div>
+          <div class="qty-row">
+            <span style="font-size:0.8rem;font-weight:700;color:var(--grey);">Quantity</span>
+            <button class="qty-btn" onclick="changeQty(-1)">−</button>
+            <span class="qty-val" id="qty-val">1</span>
+            <button class="qty-btn" onclick="changeQty(1)">+</button>
+          </div>
 
-      <div class="order-form">
-        <h2>Get It Delivered</h2>
-        <div class="sub">Fill in your details — we'll call to confirm and deliver to your door.</div>
+          <div class="trust-row">
+            <span class="trust-pill">🚚 Fast Kampala Delivery</span>
+            <span class="trust-pill">✅ Genuine Products</span>
+            <span class="trust-pill">💬 WhatsApp Support</span>
+          </div>
 
-        <div class="form-group">
-          <label>Full Name *</label>
-          <input type="text" id="order-name" placeholder="e.g. David Okello"/>
+          <div class="order-form">
+            <h2>Get It Delivered</h2>
+            <div class="sub">Fill in your details — we'll call to confirm and deliver to your door.</div>
+
+            <div class="form-group">
+              <label>Full Name *</label>
+              <input type="text" id="order-name" placeholder="e.g. David Okello"/>
+            </div>
+            <div class="form-group">
+              <label>Phone Number *</label>
+              <input type="tel" id="order-phone" placeholder="+256 7XX XXX XXX"/>
+            </div>
+            <div class="form-group">
+              <label>Delivery Area *</label>
+              <select id="order-area">
+                <option value="">Select your area</option>
+                <option>Kampala Central</option><option>Kampala Suburbs (Ntinda, Bukoto, Najjera)</option>
+                <option>Entebbe</option><option>Jinja</option><option>Mbarara</option>
+                <option>Gulu</option><option>Mbale</option><option>Fort Portal</option>
+                <option>Kasese</option><option>Other (specify in notes)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Exact Delivery Location *</label>
+              <textarea id="exact-location" rows="2" placeholder="e.g. Opposite Shoprite, next to Stanbic Bank..."></textarea>
+              <button type="button" class="maps-pin-btn" onclick="getLocationLanding()">
+                <span id="pin-btn-text">📍 Drop a Google Maps Pin</span>
+              </button>
+              <div id="location-result" class="location-result" style="display:none;"></div>
+            </div>
+            <div class="form-group">
+              <label>Payment Method *</label>
+              <select id="order-payment" onchange="handlePaymentMethodChange()">
+                <option value="">Choose payment</option>
+                <option>MTN Mobile Money</option><option>Airtel Money</option>
+                <option>Cash on Delivery</option><option>Visa / Mastercard</option>
+              </select>
+              <div id="payment-copy-hint" style="display:none; font-size:0.76rem; color:#2a9d50; font-weight:700; margin-top:6px;"></div>
+            </div>
+            <div class="form-group">
+              <label>Notes (optional)</label>
+              <input type="text" id="order-notes" placeholder="e.g. specific colour, delivery time preference"/>
+            </div>
+
+            <div id="landing-shipped-notice" style="display:none; background:linear-gradient(160deg,#fff3d6,#ffe6b3); border:1.5px solid #e0b74a; border-radius:10px; padding:12px 14px; margin-bottom:14px;"></div>
+
+            <div class="order-total-row" id="order-total-row">
+              <span>Total</span>
+              <span id="order-total-display">UGX 0</span>
+            </div>
+
+            <button class="submit-btn" id="submit-btn" onclick="submitLandingOrder()">Order Now</button>
+          </div>
         </div>
-        <div class="form-group">
-          <label>Phone Number *</label>
-          <input type="tel" id="order-phone" placeholder="+256 7XX XXX XXX"/>
-        </div>
-        <div class="form-group">
-          <label>Delivery Area *</label>
-          <select id="order-area">
-            <option value="">Select your area</option>
-            <option>Kampala Central</option><option>Kampala Suburbs (Ntinda, Bukoto, Najjera)</option>
-            <option>Entebbe</option><option>Jinja</option><option>Mbarara</option>
-            <option>Gulu</option><option>Mbale</option><option>Fort Portal</option>
-            <option>Kasese</option><option>Other (specify in notes)</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Exact Delivery Location *</label>
-          <textarea id="exact-location" rows="2" placeholder="e.g. Opposite Shoprite, next to Stanbic Bank..."></textarea>
-          <button type="button" class="maps-pin-btn" onclick="getLocationLanding()">
-            <span id="pin-btn-text">📍 Drop a Google Maps Pin</span>
-          </button>
-          <div id="location-result" class="location-result" style="display:none;"></div>
-        </div>
-        <div class="form-group">
-          <label>Payment Method *</label>
-          <select id="order-payment" onchange="handlePaymentMethodChange()">
-            <option value="">Choose payment</option>
-            <option>MTN Mobile Money</option><option>Airtel Money</option>
-            <option>Cash on Delivery</option><option>Visa / Mastercard</option>
-          </select>
-          <div id="payment-copy-hint" style="display:none; font-size:0.76rem; color:#2a9d50; font-weight:700; margin-top:6px;"></div>
-        </div>
-        <div class="form-group">
-          <label>Notes (optional)</label>
-          <input type="text" id="order-notes" placeholder="e.g. specific colour, delivery time preference"/>
-        </div>
-
-        <div id="landing-shipped-notice" style="display:none; background:linear-gradient(160deg,#fff3d6,#ffe6b3); border:1.5px solid #e0b74a; border-radius:10px; padding:12px 14px; margin-bottom:14px;"></div>
-
-        <div class="order-total-row" id="order-total-row">
-          <span>Total</span>
-          <span id="order-total-display">UGX 0</span>
-        </div>
-
-        <button class="submit-btn" id="submit-btn" onclick="submitLandingOrder()">Order Now</button>
       </div>
     </div>
   </div>
@@ -451,11 +486,13 @@
       }).join('');
     }
 
-    // Description
+    // Description — now lives in a collapsible dropdown so it doesn't push the
+    // order form down the page; show the <details> wrapper, not just the inner div.
     if (p.description && p.description.trim()) {
       var descBox = document.getElementById('desc-box');
+      var descDropdown = document.getElementById('desc-dropdown');
       descBox.innerHTML = formatDescriptionHtml(p.description.trim());
-      descBox.style.display = 'block';
+      if (descDropdown) descDropdown.style.display = 'block';
     }
 
     renderLandingPromoBanner();
