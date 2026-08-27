@@ -6396,7 +6396,13 @@
     const landingBox = document.getElementById('landing-link-box');
     const landingInput = document.getElementById('landing-link-input');
     if (landingBox && landingInput) {
-      landingInput.value = window.location.origin + '/landing.html?product=' + id + '&campaign=';
+      // window.location.origin alone drops the repo-name folder on a GitHub Pages
+      // "project site" (yourname.github.io/repo-name/...) — build from the current
+      // page's own folder instead, since landing.html always lives right alongside
+      // this file.
+      const currentPath = window.location.origin + window.location.pathname;
+      const basePath = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
+      landingInput.value = basePath + 'landing.html?product=' + id + '&campaign=';
       landingBox.style.display = 'block';
     }
     document.getElementById('f-name').value = p.name;
