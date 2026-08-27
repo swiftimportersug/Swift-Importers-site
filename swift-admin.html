@@ -1069,6 +1069,7 @@
       </div>
       <div class="nav-item" onclick="showPage('closed-orders')">
         <span class="nav-icon">✅</span> Closed Orders
+        <span id="cancelled-orders-badge" style="margin-left:auto;background:var(--red);color:#fff;font-size:0.65rem;font-weight:700;padding:2px 7px;border-radius:20px;display:none;"></span>
       </div>
       <div class="nav-item" onclick="showPage('customers')">
         <span class="nav-icon">👥</span> Customers
@@ -1531,6 +1532,13 @@
           <button class="period-tab" data-period="month" onclick="setOrdersPeriod('closed','month')">This Month</button>
           <button class="period-tab" data-period="all" onclick="setOrdersPeriod('closed','all')">All Time</button>
         </div>
+        <div style="display:flex; gap:8px; margin-bottom:14px; border-bottom:1.5px solid var(--border);">
+          <button id="closed-orders-subtab-all" onclick="switchClosedOrdersTab('all')" style="background:none; border:none; padding:10px 6px; font-size:0.85rem; font-weight:800; color:var(--black); border-bottom:2.5px solid var(--gold); cursor:pointer; font-family:'Inter',sans-serif;">📋 All</button>
+          <button id="closed-orders-subtab-cancelled" onclick="switchClosedOrdersTab('cancelled')" style="background:none; border:none; padding:10px 10px; font-size:0.85rem; font-weight:800; color:var(--grey); border-bottom:2.5px solid transparent; cursor:pointer; font-family:'Inter',sans-serif; display:flex; align-items:center; gap:6px;">
+            ❌ Cancelled
+            <span id="closed-orders-cancelled-badge" style="background:var(--red); color:#fff; font-size:0.65rem; font-weight:700; padding:2px 7px; border-radius:20px; display:none;"></span>
+          </button>
+        </div>
         <input type="text" id="closed-orders-search" class="tbl-search" style="width:100%; margin-bottom:14px; box-sizing:border-box;"
           placeholder="🔍 Search by item, customer name, phone, or boda rider name..."
           oninput="renderClosedOrders(this.value)"/>
@@ -1699,6 +1707,23 @@
     </div>
     <div class="modal-body">
       <input type="hidden" id="edit-id"/>
+      <div style="background:#1a1a1a; border-radius:10px; padding:14px 16px; margin-bottom:16px;">
+        <div style="font-size:0.72rem; font-weight:800; color:var(--gold); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:4px;">🔗 Import From Product Link</div>
+        <div style="font-size:0.7rem; color:#888; margin-bottom:8px; line-height:1.6;">
+          Paste a product page link from AliExpress, eBay, Amazon, Alibaba, Gear4Music, Andertons UK, etc. — we'll try to pull the title, description, and images automatically.<br/>
+          Works most reliably on eBay, Gear4Music, and Andertons. Amazon, AliExpress, and Alibaba often block automated fetching — always review what comes back before saving.
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <input type="text" id="link-import-input" placeholder="Paste product page URL here..."
+            style="flex:1; min-width:200px; padding:10px 12px; border:1.5px solid #333; border-radius:7px; font-size:0.82rem; font-family:'Inter',sans-serif; background:#111; color:#fff; outline:none;"
+            onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='#333'"/>
+          <button type="button" id="link-import-btn" onclick="fetchProductPreviewFromLink()"
+            style="background:var(--gold); color:var(--black); border:none; padding:10px 18px; border-radius:7px; font-weight:800; font-size:0.82rem; cursor:pointer; font-family:'Inter',sans-serif; white-space:nowrap;">
+            ⚡ Fetch Details
+          </button>
+        </div>
+        <div id="link-import-status" style="display:none; margin-top:10px; font-size:0.75rem; line-height:1.6;"></div>
+      </div>
       <div id="landing-link-box" style="display:none; background:#f3f0ff; border:1.5px solid #c9bdec; border-radius:10px; padding:12px 14px; margin-bottom:16px;">
         <div style="font-size:0.78rem; font-weight:800; color:#5b3fa8; margin-bottom:6px;">📢 Ad Campaign Landing Page</div>
         <div style="font-size:0.72rem; color:#888; margin-bottom:8px;">Use this link in Google/Facebook/Instagram/YouTube ads — it opens a single focused page for just this product, with a fast order form and no distractions.</div>
@@ -5078,6 +5103,31 @@
     list.innerHTML = open.map(o => renderOrderCard(o, false)).join('');
   }
 
+  let closedOrdersSubTab = 'all'; // 'all' | 'cancelled'
+
+  function switchClosedOrdersTab(tab) {
+    closedOrdersSubTab = tab;
+    const allBtn = document.getElementById('closed-orders-subtab-all');
+    const cancelBtn = document.getElementById('closed-orders-subtab-cancelled');
+    if (allBtn) { allBtn.style.color = tab === 'all' ? 'var(--black)' : 'var(--grey)'; allBtn.style.borderBottomColor = tab === 'all' ? 'var(--gold)' : 'transparent'; }
+    if (cancelBtn) { cancelBtn.style.color = tab === 'cancelled' ? 'var(--black)' : 'var(--grey)'; cancelBtn.style.borderBottomColor = tab === 'cancelled' ? 'var(--gold)' : 'transparent'; }
+    renderClosedOrders();
+  }
+
+  // Cancellations otherwise sit quietly inside Closed Orders where they're easy to
+  // miss — this badge (on both the nav item and the in-page tab) makes sure a new
+  // cancellation is never silently unnoticed.
+  function updateCancelledOrdersBadge() {
+    const cancelled = orders.filter(o => o.status === 'cancelled');
+    const navBadge = document.getElementById('cancelled-orders-badge');
+    const tabBadge = document.getElementById('closed-orders-cancelled-badge');
+    [navBadge, tabBadge].forEach(badge => {
+      if (!badge) return;
+      if (cancelled.length > 0) { badge.style.display = 'inline-block'; badge.textContent = cancelled.length; }
+      else { badge.style.display = 'none'; }
+    });
+  }
+
   function renderClosedOrders(searchQuery) {
     const list = document.getElementById('closed-orders-list');
     if (!list) return;
@@ -5087,7 +5137,10 @@
     if (searchQuery === undefined && searchInput) searchQuery = searchInput.value;
     if (searchInput && searchQuery !== undefined && searchInput.value !== searchQuery) searchInput.value = searchQuery;
 
+    updateCancelledOrdersBadge();
+
     let closed = orders.filter(o => o.status === 'closed' || o.status === 'cancelled');
+    if (closedOrdersSubTab === 'cancelled') closed = closed.filter(o => o.status === 'cancelled');
     closed = closed.filter(o => isInPeriod(o.timestamp, closedOrdersPeriod));
     const q = (searchQuery || '').trim().toLowerCase();
 
@@ -5109,7 +5162,9 @@
     if (closed.length === 0) {
       list.innerHTML = q
         ? '<div class="orders-empty">No closed orders match "' + searchQuery + '" ' + periodLabel + '.</div>'
-        : '<div class="orders-empty">No closed orders ' + periodLabel + '.</div>';
+        : (closedOrdersSubTab === 'cancelled'
+          ? '<div class="orders-empty">❌ No cancelled orders ' + periodLabel + '.</div>'
+          : '<div class="orders-empty">No closed orders ' + periodLabel + '.</div>');
       return;
     }
     list.innerHTML = closed.map(o => renderOrderCard(o, true)).join('');
@@ -6248,6 +6303,10 @@
     editingOriginalSnapshot = null;
     document.getElementById('modal-title').textContent = '+ Add New Product';
     document.getElementById('edit-id').value = '';
+    const linkImportInput = document.getElementById('link-import-input');
+    const linkImportStatus = document.getElementById('link-import-status');
+    if (linkImportInput) linkImportInput.value = '';
+    if (linkImportStatus) linkImportStatus.style.display = 'none';
     const landingBoxAdd = document.getElementById('landing-link-box');
     if (landingBoxAdd) landingBoxAdd.style.display = 'none';
     document.getElementById('f-name').value = '';
@@ -6330,6 +6389,10 @@
     editingOriginalSnapshot = JSON.parse(JSON.stringify(p));
     document.getElementById('modal-title').textContent = '✏️ Edit Product';
     document.getElementById('edit-id').value = id;
+    const linkImportInputEdit = document.getElementById('link-import-input');
+    const linkImportStatusEdit = document.getElementById('link-import-status');
+    if (linkImportInputEdit) linkImportInputEdit.value = '';
+    if (linkImportStatusEdit) linkImportStatusEdit.style.display = 'none';
     const landingBox = document.getElementById('landing-link-box');
     const landingInput = document.getElementById('landing-link-input');
     if (landingBox && landingInput) {
@@ -8199,6 +8262,71 @@
 
 <script>
   // ── IMAGE ROW ──
+  // Cloudflare Worker URL for the "Import From Product Link" feature — deploy
+  // worker.js to Cloudflare Workers and paste the resulting *.workers.dev URL
+  // (or your own custom route) here.
+  var PRODUCT_PREVIEW_WORKER_URL = 'https://swift-product-preview.YOUR-SUBDOMAIN.workers.dev';
+
+  async function fetchProductPreviewFromLink() {
+    const input = document.getElementById('link-import-input');
+    const statusEl = document.getElementById('link-import-status');
+    const btn = document.getElementById('link-import-btn');
+    const url = input.value.trim();
+    if (!url) { showAppAlert('Paste a product link first.'); return; }
+
+    statusEl.style.display = 'block';
+    statusEl.style.color = '#aaa';
+    statusEl.textContent = '⏳ Fetching product details...';
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
+
+    try {
+      const res = await fetch(PRODUCT_PREVIEW_WORKER_URL + '?url=' + encodeURIComponent(url));
+      const data = await res.json();
+
+      if (data.error) {
+        statusEl.style.color = 'var(--red)';
+        statusEl.textContent = '⚠️ ' + data.error;
+        return;
+      }
+
+      const filled = [];
+      const nameEl = document.getElementById('f-name');
+      const descEl = document.getElementById('f-description');
+
+      // Never overwrite something the admin already typed — this is a fill-in-the-
+      // blanks helper, not an auto-replace.
+      if (data.title && !nameEl.value.trim()) {
+        nameEl.value = data.title;
+        filled.push('name');
+      }
+      if (data.description && !descEl.value.trim()) {
+        descEl.value = data.description;
+        updateDescWordCount(descEl);
+        filled.push('description');
+      }
+      if (data.images && data.images.length) {
+        data.images.slice(0, 10).forEach(imgUrl => addImageRow(imgUrl));
+        filled.push(data.images.length + ' image' + (data.images.length > 1 ? 's' : ''));
+      }
+
+      if (filled.length) {
+        statusEl.style.color = '#4ade80';
+        statusEl.textContent = '✅ Pulled ' + filled.join(', ') + (data.price ? ' — listed price: ' + data.price : '') + '. Please review everything below before saving — automated pulls are sometimes incomplete or need editing for your pricing/SEO.';
+      } else {
+        statusEl.style.color = 'var(--red)';
+        statusEl.textContent = '⚠️ Nothing usable came back from this link — this site may be blocking automated access. Try pasting the details in manually.';
+      }
+    } catch (e) {
+      statusEl.style.color = 'var(--red)';
+      statusEl.textContent = '⚠️ Could not reach the fetch service. Check your connection and try again.';
+      console.error('[link-import] fetchProductPreviewFromLink failed:', e);
+    } finally {
+      btn.disabled = false;
+      btn.style.opacity = '1';
+    }
+  }
+
   function convertDriveLink() {
     const input = document.getElementById('drive-converter-input');
     const resultBox = document.getElementById('converter-result');
