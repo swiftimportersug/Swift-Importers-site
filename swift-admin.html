@@ -4939,7 +4939,7 @@
         ${stale ? `<div style="background:#fdecea; color:var(--red); font-size:0.72rem; font-weight:800; padding:6px 10px; border-radius:6px; margin-bottom:10px; display:flex; align-items:center; gap:6px;">⏰ Still open from ${daysAgoLabel(o.timestamp)} — needs attention</div>` : ''}
         <div class="order-card-hdr">
           <div>
-            <div class="order-card-id">Order #${o.fbDocId ? o.fbDocId.slice(-6).toUpperCase() : 'N/A'}</div>
+            <div class="order-card-id">Order #${o.refCode || (o.fbDocId ? o.fbDocId.slice(-6).toUpperCase() : 'N/A')}</div>
             <div class="order-card-name">${o.customerName || 'Unknown'}</div>
             <div style="margin-top:4px;">${phoneLink}</div>
           </div>
@@ -5083,7 +5083,7 @@
         const itemText = (o.products || (o.cartItems ? o.cartItems.map(i => i.name).join(' ') : '')).toLowerCase();
         const customerName = (o.customerName || '').toLowerCase();
         const phone = (o.phone || '').toLowerCase();
-        const refCode = (o.fbDocId ? o.fbDocId.slice(-6) : '').toLowerCase();
+        const refCode = (o.refCode || (o.fbDocId ? o.fbDocId.slice(-6) : '')).toLowerCase();
         return itemText.includes(q) || customerName.includes(q) || phone.includes(q) || refCode.includes(q);
       });
     }
@@ -5152,7 +5152,7 @@
         const bodaName = (o.delivery && o.delivery.bodaName || '').toLowerCase();
         const bodaPhone = (o.delivery && o.delivery.bodaPhone || '').toLowerCase();
         const recordedBy = (o.recordedBy || '').toLowerCase();
-        const refCode = (o.fbDocId ? o.fbDocId.slice(-6) : '').toLowerCase();
+        const refCode = (o.refCode || (o.fbDocId ? o.fbDocId.slice(-6) : '')).toLowerCase();
         return itemText.includes(q) || customerName.includes(q) || phone.includes(q) || bodaName.includes(q) || bodaPhone.includes(q) || recordedBy.includes(q) || refCode.includes(q);
       });
     }

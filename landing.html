@@ -226,6 +226,10 @@
     <div class="icon">🎉</div>
     <h2>Order Received!</h2>
     <p>Thank you! We've got your order and will call you shortly to confirm delivery details.</p>
+    <div id="success-reference-box" style="display:none; background:#eaf2ff; border:1.5px solid #4a9eff; border-radius:8px; padding:12px 14px; margin:0 auto 20px; max-width:340px; font-size:0.85rem; color:#1a4a8a; text-align:left;">
+      <strong>Your reference code: <span id="success-reference-code" style="letter-spacing:0.5px;"></span></strong><br/>
+      Include this when sending Mobile Money, or share it with us on WhatsApp along with your payment screenshot.
+    </div>
     <a class="wa-btn" id="success-wa-btn" href="https://wa.me/256757675088" target="_blank">💬 Message Us on WhatsApp</a>
   </div>
 
@@ -349,11 +353,26 @@
   }
 
   // Same numbers shown on the main storefront's payment section — kept in one place
-  // so the copy-to-clipboard behavior always matches what's publicly advertised.
+  // so the copy-to-clipboard behavior always matches what's publicly advertised. No
+  // spaces: Mobile Money apps don't accept spaces pasted into the number field.
   var MOBILE_MONEY_NUMBERS = {
-    mtn: '0767 853 353',
-    airtel: '0746 811 272'
+    mtn: '0767853353',
+    airtel: '0746811272'
   };
+
+  // Reference code — generated the moment the customer picks a payment method,
+  // before the order exists in Firestore, since that's when they need it. Saved
+  // onto the order at submission so the same code is used start to finish.
+  var REF_CODE_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // no 0/O/1/I — easy to read aloud
+  var currentCheckoutRefCode = null;
+  function ensureCheckoutRefCode() {
+    if (!currentCheckoutRefCode) {
+      var code = '';
+      for (var i = 0; i < 6; i++) code += REF_CODE_CHARS[Math.floor(Math.random() * REF_CODE_CHARS.length)];
+      currentCheckoutRefCode = code;
+    }
+    return currentCheckoutRefCode;
+  }
 
   // "To Be Shipped" items can't be paid Cash on Delivery, since there's no delivery
   // happening at order time — only Mobile Money now, or cash in person at the store.
@@ -384,10 +403,18 @@
                : val === 'Airtel Money' ? MOBILE_MONEY_NUMBERS.airtel
                : null;
     if (number) {
+      var code = ensureCheckoutRefCode();
+      // Airtel Money's app no longer accepts a free-text reason when sending money —
+      // only preset categories (Family, Business, etc.) — so the code can't go there.
+      // MTN's app has historically allowed an optional note, but that can change, so
+      // this offers it without promising it, with WhatsApp as the reliable fallback.
+      var reasonNote = (val === 'Airtel Money')
+        ? 'Airtel Money doesn\'t allow custom payment reasons, so after sending, please WhatsApp us this code with your payment screenshot: ' + code
+        : 'If your app lets you add a reference/reason, enter ' + code + '. Otherwise, WhatsApp us this code with your payment screenshot: ' + code;
       navigator.clipboard.writeText(number).then(function(){
-        if (hint) { hint.style.display = 'block'; hint.textContent = '✓ ' + number + ' copied — paste it in your ' + val + ' app.'; }
+        if (hint) { hint.style.display = 'block'; hint.textContent = '✓ ' + number + ' copied — paste it in your ' + val + ' app. ' + reasonNote; }
       }).catch(function(){
-        if (hint) { hint.style.display = 'block'; hint.textContent = 'Send payment to: ' + number; }
+        if (hint) { hint.style.display = 'block'; hint.textContent = 'Send payment to: ' + number + '. ' + reasonNote; }
       });
     } else if (hint) {
       hint.style.display = 'none';
@@ -606,6 +633,9 @@
       amountDueNow: amountDueNowVal,
       balanceDueOnDelivery: balanceDueOnDeliveryVal,
       importStage: isShippedProduct ? 'ordered' : null,
+      // Same code shown to the customer at payment-method selection (if this order
+      // needed one) — generated client-side before submission for consistency.
+      refCode: currentCheckoutRefCode,
       status: 'pending',
       timestamp: new Date().toISOString(),
       // What makes this different from a normal storefront order — lets you see in the
@@ -621,6 +651,14 @@
     window.fbFns.addDoc(window.fbFns.collection(window.fbDb, 'orders'), order).then(function(){
       document.getElementById('product-content').style.display = 'none';
       document.getElementById('success-state').style.display = 'block';
+      var requiresGate = isShippedProduct || (order.paymentMethod && order.paymentMethod !== 'Cash on Delivery');
+      var refBox = document.getElementById('success-reference-box');
+      var refCode = document.getElementById('success-reference-code');
+      if (requiresGate && refBox && refCode && order.refCode) {
+        refCode.textContent = order.refCode;
+        refBox.style.display = 'block';
+      }
+      currentCheckoutRefCode = null;
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }).catch(function(e){
       console.error(e);

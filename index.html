@@ -3920,11 +3920,29 @@
 
   // Same numbers already shown in the "We accept your payment" section on the
   // homepage — kept in one place here so the copy-to-clipboard behavior always
-  // matches what's publicly advertised.
+  // matches what's publicly advertised. No spaces: Mobile Money apps don't accept
+  // spaces when pasted into the phone number field, so leaving them in just means
+  // the customer has to manually delete them before sending.
   var MOBILE_MONEY_NUMBERS = {
-    mtn: '0767 853 353',
-    airtel: '0746 811 272'
+    mtn: '0767853353',
+    airtel: '0746811272'
   };
+
+  // Reference code — generated the moment the customer picks a payment method,
+  // BEFORE the order even exists in Firestore, since that's when they need it (to
+  // paste/quote while sending Mobile Money). The same code is then saved onto the
+  // order at submission, so one consistent code exists start to finish rather than
+  // a different one appearing after the fact.
+  var REF_CODE_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // no 0/O/1/I — easy to read aloud
+  var currentCheckoutRefCode = null;
+  function ensureCheckoutRefCode() {
+    if (!currentCheckoutRefCode) {
+      var code = '';
+      for (var i = 0; i < 6; i++) code += REF_CODE_CHARS[Math.floor(Math.random() * REF_CODE_CHARS.length)];
+      currentCheckoutRefCode = code;
+    }
+    return currentCheckoutRefCode;
+  }
 
   // "To Be Shipped" items can't be paid Cash on Delivery, since there's no delivery
   // happening at order time — only Mobile Money now, or cash in person at the store.
@@ -3960,11 +3978,20 @@
                : val === 'Airtel Money' ? MOBILE_MONEY_NUMBERS.airtel
                : null;
     if (number) {
+      var code = ensureCheckoutRefCode();
+      // Airtel Money's app no longer accepts a free-text reason when sending money —
+      // customers only get to pick from preset categories (Family, Business, etc.),
+      // so the code can't be entered there at all. MTN's app has historically allowed
+      // an optional note, but that can change — so this doesn't promise it either way,
+      // it just offers it as an option and gives WhatsApp as the reliable fallback.
+      var reasonNote = (val === 'Airtel Money')
+        ? 'Airtel Money doesn\'t allow custom payment reasons, so after sending, please WhatsApp us this code with your payment screenshot: ' + code
+        : 'If your app lets you add a reference/reason, enter ' + code + '. Otherwise, WhatsApp us this code with your payment screenshot: ' + code;
       navigator.clipboard.writeText(number).then(function(){
-        if (hint) { hint.style.display = 'block'; hint.textContent = '✓ ' + number + ' copied — paste it in your ' + val + ' app.'; }
+        if (hint) { hint.style.display = 'block'; hint.textContent = '✓ ' + number + ' copied — paste it in your ' + val + ' app. ' + reasonNote; }
         showToastMessage('📋 ' + number + ' copied to clipboard', '#2a9d50');
       }).catch(function(){
-        if (hint) { hint.style.display = 'block'; hint.textContent = 'Send payment to: ' + number; }
+        if (hint) { hint.style.display = 'block'; hint.textContent = 'Send payment to: ' + number + '. ' + reasonNote; }
       });
     } else if (hint) {
       hint.style.display = 'none';
@@ -4449,6 +4476,7 @@
     if (addPrompt) addPrompt.style.display = 'block';
     if (hiddenField) hiddenField.value = '';
     lastPaymentOptionsWereShippedMode = null;
+    currentCheckoutRefCode = null;
     hideBackToCheckoutFab();
   }
 
@@ -5059,7 +5087,7 @@
   // this is what lets us match a Mobile Money payment or WhatsApp screenshot back to
   // the right order among hundreds coming in per day.
   function buildOrderReferenceAndCancelHtml(o) {
-    var code = o.fbDocId ? o.fbDocId.slice(-6).toUpperCase() : null;
+    var code = o.refCode || (o.fbDocId ? o.fbDocId.slice(-6).toUpperCase() : null);
     var html = '';
     if (code && requiresPaymentGateCustomer(o) && o.status === 'pending') {
       html += '<div style="background:rgba(255,255,255,0.08); border-radius:8px; padding:8px 10px; font-size:0.76rem; color:rgba(255,255,255,0.85); margin-top:8px; line-height:1.5;">' +
@@ -6375,6 +6403,10 @@
         // Import journey stage — set the moment the order is placed so it appears in
         // admin's "To Ship" section immediately, no admin action needed.
         importStage: hasShippedItemsVal ? 'ordered' : null,
+        // Same code shown to the customer at payment-method selection (if this order
+        // needed one) — generated client-side before submission so it's consistent
+        // start to finish, not a different code invented after the fact.
+        refCode: currentCheckoutRefCode,
         status: 'pending', timestamp: new Date().toISOString()
       };
       window.fbFns.addDoc(window.fbFns.collection(window.fbDb,'orders'), order).then(function(docRef){
@@ -6382,8 +6414,8 @@
         var requiresGate = hasShippedItemsVal || (paymentVal && paymentVal !== 'Cash on Delivery');
         var refBox = document.getElementById('success-reference-box');
         var refCode = document.getElementById('success-reference-code');
-        if (requiresGate && refBox && refCode && docRef && docRef.id) {
-          var code = docRef.id.slice(-6).toUpperCase();
+        if (requiresGate && refBox && refCode) {
+          var code = order.refCode || (docRef && docRef.id ? docRef.id.slice(-6).toUpperCase() : '');
           refCode.textContent = code;
           refBox.style.display = 'block';
           // The modal itself can be dismissed or interrupted (mobile back-gesture,
@@ -6391,6 +6423,7 @@
           // deliberately independent of that, so the code stays visible regardless.
           showReferenceCodeBanner(code);
         }
+        currentCheckoutRefCode = null; // next order (if any) gets its own fresh code
       }).catch(function(e){console.error(e);});
     }
     var successRefBoxReset = document.getElementById('success-reference-box');
