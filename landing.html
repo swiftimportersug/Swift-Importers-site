@@ -409,6 +409,20 @@
     return currentCheckoutRefCode;
   }
 
+  // Fires a background alert to the owner's phone (via Telegram) the instant an
+  // order is placed. Fire-and-forget: a failure here must never block or
+  // interrupt checkout, since the order itself already saved fine.
+  var ORDER_ALERT_WORKER_URL = 'https://swift-order-alert.swiftimportersug.workers.dev';
+  var ORDER_ALERT_SHARED_KEY = 'swift_importers-is_thebest_thing!_successful$$$';
+  function notifyNewOrderViaTelegram(details) {
+    if (!ORDER_ALERT_WORKER_URL || ORDER_ALERT_WORKER_URL.indexOf('YOUR-SUBDOMAIN') > -1) return;
+    fetch(ORDER_ALERT_WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Notify-Key': ORDER_ALERT_SHARED_KEY },
+      body: JSON.stringify(details)
+    }).catch(function(e){ console.error('[notify] Telegram order alert failed:', e); });
+  }
+
   // "To Be Shipped" items can't be paid Cash on Delivery, since there's no delivery
   // happening at order time — only Mobile Money now, or cash in person at the store.
   function updatePaymentOptionsForCheckout(hasShippedItems) {
@@ -688,6 +702,13 @@
     window.fbFns.addDoc(window.fbFns.collection(window.fbDb, 'orders'), order).then(function(){
       document.getElementById('product-content').style.display = 'none';
       document.getElementById('success-state').style.display = 'block';
+      notifyNewOrderViaTelegram({
+        customerName: order.customerName,
+        itemsSummary: order.products,
+        total: fmtPrice(order.orderTotal || order.subtotal || 0),
+        refCode: order.refCode || null,
+        source: 'Landing Page' + (order.campaign ? ' (' + order.campaign + ')' : '')
+      });
       var requiresGate = isShippedProduct || (order.paymentMethod && order.paymentMethod !== 'Cash on Delivery');
       var refBox = document.getElementById('success-reference-box');
       var refCode = document.getElementById('success-reference-code');

@@ -5051,6 +5051,21 @@
     } catch(e) {}
   }
 
+  // Fires a background alert to the owner's phone (via Telegram) the instant an
+  // order is placed — see order-alert-worker.js for the Cloudflare Worker this
+  // calls. Deliberately fire-and-forget: a failure here must NEVER block or
+  // interrupt the actual checkout, since the order itself already saved fine.
+  var ORDER_ALERT_WORKER_URL = 'https://swift-order-alert.swiftimportersug.workers.dev';
+  var ORDER_ALERT_SHARED_KEY = 'swift_importers-is_thebest_thing!_successful$$$';
+  function notifyNewOrderViaTelegram(details) {
+    if (!ORDER_ALERT_WORKER_URL || ORDER_ALERT_WORKER_URL.indexOf('YOUR-SUBDOMAIN') > -1) return;
+    fetch(ORDER_ALERT_WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Notify-Key': ORDER_ALERT_SHARED_KEY },
+      body: JSON.stringify(details)
+    }).catch(function(e){ console.error('[notify] Telegram order alert failed:', e); });
+  }
+
   function requiresPaymentGateCustomer(o) {
     return !!(o && (o.hasShippedItems || (o.paymentMethod && o.paymentMethod !== 'Cash on Delivery')));
   }
@@ -6411,6 +6426,13 @@
       };
       window.fbFns.addDoc(window.fbFns.collection(window.fbDb,'orders'), order).then(function(docRef){
         if (currentAccount) updateAccountAfterOrder(totalsVal.finalTotal);
+        notifyNewOrderViaTelegram({
+          customerName: order.customerName,
+          itemsSummary: order.products || (order.cartItems ? order.cartItems.map(function(i){ return i.name + ' x' + i.qty; }).join(', ') : ''),
+          total: fmtPrice(order.orderTotal || order.subtotal || 0),
+          refCode: order.refCode || null,
+          source: 'Website'
+        });
         var requiresGate = hasShippedItemsVal || (paymentVal && paymentVal !== 'Cash on Delivery');
         var refBox = document.getElementById('success-reference-box');
         var refCode = document.getElementById('success-reference-code');
