@@ -2892,13 +2892,6 @@
     navigator.serviceWorker.register('sw.js').then(reg => { swRegistrationAdmin = reg; }).catch(() => {});
   }
 
-  function requestNotificationPermissionAdmin() {
-    if (!('Notification' in window)) return;
-    if (Notification.permission === 'default') {
-      Notification.requestPermission().catch(() => {});
-    }
-  }
-
   function showAdminBrowserNotification(latestMsg) {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     const title = 'New customer message' + (latestMsg && latestMsg.customerName ? ' — ' + latestMsg.customerName : '');
@@ -2922,7 +2915,14 @@
     const { collection, onSnapshot } = window.fbFns;
     if (unsubscribeMessages) unsubscribeMessages();
     messagesFirstSnapshotSeenAdmin = false;
-    requestNotificationPermissionAdmin();
+    // NOTE: no automatic Notification.requestPermission() call here anymore —
+    // that's now centralized to the one real button click (requestNotificationPermission,
+    // tied to the Alerts toggle). This function used to request permission
+    // automatically on every login with zero user gesture, which is a documented
+    // pattern Chrome's Safe Browsing flags as "abusive," quarantining real
+    // notifications behind a "Possible spam" warning. showAdminBrowserNotification
+    // already checks Notification.permission itself before showing anything, so
+    // nothing else needs to change here.
     unsubscribeMessages = onSnapshot(collection(window.fbDb, 'messages'), (snapshot) => {
       allMessages = snapshot.docs.map(d => ({ fbDocId: d.id, ...d.data() }));
       allMessages.sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
@@ -3411,7 +3411,7 @@
   function toggleNotifications() {
     const btn = document.getElementById('notif-btn');
     if (!notificationsEnabled) {
-      initNotifications();
+      requestNotificationPermission(); // the ONE place allowed to prompt — tied to this real click
       // Play a test sound so user knows it's working
       setTimeout(() => {
         playOrderSound();
@@ -4631,15 +4631,26 @@
   let notificationsEnabled = true; // ON by default
 
   function initNotifications() {
+    // Only ever silently sets things up if permission was ALREADY decided on a
+    // previous visit — never calls Notification.requestPermission() itself.
+    // Auto-requesting permission with no user gesture first is a documented
+    // pattern Chrome's Safe Browsing flags as "abusive," which quarantines
+    // real notifications behind a generic "Possible spam" warning instead of
+    // showing their actual content — exactly what happened before this fix.
     if ('Notification' in window && Notification.permission === 'granted') {
       notificationsEnabled = true;
       registerServiceWorker();
-    } else if ('Notification' in window && Notification.permission !== 'denied') {
-      Notification.requestPermission().then(p => {
-        notificationsEnabled = p === 'granted';
-        if (notificationsEnabled) registerServiceWorker();
-      });
     }
+  }
+
+  function requestNotificationPermission() {
+    // This is the ONLY place that ever calls Notification.requestPermission() —
+    // always tied to an explicit button click (see toggleNotifications below).
+    if (!('Notification' in window) || Notification.permission === 'denied') return;
+    Notification.requestPermission().then(p => {
+      notificationsEnabled = p === 'granted';
+      if (notificationsEnabled) registerServiceWorker();
+    });
   }
 
   // ── FIREBASE CLOUD MESSAGING — Phase 2 background push notifications ──

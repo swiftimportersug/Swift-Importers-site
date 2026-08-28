@@ -1900,7 +1900,7 @@
   function toggleNotifications() {
     const btn = document.getElementById('notif-btn');
     if (!notificationsEnabled) {
-      initNotifications();
+      requestNotificationPermission(); // the ONE place allowed to prompt — tied to this real click
       // Play a test sound so user knows it's working
       setTimeout(() => {
         playOrderSound();
@@ -2917,15 +2917,26 @@
   let notificationsEnabled = true; // ON by default
 
   function initNotifications() {
+    // Only ever silently sets things up if permission was ALREADY decided on a
+    // previous visit — never calls Notification.requestPermission() itself.
+    // Auto-requesting permission with no user gesture first is a documented
+    // pattern Chrome's Safe Browsing flags as "abusive," which quarantines
+    // real notifications behind a generic "Possible spam" warning instead of
+    // showing their actual content.
     if ('Notification' in window && Notification.permission === 'granted') {
       notificationsEnabled = true;
       registerServiceWorker();
-    } else if ('Notification' in window && Notification.permission !== 'denied') {
-      Notification.requestPermission().then(p => {
-        notificationsEnabled = p === 'granted';
-        if (notificationsEnabled) registerServiceWorker();
-      });
     }
+  }
+
+  function requestNotificationPermission() {
+    // This is the ONLY place that ever calls Notification.requestPermission() —
+    // always tied to an explicit button click.
+    if (!('Notification' in window) || Notification.permission === 'denied') return;
+    Notification.requestPermission().then(p => {
+      notificationsEnabled = p === 'granted';
+      if (notificationsEnabled) registerServiceWorker();
+    });
   }
 
   // ── FIREBASE CLOUD MESSAGING — Phase 2 background push notifications ──
