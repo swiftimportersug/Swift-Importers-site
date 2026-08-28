@@ -11,6 +11,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getFirestore, collection, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, deleteDoc, query, orderBy, addDoc, where, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDqOE4NDmp3xJrTf71MzlClTZ201Uhyk0Q",
@@ -24,12 +25,15 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
+    const messaging = getMessaging(app);
 
     // Expose to global scope
     window.fbDb = db;
     window.fbAuth = auth;
     window.fbFns = { collection, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, deleteDoc, query, orderBy, addDoc, where, arrayUnion };
     window.fbAuthFns = { signInWithEmailAndPassword, signOut, onAuthStateChanged };
+    window.fbMessaging = messaging;
+    window.fbMessagingFns = { getToken };
     window.firebaseReady = true;
     window.dispatchEvent(new Event('firebaseReady'));
 
@@ -4638,13 +4642,46 @@
     }
   }
 
+  // ── FIREBASE CLOUD MESSAGING — Phase 2 background push notifications ──
+  // Replaces the old registerServiceWorker()/sw-swift.js pair, which was dead
+  // Netlify-era leftover code that had been silently registering a SECOND,
+  // conflicting service worker at the same scope as sw.js and never actually
+  // did anything useful (no VAPID key, no token, no real FCM wiring). Everything
+  // now goes through the single sw.js already registered elsewhere in this file.
+  //
+  // SETUP NEEDED: paste your VAPID public key below (Firebase Console → Project
+  // Settings → Cloud Messaging tab → Web Push certificates → Generate key pair).
+  var FCM_VAPID_KEY = 'PASTE_YOUR_VAPID_PUBLIC_KEY_HERE';
+
   function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
-    // Only works on HTTPS (Netlify) — silently skips on local file
-    if (location.protocol !== 'https:' && location.hostname !== 'localhost') return;
-    navigator.serviceWorker.register('/sw-swift.js').then(reg => {
-      console.log('Swift SW registered:', reg.scope);
-    }).catch(e => console.log('SW registration skipped:', e));
+    if (!FCM_VAPID_KEY || FCM_VAPID_KEY.indexOf('PASTE_YOUR') > -1) {
+      console.log('[FCM] Skipped — VAPID key not configured yet.');
+      return;
+    }
+    navigator.serviceWorker.ready.then(function(registration) {
+      window.fbMessagingFns.getToken(window.fbMessaging, {
+        vapidKey: FCM_VAPID_KEY,
+        serviceWorkerRegistration: registration
+      }).then(function(token) {
+        if (!token) { console.log('[FCM] No token — permission may not be granted yet.'); return; }
+        saveFcmToken(token);
+      }).catch(function(e) { console.log('[FCM] getToken failed:', e); });
+    });
+  }
+
+  function saveFcmToken(token) {
+    if (!window.fbDb || !window.fbFns) return;
+    var { doc, setDoc } = window.fbFns;
+    // Token itself is the document ID — re-registering the same device just
+    // overwrites its own doc, so there's never duplicate entries to clean up.
+    setDoc(doc(window.fbDb, 'fcm_tokens', token), {
+      role: 'admin',
+      updatedAt: new Date().toISOString(),
+      userAgent: navigator.userAgent
+    }).then(function(){
+      console.log('[FCM] Token saved.');
+    }).catch(function(e){ console.log('[FCM] Failed to save token:', e); });
   }
 
   let soundTimeout = null;

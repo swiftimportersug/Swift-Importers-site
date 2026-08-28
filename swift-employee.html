@@ -11,6 +11,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getFirestore, collection, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, deleteDoc, query, orderBy, addDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDqOE4NDmp3xJrTf71MzlClTZ201Uhyk0Q",
@@ -33,6 +34,7 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
+    const messaging = getMessaging(app);
 
     // Secondary, isolated auth instance used ONLY to verify the owner's password
     // (e.g. before editing/adding a product) without disturbing the employee session.
@@ -44,6 +46,8 @@
     window.fbAuth = auth;
     window.fbFns = { collection, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, deleteDoc, query, orderBy, addDoc, arrayUnion };
     window.fbAuthFns = { signInWithEmailAndPassword, signOut, onAuthStateChanged };
+    window.fbMessaging = messaging;
+    window.fbMessagingFns = { getToken };
     window.EMPLOYEE_EMAIL = EMPLOYEE_EMAIL;
     window.EMPLOYEE_PASSWORD = EMPLOYEE_PASSWORD;
     window.MASTER_ADMIN_EMAIL = MASTER_ADMIN_EMAIL;
@@ -2924,13 +2928,42 @@
     }
   }
 
+  // ── FIREBASE CLOUD MESSAGING — Phase 2 background push notifications ──
+  // Replaces the old registerServiceWorker()/sw-swift.js pair, which was dead
+  // Netlify-era leftover code that had been silently registering a SECOND,
+  // conflicting service worker at the same scope as sw.js and never actually
+  // did anything useful. Everything now goes through the single sw.js already
+  // registered elsewhere in this file. Same VAPID key as swift-admin.html —
+  // keep both in sync.
+  var FCM_VAPID_KEY = 'PASTE_YOUR_VAPID_PUBLIC_KEY_HERE';
+
   function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
-    // Only works on HTTPS (Netlify) — silently skips on local file
-    if (location.protocol !== 'https:' && location.hostname !== 'localhost') return;
-    navigator.serviceWorker.register('/sw-swift.js').then(reg => {
-      console.log('Swift SW registered:', reg.scope);
-    }).catch(e => console.log('SW registration skipped:', e));
+    if (!FCM_VAPID_KEY || FCM_VAPID_KEY.indexOf('PASTE_YOUR') > -1) {
+      console.log('[FCM] Skipped — VAPID key not configured yet.');
+      return;
+    }
+    navigator.serviceWorker.ready.then(function(registration) {
+      window.fbMessagingFns.getToken(window.fbMessaging, {
+        vapidKey: FCM_VAPID_KEY,
+        serviceWorkerRegistration: registration
+      }).then(function(token) {
+        if (!token) { console.log('[FCM] No token — permission may not be granted yet.'); return; }
+        saveFcmToken(token);
+      }).catch(function(e) { console.log('[FCM] getToken failed:', e); });
+    });
+  }
+
+  function saveFcmToken(token) {
+    if (!window.fbDb || !window.fbFns) return;
+    var { doc, setDoc } = window.fbFns;
+    setDoc(doc(window.fbDb, 'fcm_tokens', token), {
+      role: 'employee',
+      updatedAt: new Date().toISOString(),
+      userAgent: navigator.userAgent
+    }).then(function(){
+      console.log('[FCM] Token saved.');
+    }).catch(function(e){ console.log('[FCM] Failed to save token:', e); });
   }
 
   let soundTimeout = null;
