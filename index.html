@@ -6430,6 +6430,24 @@
 
   // ORDER
   function submitOrder() {
+    // Reset from any PREVIOUS order's success state before processing this new
+    // submission — this must happen here, at the very start, not right after
+    // kicking off addDoc() below. Putting it there was a race condition: since
+    // addDoc().then() only resolves once the real network write finishes, a
+    // reset placed immediately after starting that call would run synchronously
+    // and always execute BEFORE the callback's "show the button" line — on a
+    // slow connection, this could look like the button "never" appearing, since
+    // by the time it actually became visible the reset code had already run
+    // once already for that render pass. Doing the reset up front, before any
+    // of this submission's own async work starts, avoids that ordering issue
+    // entirely.
+    var successNotifyBtnReset = document.getElementById('success-notify-btn');
+    if (successNotifyBtnReset) successNotifyBtnReset.style.display = 'none';
+    var successNotifyStatusReset = document.getElementById('success-notify-status');
+    if (successNotifyStatusReset) successNotifyStatusReset.style.display = 'none';
+    var successRefBoxReset = document.getElementById('success-reference-box');
+    if (successRefBoxReset) successRefBoxReset.style.display = 'none';
+
     var nameVal = document.getElementById('order-name') && document.getElementById('order-name').value.trim();
     var phoneVal = document.getElementById('order-phone') && document.getElementById('order-phone').value.trim();
     var areaVal = document.getElementById('order-area') && document.getElementById('order-area').value;
@@ -6519,12 +6537,6 @@
         currentCheckoutRefCode = null; // next order (if any) gets its own fresh code
       }).catch(function(e){console.error(e);});
     }
-    var successRefBoxReset = document.getElementById('success-reference-box');
-    if (successRefBoxReset) successRefBoxReset.style.display = 'none';
-    var successNotifyBtnReset = document.getElementById('success-notify-btn');
-    if (successNotifyBtnReset) successNotifyBtnReset.style.display = 'none';
-    var successNotifyStatusReset = document.getElementById('success-notify-status');
-    if (successNotifyStatusReset) successNotifyStatusReset.style.display = 'none';
     // A successful Buy Now only clears the temporary buy-now items — the customer's
     // real persistent cart (if they had one going before Buy Now) is left untouched.
     if (isBuyNowCheckout) { exitBuyNowMode(); } else { cart = []; updateCartCount(); }
