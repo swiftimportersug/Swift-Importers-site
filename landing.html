@@ -265,6 +265,10 @@
       <strong>Your reference code: <span id="success-reference-code" style="letter-spacing:0.5px;"></span></strong><br/>
       Include this when sending Mobile Money, or share it with us on WhatsApp along with your payment screenshot.
     </div>
+    <button id="success-notify-btn" onclick="enableCustomerOrderNotifications()" style="display:none; width:100%; max-width:340px; margin:0 auto 12px; background:#fff3d6; border:1.5px solid var(--gold); color:var(--gold-dark); padding:11px; border-radius:8px; font-weight:700; font-size:0.85rem; cursor:pointer; font-family:'Inter',sans-serif;">
+      🔔 Get notified about your order
+    </button>
+    <div id="success-notify-status" style="display:none; margin:0 auto 12px; max-width:340px; font-size:0.8rem; color:#2a9d50; font-weight:700;"></div>
     <a class="wa-btn" id="success-wa-btn" href="https://wa.me/256757675088" target="_blank">💬 Message Us on WhatsApp</a>
   </div>
 
@@ -277,7 +281,8 @@
 <!-- Firebase -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, doc, getDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, collection, addDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
   const firebaseConfig = {
     apiKey: "AIzaSyDqOE4NDmp3xJrTf71MzlClTZ201Uhyk0Q",
     authDomain: "swift-importers.firebaseapp.com",
@@ -288,8 +293,11 @@
   };
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
+  const messaging = getMessaging(app);
   window.fbDb = db;
-  window.fbFns = { doc, getDoc, collection, addDoc };
+  window.fbFns = { doc, getDoc, collection, addDoc, updateDoc };
+  window.fbMessaging = messaging;
+  window.fbMessagingFns = { getToken };
   window.firebaseReady = true;
   window.dispatchEvent(new Event('firebaseReady'));
 </script>
@@ -421,6 +429,59 @@
       headers: { 'Content-Type': 'application/json', 'X-Notify-Key': ORDER_ALERT_SHARED_KEY },
       body: JSON.stringify(details)
     }).catch(function(e){ console.error('[notify] Telegram order alert failed:', e); });
+  }
+
+  // ── CUSTOMER-FACING ORDER STATUS PUSH NOTIFICATIONS ──
+  // Same VAPID key, same service worker (sw.js), same underlying FCM pipeline
+  // already used elsewhere on the site — stores the token directly on this
+  // guest order, since landing-page checkout never has an account attached.
+  var CUSTOMER_FCM_VAPID_KEY = 'BNPy5lLDqD2KDLMBO_sj6gxGmw4d6ExBWvYXRMoyQq2AHm18B3gpJZjrUCl3YamhAjet2texjlepisPifUhg6ww';
+  var lastPlacedOrderDocId = null;
+
+  function enableCustomerOrderNotifications() {
+    var statusEl = document.getElementById('success-notify-status');
+    var btnEl = document.getElementById('success-notify-btn');
+    function showStatus(text, isError) {
+      if (!statusEl) return;
+      statusEl.textContent = text;
+      statusEl.style.color = isError ? '#c0392b' : '#2a9d50';
+      statusEl.style.display = 'block';
+    }
+    if (!lastPlacedOrderDocId) return;
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+      showStatus('Notifications aren\'t supported on this browser.', true);
+      return;
+    }
+    // This is the one real button click allowed to trigger the permission
+    // prompt — never automatic. An unrequested prompt is a documented pattern
+    // Chrome's Safe Browsing flags as "abusive," which can get real
+    // notifications quarantined behind a spam warning instead of shown normally.
+    Notification.requestPermission().then(function(permission) {
+      if (permission !== 'granted') {
+        showStatus('Notifications not enabled.', true);
+        return;
+      }
+      navigator.serviceWorker.ready.then(function(registration) {
+        window.fbMessagingFns.getToken(window.fbMessaging, {
+          vapidKey: CUSTOMER_FCM_VAPID_KEY,
+          serviceWorkerRegistration: registration
+        }).then(function(token) {
+          if (!token) { showStatus('Could not enable notifications right now.', true); return; }
+          window.fbFns.updateDoc(window.fbFns.doc(window.fbDb, 'orders', lastPlacedOrderDocId), {
+            customerFcmToken: token
+          }).then(function(){
+            showStatus('✅ You\'ll be notified as your order updates!', false);
+            if (btnEl) btnEl.style.display = 'none';
+          }).catch(function(e){
+            console.error('[notify] Failed to save customer FCM token:', e);
+            showStatus('Could not enable notifications right now.', true);
+          });
+        }).catch(function(e){
+          console.error('[notify] getToken failed:', e);
+          showStatus('Could not enable notifications right now.', true);
+        });
+      });
+    });
   }
 
   // "To Be Shipped" items can't be paid Cash on Delivery, since there's no delivery
@@ -699,7 +760,7 @@
     var btn = document.getElementById('submit-btn');
     btn.disabled = true; btn.textContent = 'Placing order...';
 
-    window.fbFns.addDoc(window.fbFns.collection(window.fbDb, 'orders'), order).then(function(){
+    window.fbFns.addDoc(window.fbFns.collection(window.fbDb, 'orders'), order).then(function(docRef){
       document.getElementById('product-content').style.display = 'none';
       document.getElementById('success-state').style.display = 'block';
       notifyNewOrderViaTelegram({
@@ -716,6 +777,9 @@
         refCode.textContent = order.refCode;
         refBox.style.display = 'block';
       }
+      lastPlacedOrderDocId = docRef && docRef.id ? docRef.id : null;
+      var notifyBtn = document.getElementById('success-notify-btn');
+      if (notifyBtn && lastPlacedOrderDocId) notifyBtn.style.display = 'block';
       currentCheckoutRefCode = null;
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }).catch(function(e){

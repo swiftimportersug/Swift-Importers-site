@@ -3180,6 +3180,22 @@
     return 'Standard';
   }
 
+  // ── CUSTOMER-FACING ORDER STATUS PUSH NOTIFICATIONS ──
+  // Reuses the SAME Worker as the Telegram/admin-FCM alert, just with a
+  // different request shape: a single targetToken means "send directly to
+  // this one device," skipping Telegram and the fcm_tokens broadcast lookup
+  // entirely — see order-alert-worker.js.
+  var CUSTOMER_NOTIFY_WORKER_URL = 'https://swift-order-alert.swiftimportersug.workers.dev';
+  var CUSTOMER_NOTIFY_SHARED_KEY = 'swiftorders2026alertkey93x7';
+  function notifyCustomerOrderUpdate(order, title, body) {
+    if (!order || !order.customerFcmToken) return; // customer never opted in — nothing to send
+    fetch(CUSTOMER_NOTIFY_WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Notify-Key': CUSTOMER_NOTIFY_SHARED_KEY },
+      body: JSON.stringify({ targetToken: order.customerFcmToken, title: title, body: body, url: '/index.html' })
+    }).catch(function(e){ console.error('[notify] customer push failed:', e); });
+  }
+
   function requiresPaymentGate(o) {
     return !!(o.hasShippedItems || (o.paymentMethod && o.paymentMethod !== 'Cash on Delivery'));
   }
@@ -3590,6 +3606,18 @@
       const { doc, updateDoc } = window.fbFns;
       await updateDoc(doc(window.fbDb, 'orders', docId), { deliveryStage: stage });
       showSuccessToast('✅ Updated — the customer will see this live.');
+
+      const o = orders.find(x => x.fbDocId === docId);
+      if (o) {
+        const driverLabel = (o.delivery && o.delivery.type === 'boda') ? 'boda rider' : 'driver';
+        const stageMessages = {
+          handed: { title: '📦 On Its Way', body: 'Your order has been handed to the ' + driverLabel + ' for delivery.' },
+          on_the_way: { title: '🚚 Almost There', body: 'Your order is on the way!' },
+          delivered: { title: '🎉 Delivered!', body: 'Your order has been delivered. Thank you for shopping with Swift Importers!' }
+        };
+        const msg = stageMessages[stage];
+        if (msg) notifyCustomerOrderUpdate(o, msg.title, msg.body);
+      }
     } catch(e) {
       showAppAlert('Error updating delivery stage. Check your connection.');
       console.error('[order] updateDeliveryStage failed:', e);
@@ -3680,6 +3708,19 @@
       }
 
       await updateDoc(orderRef, updates);
+
+      // The very first "your order is confirmed" moment — covers BOTH the
+      // plain Cash-on-Delivery confirm AND the payment-gate confirm (both
+      // paths call this same function), so this single hook catches every
+      // route to "confirmed" without duplicating logic per payment type.
+      if (order && order.status === 'pending' && newStatus === 'confirmed') {
+        var wasGated = order.hasShippedItems || (order.paymentMethod && order.paymentMethod !== 'Cash on Delivery');
+        var confirmTitle = wasGated ? '💰 Payment Confirmed' : '✅ Order Confirmed';
+        var confirmBody = wasGated
+          ? 'Your payment has been received — your order is now being processed!'
+          : 'Your order has been confirmed — we\'re preparing it now!';
+        notifyCustomerOrderUpdate(order, confirmTitle, confirmBody);
+      }
     } catch(e) { showAppAlert('Error updating order. Check your connection.'); console.error('[order] updateOrderStatus failed:', e); }
   }
 

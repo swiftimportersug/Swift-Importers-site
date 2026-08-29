@@ -1039,6 +1039,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getFirestore, collection, doc, getDoc, updateDoc, addDoc, onSnapshot, getDocs, increment, query, where, arrayUnion, arrayRemove, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
     const firebaseConfig = {
       apiKey: "AIzaSyDqOE4NDmp3xJrTf71MzlClTZ201Uhyk0Q",
       authDomain: "swift-importers.firebaseapp.com",
@@ -1049,8 +1050,11 @@
     };
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    const messaging = getMessaging(app);
     window.fbDb = db;
     window.fbFns = { collection, doc, getDoc, updateDoc, addDoc, onSnapshot, getDocs, increment, query, where, arrayUnion, arrayRemove, orderBy };
+    window.fbMessaging = messaging;
+    window.fbMessagingFns = { getToken };
     window.firebaseReady = true;
     window.dispatchEvent(new Event('firebaseReady'));
   </script>
@@ -2022,6 +2026,10 @@
       <strong>Your reference code: <span id="success-reference-code" style="letter-spacing:0.5px;"></span></strong><br/>
       Include this when sending Mobile Money, or share it with us on WhatsApp along with your payment screenshot — it's how we match your payment to your order quickly.
     </div>
+    <button id="success-notify-btn" onclick="enableCustomerOrderNotifications()" style="display:none; width:100%; margin-top:14px; background:#fff3d6; border:1.5px solid var(--gold); color:var(--gold-dark); padding:11px; border-radius:8px; font-weight:700; font-size:0.85rem; cursor:pointer; font-family:'Inter',sans-serif;">
+      🔔 Get notified about your order
+    </button>
+    <div id="success-notify-status" style="display:none; margin-top:8px; font-size:0.8rem; color:#2a9d50; font-weight:700;"></div>
     <div style="background:var(--light);border-radius:8px;padding:16px;margin:16px 0;font-size:0.85rem;color:#555;text-align:left;">
       <strong>What's next:</strong><br/>
       Watch for our WhatsApp confirmation<br/>
@@ -5066,6 +5074,63 @@
     }).catch(function(e){ console.error('[notify] Telegram order alert failed:', e); });
   }
 
+  // ── CUSTOMER-FACING ORDER STATUS PUSH NOTIFICATIONS ──
+  // Same VAPID key, same service worker (sw.js), and the same underlying FCM
+  // pipeline already proven working on the admin side — this just stores the
+  // resulting token directly on the customer's OWN order (not a separate
+  // profile/collection), so it works identically whether they have an account
+  // or checked out as a guest.
+  var CUSTOMER_FCM_VAPID_KEY = 'BNPy5lLDqD2KDLMBO_sj6gxGmw4d6ExBWvYXRMoyQq2AHm18B3gpJZjrUCl3YamhAjet2texjlepisPifUhg6ww';
+  var lastPlacedOrderDocId = null;
+
+  function enableCustomerOrderNotifications() {
+    var statusEl = document.getElementById('success-notify-status');
+    var btnEl = document.getElementById('success-notify-btn');
+    function showStatus(text, isError) {
+      if (!statusEl) return;
+      statusEl.textContent = text;
+      statusEl.style.color = isError ? 'var(--red)' : '#2a9d50';
+      statusEl.style.display = 'block';
+    }
+    if (!lastPlacedOrderDocId) return;
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+      showStatus('Notifications aren\'t supported on this browser.', true);
+      return;
+    }
+    // This IS the one real button click allowed to trigger the permission
+    // prompt — never done automatically on page load. See the same reasoning
+    // applied on the admin side: an unrequested prompt is a documented pattern
+    // Chrome's Safe Browsing flags as "abusive," which can get real
+    // notifications quarantined behind a "Possible spam" warning instead of
+    // shown normally.
+    Notification.requestPermission().then(function(permission) {
+      if (permission !== 'granted') {
+        showStatus('Notifications not enabled — you can still track your order in My Orders.', true);
+        return;
+      }
+      navigator.serviceWorker.ready.then(function(registration) {
+        window.fbMessagingFns.getToken(window.fbMessaging, {
+          vapidKey: CUSTOMER_FCM_VAPID_KEY,
+          serviceWorkerRegistration: registration
+        }).then(function(token) {
+          if (!token) { showStatus('Could not enable notifications right now.', true); return; }
+          window.fbFns.updateDoc(window.fbFns.doc(window.fbDb, 'orders', lastPlacedOrderDocId), {
+            customerFcmToken: token
+          }).then(function(){
+            showStatus('✅ You\'ll be notified as your order updates!', false);
+            if (btnEl) btnEl.style.display = 'none';
+          }).catch(function(e){
+            console.error('[notify] Failed to save customer FCM token:', e);
+            showStatus('Could not enable notifications right now.', true);
+          });
+        }).catch(function(e){
+          console.error('[notify] getToken failed:', e);
+          showStatus('Could not enable notifications right now.', true);
+        });
+      });
+    });
+  }
+
   function requiresPaymentGateCustomer(o) {
     return !!(o && (o.hasShippedItems || (o.paymentMethod && o.paymentMethod !== 'Cash on Delivery')));
   }
@@ -6445,11 +6510,21 @@
           // deliberately independent of that, so the code stays visible regardless.
           showReferenceCodeBanner(code);
         }
+        // Every order goes through delivery-status updates regardless of type, so
+        // the notify button always makes sense here (unlike the reference code box,
+        // which only applies to payment-gated orders).
+        lastPlacedOrderDocId = docRef && docRef.id ? docRef.id : null;
+        var notifyBtn = document.getElementById('success-notify-btn');
+        if (notifyBtn && lastPlacedOrderDocId) notifyBtn.style.display = 'block';
         currentCheckoutRefCode = null; // next order (if any) gets its own fresh code
       }).catch(function(e){console.error(e);});
     }
     var successRefBoxReset = document.getElementById('success-reference-box');
     if (successRefBoxReset) successRefBoxReset.style.display = 'none';
+    var successNotifyBtnReset = document.getElementById('success-notify-btn');
+    if (successNotifyBtnReset) successNotifyBtnReset.style.display = 'none';
+    var successNotifyStatusReset = document.getElementById('success-notify-status');
+    if (successNotifyStatusReset) successNotifyStatusReset.style.display = 'none';
     // A successful Buy Now only clears the temporary buy-now items — the customer's
     // real persistent cart (if they had one going before Buy Now) is left untouched.
     if (isBuyNowCheckout) { exitBuyNowMode(); } else { cart = []; updateCartCount(); }
