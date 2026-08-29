@@ -976,6 +976,12 @@
     /* CART MODAL */
     .cart-items{display:flex;flex-direction:column;gap:12px;margin-bottom:20px;max-height:45vh;overflow-y:auto;padding-right:4px;}
     #cart-modal .modal{max-height:88vh;overflow-y:auto;display:flex;flex-direction:column;}
+    /* SUCCESS MODAL — needs the same treatment as the cart modal: on short/narrow
+       screens, this can now be taller than the viewport (reference code box +
+       notify button + status text all stacked), and .modal-overlay centers its
+       child with no scrolling of its own — without this, anything past the
+       visible edge becomes genuinely unreachable, not just visually cut off. */
+    #success-modal .modal{max-height:90vh;overflow-y:auto;}
     .cart-item{display:flex;align-items:center;gap:12px;padding:12px;background:var(--light);border-radius:8px;}
     .cart-item .ci-icon{font-size:1.8rem;width:44px;height:44px;border-radius:8px;background:#fff;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;}
     .cart-item .ci-info{flex:1;}
