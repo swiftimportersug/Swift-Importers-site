@@ -6556,7 +6556,15 @@
     if (document.getElementById('order-notes')) document.getElementById('order-notes').value = '';
     if (submitBtn){ submitBtn.textContent='Send Order'; submitBtn.disabled=false; }
     orderJustSubmitted = true;
-    if (checkoutGuardArmed) { checkoutGuardArmed = false; history.back(); }
+    // NOTE: deliberately NOT calling history.back() here even though the guard
+    // is still armed. Doing so immediately before openOverlayEl() (which also
+    // pushes its own history state) creates a race: the browser coalesces both
+    // history changes into a single popstate event, and the generic overlay-
+    // closing listener then closes whatever's on top of the stack — which by
+    // that point is the success modal itself, closing it invisibly the instant
+    // it opens. Just clearing the flag directly avoids the collision; the only
+    // cost is one harmless extra step if the customer presses Back afterward.
+    checkoutGuardArmed = false;
     openOverlayEl(document.getElementById('success-modal'));
   }
 
