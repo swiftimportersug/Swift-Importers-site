@@ -5236,10 +5236,48 @@
         '<span style="color:rgba(255,255,255,0.55);">Include this when sending Mobile Money, or share it with us on WhatsApp along with your payment screenshot.</span>' +
       '</div>';
     }
+    // Lets a customer re-pin their exact location even after checkout — handy if
+    // a rider calls asking them to drop a pin because the typed address wasn't
+    // enough to find them. Not shown for self-pickup orders, since there's no
+    // delivery location involved there at all.
+    var isSelfPick = o.delivery && o.delivery.type === 'selfpick';
+    var isFinished = o.status === 'closed' || o.status === 'cancelled' || o.deliveryStage === 'delivered';
+    if (!isSelfPick && !isFinished) {
+      html += '<button onclick="updateOrderLocationViaGps(\'' + o.fbDocId + '\')" style="width:100%; margin-top:10px; background:rgba(90,166,255,0.14); border:1.5px solid rgba(90,166,255,0.45); color:#8fc4ff; padding:9px; border-radius:8px; font-size:0.78rem; font-weight:700; cursor:pointer;">📍 Update My Location</button>';
+    }
     if (customerCanCancelOrder(o)) {
       html += '<button onclick="cancelMyOrder(\'' + o.fbDocId + '\')" style="width:100%; margin-top:10px; background:rgba(220,53,69,0.14); border:1.5px solid rgba(220,53,69,0.45); color:#ff9090; padding:9px; border-radius:8px; font-size:0.78rem; font-weight:700; cursor:pointer;">✕ Cancel Order</button>';
     }
     return html;
+  }
+
+  // Same GPS capture as checkout's "Drop a Google Maps Pin," but writes straight
+  // to an already-placed order instead of a form field. Appends to whatever
+  // address text already exists rather than replacing it, so nothing typed
+  // earlier gets lost. The boda's app is watching this same order in real time,
+  // so the updated pin reaches them within moments, no extra step needed.
+  function updateOrderLocationViaGps(docId) {
+    if (!navigator.geolocation) { showAppAlert('Your browser doesn\'t support location pinning — please share your location by text or WhatsApp instead.'); return; }
+    if (!window.fbDb || !window.fbFns) return;
+    showToastMessage('📍 Getting your location...', '#4a9eff');
+    navigator.geolocation.getCurrentPosition(function(pos){
+      var lat = pos.coords.latitude.toFixed(6);
+      var lng = pos.coords.longitude.toFixed(6);
+      var { doc, getDoc, updateDoc } = window.fbFns;
+      getDoc(doc(window.fbDb, 'orders', docId)).then(function(snap){
+        var existing = (snap.exists() && snap.data().exactLocation) || '';
+        var gpsPart = 'GPS: ' + lat + ', ' + lng;
+        var newText = existing ? (existing.indexOf('GPS:') > -1 ? existing.replace(/GPS:\s*-?\d+\.\d+,\s*-?\d+\.\d+/, gpsPart) : existing + ' | ' + gpsPart) : gpsPart;
+        return updateDoc(doc(window.fbDb, 'orders', docId), { exactLocation: newText });
+      }).then(function(){
+        showToastMessage('✅ Location updated — your rider will see this update live!', '#2a9d50');
+      }).catch(function(e){
+        console.error('[location] update failed:', e);
+        showAppAlert('Could not update your location. Check your connection and try again.');
+      });
+    }, function(err){
+      showAppAlert('Could not get your location. Please check location permissions and try again.');
+    }, { enableHighAccuracy: true, timeout: 10000 });
   }
 
   function buildOrderStageBadgeHtml(o) {

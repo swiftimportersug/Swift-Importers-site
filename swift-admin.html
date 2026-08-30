@@ -3951,28 +3951,83 @@
       wrap.innerHTML = '<div style="font-size:0.8rem; color:var(--grey);">No riders added yet.</div>';
       return;
     }
-    wrap.innerHTML = bodaRiders.map(r => `
+    wrap.innerHTML = bodaRiders.map(r => {
+      const avatar = r.photoUrl
+        ? `<img src="${r.photoUrl}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:1.5px solid var(--gold);flex-shrink:0;" onerror="this.outerHTML='<span style=&quot;font-size:1.4rem;&quot;>🏍️</span>'"/>`
+        : `<span style="font-size:1.4rem; flex-shrink:0;">🏍️</span>`;
+      const phones = [r.phone, r.phone2].filter(Boolean);
+      return `
       <div style="width:230px; flex:0 0 230px; box-sizing:border-box; display:flex; flex-direction:column; gap:8px; background:var(--light); border:1px solid var(--border); border-radius:10px; padding:12px 14px;">
         <div style="display:flex; align-items:center; gap:9px;">
-          <span style="font-size:1.4rem; flex-shrink:0;">🏍️</span>
+          ${avatar}
           <span style="font-weight:700; font-size:0.85rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.name}</span>
         </div>
-        <div style="font-size:0.76rem; color:#666;">📞 ${r.phone || '—'}</div>
+        <div style="font-size:0.76rem; color:#666; line-height:1.6;">${phones.length ? phones.map(p => '📞 ' + p).join('<br/>') : '📞 —'}</div>
         <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
           <span style="font-family:'Inter',sans-serif; font-size:0.78rem; font-weight:700; letter-spacing:0.15em; color:var(--gold-dark); background:#fff; border:1px solid var(--gold); border-radius:6px; padding:3px 9px;" id="boda-code-display-${r.fbDocId}" data-code="${r.code||''}">••••</span>
           <button onclick="toggleBodaCodeVisibility('${r.fbDocId}')" style="background:none; border:none; cursor:pointer; font-size:0.85rem; padding:2px;" title="Show/hide code">👁️</button>
         </div>
         <div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:2px;">
-          <button onclick="removeBodaRider('${r.fbDocId}','${(r.name||'').replace(/'/g,"\\'")}')" style="flex:1; background:#fdecea; border:1.5px solid #f5c6c0; color:var(--red); cursor:pointer; font-size:0.68rem; font-weight:700; padding:5px 6px; border-radius:6px;">🗑️ Remove</button>
+          <button onclick="editBodaRiderPhoto('${r.fbDocId}','${(r.name||'').replace(/'/g,"\\'")}')" style="flex:1; background:#fff; border:1.5px solid var(--border); color:#555; cursor:pointer; font-size:0.68rem; font-weight:700; padding:5px 6px; border-radius:6px;">🖼️ Photo</button>
+          <button onclick="editBodaRiderPhones('${r.fbDocId}','${(r.name||'').replace(/'/g,"\\'")}')" style="flex:1; background:#fff; border:1.5px solid var(--border); color:#555; cursor:pointer; font-size:0.68rem; font-weight:700; padding:5px 6px; border-radius:6px;">📞 Phones</button>
+          <button onclick="editBodaRiderCode('${r.fbDocId}','${(r.name||'').replace(/'/g,"\\'")}')" style="flex:1; background:#fff; border:1.5px solid var(--border); color:#555; cursor:pointer; font-size:0.68rem; font-weight:700; padding:5px 6px; border-radius:6px;">✏️ Code</button>
         </div>
+        <button onclick="removeBodaRider('${r.fbDocId}','${(r.name||'').replace(/'/g,"\\'")}')" style="width:100%; background:#fdecea; border:1.5px solid #f5c6c0; color:var(--red); cursor:pointer; font-size:0.68rem; font-weight:700; padding:5px 6px; border-radius:6px;">🗑️ Remove</button>
       </div>
-    `).join('');
+    `;}).join('');
   }
 
   function toggleBodaCodeVisibility(id) {
     const el = document.getElementById('boda-code-display-' + id);
     if (!el) return;
     el.textContent = el.textContent === '••••' ? (el.getAttribute('data-code') || '') : '••••';
+  }
+
+  async function editBodaRiderPhoto(id, name) {
+    const current = bodaRiders.find(r => r.fbDocId === id);
+    const newUrl = prompt('Paste an image link for ' + name + '\'s profile picture (Google Drive direct link or any direct image URL). Leave blank to remove the current photo:', current && current.photoUrl || '');
+    if (newUrl === null) return;
+    if (!window.fbDb || !window.fbFns) { showAppAlert('Not connected. Check your internet connection.'); return; }
+    const { doc, updateDoc } = window.fbFns;
+    try {
+      await updateDoc(doc(window.fbDb, 'boda_riders', id), { photoUrl: newUrl.trim() });
+      showAppAlert('✅ Photo updated for ' + name + '.');
+    } catch(e) {
+      showAppAlert('Error updating photo. Check your internet connection.');
+      console.error(e);
+    }
+  }
+
+  async function editBodaRiderPhones(id, name) {
+    const current = bodaRiders.find(r => r.fbDocId === id);
+    const phone1 = prompt('Primary phone number for ' + name + ':', current && current.phone || '');
+    if (phone1 === null) return;
+    const phone2 = prompt('Second phone number for ' + name + ' (optional — leave blank if none):', current && current.phone2 || '');
+    if (phone2 === null) return;
+    if (!window.fbDb || !window.fbFns) { showAppAlert('Not connected. Check your internet connection.'); return; }
+    const { doc, updateDoc } = window.fbFns;
+    try {
+      await updateDoc(doc(window.fbDb, 'boda_riders', id), { phone: phone1.trim(), phone2: phone2.trim() });
+      showAppAlert('✅ Phone numbers updated for ' + name + '.');
+    } catch(e) {
+      showAppAlert('Error updating phone numbers. Check your internet connection.');
+      console.error(e);
+    }
+  }
+
+  async function editBodaRiderCode(id, name) {
+    const newCode = prompt('New 4-digit secret code for ' + name + ':');
+    if (newCode === null) return;
+    if (!/^\d{4}$/.test(newCode.trim())) { showAppAlert('Please enter exactly 4 digits.'); return; }
+    if (!window.fbDb || !window.fbFns) { showAppAlert('Not connected. Check your internet connection.'); return; }
+    const { doc, updateDoc } = window.fbFns;
+    try {
+      await updateDoc(doc(window.fbDb, 'boda_riders', id), { code: newCode.trim() });
+      showAppAlert('✅ Code updated for ' + name + '.');
+    } catch(e) {
+      showAppAlert('Error updating code. Check your internet connection.');
+      console.error(e);
+    }
   }
 
   async function addBodaRider() {
@@ -3991,11 +4046,11 @@
     if (!window.fbDb || !window.fbFns) { showAppAlert('Not connected. Check your internet connection.'); return; }
     const { addDoc, collection } = window.fbFns;
     try {
-      await addDoc(collection(window.fbDb, 'boda_riders'), { name, phone, code, createdAt: new Date().toISOString() });
+      await addDoc(collection(window.fbDb, 'boda_riders'), { name, phone, phone2: '', code, photoUrl: '', createdAt: new Date().toISOString() });
       nameInput.value = '';
       phoneInput.value = '';
       codeInput.value = '';
-      showAppAlert('✅ ' + name + ' added. Share their 4-digit code with them privately.');
+      showAppAlert('✅ ' + name + ' added. Share their 4-digit code with them privately. Add a second phone or photo anytime using the buttons on their card.');
     } catch(e) {
       showAppAlert('Error adding rider. Check your internet connection.');
       console.error(e);

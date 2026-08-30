@@ -106,6 +106,7 @@
       font-size: clamp(0.36rem, 1.2vw, 0.48rem); font-weight: 600; color: var(--amber-dim);
       letter-spacing: 0.28em; text-transform: uppercase; margin-top: 3px; width: 100%; text-align: center;
     }
+    .hero-bike { font-size: 4.4rem; line-height: 1; margin-bottom: 8px; filter: drop-shadow(0 8px 16px rgba(240,169,59,0.4)); }
 
     /* ── LOGIN / PIN SCREENS ── */
     .center-screen { align-items: center; justify-content: center; padding: 24px; }
@@ -225,11 +226,12 @@
   <!-- LOGIN SCREEN -->
   <div class="screen center-screen active" id="screen-login">
     <div class="auth-box">
+      <div class="hero-bike">🏍️</div>
       <div class="brand-badge">
         <div class="brand-badge-main">SWIFT IMP<span class="dot"></span>RTERS</div>
         <div class="brand-badge-sub">Delivering Quality</div>
       </div>
-      <h1>🏍️ Boda Rider Claim Board</h1>
+      <h1>Boda Rider Claim Board</h1>
       <p>Sign in to see available deliveries</p>
       <button class="btn-primary" id="login-btn" onclick="doBodaLogin()">Sign In</button>
       <div class="auth-error" id="login-error"></div>
@@ -239,6 +241,7 @@
   <!-- PIN / IDENTIFY SCREEN -->
   <div class="screen center-screen" id="screen-pin">
     <div class="auth-box">
+      <div class="hero-bike">🏍️</div>
       <div class="brand-badge">
         <div class="brand-badge-main">SWIFT IMP<span class="dot"></span>RTERS</div>
         <div class="brand-badge-sub">Delivering Quality</div>
@@ -257,10 +260,13 @@
   <div class="screen" id="screen-app">
     <div class="topbar">
       <div>
-        <div class="brand">🏍️ Swift Boda</div>
+        <div class="brand"><span style="font-size:1.6rem; vertical-align:middle; margin-right:4px;">🏍️</span> Swift Boda</div>
         <div class="rider-name" id="topbar-rider-name"></div>
       </div>
-      <button onclick="doBodaLogout()">Switch Rider</button>
+      <button onclick="doBodaLogout()" style="display:flex; align-items:center; gap:8px;">
+        <img id="topbar-rider-avatar" style="display:none; width:22px; height:22px; border-radius:50%; object-fit:cover;"/>
+        Switch Rider
+      </button>
     </div>
     <div id="boda-notify-banner" style="display:none; background:#fff3d6; border-bottom:1.5px solid var(--gold); padding:12px 16px; align-items:center; gap:10px; justify-content:space-between; flex-wrap:wrap;">
       <div style="font-size:0.8rem; color:#6b5410; font-weight:700; flex:1; min-width:180px;">🔔 Get alerted the moment a new job is posted — even with the app closed.</div>
@@ -273,10 +279,14 @@
       <button id="tab-btn-mine" onclick="switchBodaTab('mine')">
         🚴 My Jobs <span class="tab-badge" id="mine-count-badge" style="display:none;"></span>
       </button>
+      <button id="tab-btn-completed" onclick="switchBodaTab('completed')">
+        ✅ Completed
+      </button>
     </div>
     <div class="content">
       <div id="tab-available"></div>
       <div id="tab-mine" style="display:none;"></div>
+      <div id="tab-completed" style="display:none;"></div>
     </div>
   </div>
 
@@ -355,7 +365,10 @@
         return;
       }
       wrap.innerHTML = allBodaRiders.map(function(r){
-        return '<button data-id="' + r.fbDocId + '" onclick="selectRiderForPin(\'' + r.fbDocId + '\')">' + r.name + '</button>';
+        var avatar = r.photoUrl
+          ? '<img src="' + r.photoUrl + '" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.outerHTML=\'<span style=&quot;font-size:1.3rem;&quot;>🏍️</span>\'"/>'
+          : '<span style="font-size:1.3rem; flex-shrink:0;">🏍️</span>';
+        return '<button data-id="' + r.fbDocId + '" onclick="selectRiderForPin(\'' + r.fbDocId + '\')" style="display:flex; align-items:center; gap:10px;">' + avatar + '<span>' + r.name + '</span></button>';
       }).join('');
     }
 
@@ -381,6 +394,11 @@
       }
       currentRider = selectedRiderForPin;
       document.getElementById('topbar-rider-name').textContent = currentRider.name;
+      var avatarEl = document.getElementById('topbar-rider-avatar');
+      if (avatarEl) {
+        if (currentRider.photoUrl) { avatarEl.src = currentRider.photoUrl; avatarEl.style.display = 'inline-block'; }
+        else avatarEl.style.display = 'none';
+      }
       showScreen('screen-app');
       startBoardListener();
       registerBodaServiceWorker();
@@ -532,8 +550,11 @@
       activeBodaTab = tab;
       document.getElementById('tab-btn-available').classList.toggle('active', tab === 'available');
       document.getElementById('tab-btn-mine').classList.toggle('active', tab === 'mine');
+      document.getElementById('tab-btn-completed').classList.toggle('active', tab === 'completed');
       document.getElementById('tab-available').style.display = tab === 'available' ? 'block' : 'none';
       document.getElementById('tab-mine').style.display = tab === 'mine' ? 'block' : 'none';
+      document.getElementById('tab-completed').style.display = tab === 'completed' ? 'block' : 'none';
+      if (tab === 'completed') renderBodaTabs(); // completed list doesn't need a live badge, just refresh on open
     }
 
     function itemsSummaryFor(o) {
@@ -546,10 +567,26 @@
       return o.refCode || (o.fbDocId ? o.fbDocId.slice(-6).toUpperCase() : 'N/A');
     }
 
+    // A boda's own part in the delivery is "done" once they've confirmed final
+    // delivery (boda-only orders) or dropped off at the station (taxi/bus orders,
+    // where admin/employee may have since progressed it further themselves).
+    function isBodaPartDone(o) {
+      var isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
+      if (isTaxiBus) return o.deliveryStage === 'at_station' || o.deliveryStage === 'on_the_way' || o.deliveryStage === 'delivered';
+      return o.deliveryStage === 'delivered';
+    }
+
     function renderBodaTabs() {
       var available = boardOrders.filter(function(o){ return !o.bodaClaimedBy; });
-      var mine = boardOrders.filter(function(o){
-        return o.bodaClaimedBy && o.bodaClaimedBy.riderId === (currentRider && currentRider.fbDocId) && o.deliveryStage !== 'delivered';
+      var claimedByMe = boardOrders.filter(function(o){
+        return o.bodaClaimedBy && o.bodaClaimedBy.riderId === (currentRider && currentRider.fbDocId);
+      });
+      var mine = claimedByMe.filter(function(o){ return !isBodaPartDone(o); });
+      var completed = claimedByMe.filter(isBodaPartDone);
+      completed.sort(function(a,b){
+        var at = (a.bodaClaimedBy && a.bodaClaimedBy.claimedAt) || '';
+        var bt = (b.bodaClaimedBy && b.bodaClaimedBy.claimedAt) || '';
+        return new Date(bt) - new Date(at);
       });
 
       var availBadge = document.getElementById('available-count-badge');
@@ -573,16 +610,55 @@
       } else {
         mineEl.innerHTML = mine.map(renderMyJobCard).join('');
       }
+
+      var completedEl = document.getElementById('tab-completed');
+      if (completedEl) {
+        if (completed.length === 0) {
+          completedEl.innerHTML = '<div class="empty-state">No completed deliveries yet.<br/>They\'ll show up here once you finish a job.</div>';
+        } else {
+          completedEl.innerHTML = completed.map(renderCompletedJobCard).join('');
+        }
+      }
+    }
+
+    function renderCompletedJobCard(o) {
+      var isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
+      var locationText = [o.deliveryArea, o.exactLocation].filter(Boolean).join(' — ') || 'Location not specified';
+      var when = (o.bodaClaimedBy && o.bodaClaimedBy.claimedAt) ? new Date(o.bodaClaimedBy.claimedAt).toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+      return '<div class="job-card" style="opacity:0.85;">' +
+        '<div class="ref">Order #' + refCodeFor(o) + (when ? ' &middot; ' + when : '') + '</div>' +
+        (isTaxiBus ? '<span class="mode-badge mode-taxibus">🚏 Delivered to ' + (o.delivery.type === 'bus' ? 'Bus' : 'Taxi') + ' Station</span>' : '<span class="mode-badge mode-boda">🏍️ Direct Delivery</span>') +
+        '<div class="items">' + itemsSummaryFor(o) + '</div>' +
+        '<div class="loc">📍 ' + locationText + '</div>' +
+        '<span class="stage-pill">✅ Completed</span>' +
+      '</div>';
+    }
+
+    // The customer's "Drop a Google Maps Pin" feature appends raw coordinates as
+    // text into exactLocation (e.g. "GPS: 0.347596, 32.582520") rather than a
+    // separate structured field — extract that if present for a precise
+    // turn-by-turn link; otherwise fall back to a text search on whatever
+    // address was typed, which still gets the rider most of the way there.
+    function buildMapsLink(o) {
+      var gpsMatch = o.exactLocation && o.exactLocation.match(/GPS:\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+      if (gpsMatch) {
+        return 'https://www.google.com/maps/dir/?api=1&destination=' + gpsMatch[1] + ',' + gpsMatch[2];
+      }
+      var locationText = [o.deliveryArea, o.exactLocation].filter(Boolean).join(', ');
+      if (locationText) return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(locationText);
+      return null;
     }
 
     function renderAvailableJobCard(o) {
       var isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
       var locationText = [o.deliveryArea, o.exactLocation].filter(Boolean).join(' — ') || 'Location not specified';
+      var mapsLink = buildMapsLink(o);
       return '<div class="job-card">' +
         '<div class="ref">Order #' + refCodeFor(o) + '</div>' +
         (isTaxiBus ? '<span class="mode-badge mode-taxibus">🚏 Pickup for ' + (o.delivery.type === 'bus' ? 'Bus' : 'Taxi') + ' Station</span>' : '<span class="mode-badge mode-boda">🏍️ Direct Delivery</span>') +
         '<div class="items">' + itemsSummaryFor(o) + '</div>' +
         '<div class="loc">📍 ' + locationText + '</div>' +
+        (mapsLink ? '<a href="' + mapsLink + '" target="_blank" style="display:block; text-align:center; background:var(--panel-raised); border:1.5px solid var(--chrome); color:var(--blue-gauge); padding:9px; border-radius:8px; font-size:0.78rem; font-weight:700; text-decoration:none; margin:8px 0;">🗺️ Open in Google Maps</a>' : '') +
         '<div class="customer">👤 ' + (o.customerName || 'Customer') + ' &middot; ' + (o.phone || '') + '</div>' +
         (o.notes && o.notes.trim() ? '<div class="notes">💬 ' + o.notes.trim() + '</div>' : '') +
         '<button class="claim-btn" onclick="claimJob(\'' + o.fbDocId + '\')">✅ I\'ll Take This</button>' +
@@ -592,6 +668,7 @@
     function renderMyJobCard(o) {
       var isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
       var locationText = [o.deliveryArea, o.exactLocation].filter(Boolean).join(' — ') || 'Location not specified';
+      var mapsLink = buildMapsLink(o);
       var stage = o.deliveryStage || null;
 
       var actionsHtml;
@@ -619,6 +696,7 @@
         (isTaxiBus ? '<span class="mode-badge mode-taxibus">🚏 Pickup for ' + (o.delivery.type === 'bus' ? 'Bus' : 'Taxi') + ' Station</span>' : '<span class="mode-badge mode-boda">🏍️ Direct Delivery</span>') +
         '<div class="items">' + itemsSummaryFor(o) + '</div>' +
         '<div class="loc">📍 ' + locationText + '</div>' +
+        (mapsLink ? '<a href="' + mapsLink + '" target="_blank" style="display:block; text-align:center; background:var(--panel-raised); border:1.5px solid var(--chrome); color:var(--blue-gauge); padding:9px; border-radius:8px; font-size:0.78rem; font-weight:700; text-decoration:none; margin:8px 0;">🗺️ Open in Google Maps</a>' : '') +
         '<div class="customer">👤 ' + (o.customerName || 'Customer') + ' &middot; ' + (o.phone || '') + '</div>' +
         (o.notes && o.notes.trim() ? '<div class="notes">💬 ' + o.notes.trim() + '</div>' : '') +
         '<div class="action-row" style="flex-direction:column;">' + actionsHtml + '</div>' +
