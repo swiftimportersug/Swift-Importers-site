@@ -5593,6 +5593,21 @@
       const { doc, updateDoc } = window.fbFns;
       await updateDoc(doc(window.fbDb, 'orders', docId), { postedToBodaBoard: true });
       showSuccessToast('📢 Posted to the boda claim board.');
+
+      const o = orders.find(x => x.fbDocId === docId);
+      if (o) {
+        const locationText = [o.deliveryArea, o.exactLocation].filter(Boolean).join(' — ');
+        fetch(CUSTOMER_NOTIFY_WORKER_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Notify-Key': CUSTOMER_NOTIFY_SHARED_KEY },
+          body: JSON.stringify({
+            bodaBoardAlert: true,
+            refCode: o.refCode || (o.fbDocId ? o.fbDocId.slice(-6).toUpperCase() : ''),
+            itemsSummary: buildOrderItemsDisplay(o),
+            location: locationText
+          })
+        }).catch(function(e){ console.error('[notify] boda board alert failed:', e); });
+      }
     } catch(e) {
       showAppAlert('Error posting to boda board. Check your connection.');
       console.error('[order] postToBodaBoard failed:', e);

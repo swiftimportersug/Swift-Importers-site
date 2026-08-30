@@ -9,8 +9,9 @@
   <!-- Firebase -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, collection, doc, getDocs, onSnapshot, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, doc, setDoc, getDocs, onSnapshot, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
 
     // Same project as the rest of the site. This shared login is only a first
     // gate — like the employee panel, real identification happens via each
@@ -30,10 +31,13 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
+    const messaging = getMessaging(app);
 
     window.fbDb = db;
-    window.fbFns = { collection, doc, getDocs, onSnapshot, updateDoc, query, where };
+    window.fbFns = { collection, doc, setDoc, getDocs, onSnapshot, updateDoc, query, where };
     window.fbAuthFns = { signInWithEmailAndPassword, signOut, onAuthStateChanged };
+    window.fbMessaging = messaging;
+    window.fbMessagingFns = { getToken };
     window.BODA_EMAIL = BODA_EMAIL;
     window.BODA_PASSWORD = BODA_PASSWORD;
     window.firebaseReady = true;
@@ -159,6 +163,10 @@
       </div>
       <button onclick="doBodaLogout()">Switch Rider</button>
     </div>
+    <div id="boda-notify-banner" style="display:none; background:#fff3d6; border-bottom:1.5px solid var(--gold); padding:12px 16px; align-items:center; gap:10px; justify-content:space-between; flex-wrap:wrap;">
+      <div style="font-size:0.8rem; color:#6b5410; font-weight:700; flex:1; min-width:180px;">🔔 Get alerted the moment a new job is posted — even with the app closed.</div>
+      <button onclick="enableBodaNotifications()" style="background:var(--gold); color:var(--black); border:none; padding:9px 16px; border-radius:8px; font-weight:800; font-size:0.8rem; white-space:nowrap;">Turn On Alerts</button>
+    </div>
     <div class="tabs">
       <button class="active" id="tab-btn-available" onclick="switchBodaTab('available')">
         📦 Available <span class="tab-badge" id="available-count-badge" style="display:none;"></span>
@@ -276,6 +284,66 @@
       document.getElementById('topbar-rider-name').textContent = currentRider.name;
       showScreen('screen-app');
       startBoardListener();
+      registerBodaServiceWorker();
+      updateBodaNotifyBannerVisibility();
+    }
+
+    // ── PUSH NOTIFICATIONS — real background alerts even with the app closed.
+    // Same VAPID key, same service worker (sw.js), same underlying FCM
+    // pipeline already proven working elsewhere on the site.
+    var BODA_FCM_VAPID_KEY = 'BNPy5lLDqD2KDLMBO_sj6gxGmw4d6ExBWvYXRMoyQq2AHm18B3gpJZjrUCl3YamhAjet2texjlepisPifUhg6ww';
+
+    function registerBodaServiceWorker() {
+      if (!('serviceWorker' in navigator)) return;
+      navigator.serviceWorker.register('sw.js').catch(function(e){ console.log('[boda] SW registration failed:', e); });
+    }
+
+    function updateBodaNotifyBannerVisibility() {
+      var banner = document.getElementById('boda-notify-banner');
+      if (!banner) return;
+      var alreadyGranted = ('Notification' in window) && Notification.permission === 'granted';
+      banner.style.display = alreadyGranted ? 'none' : 'flex';
+    }
+
+    function enableBodaNotifications() {
+      if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+        showToast('Notifications aren\'t supported on this device.');
+        return;
+      }
+      // The ONLY place this ever prompts — tied to this exact button click, never
+      // shown automatically on page load. An unrequested prompt is a documented
+      // pattern Chrome's Safe Browsing flags as "abusive," which can get real
+      // notifications quarantined behind a spam warning instead of shown normally.
+      Notification.requestPermission().then(function(permission){
+        if (permission !== 'granted') {
+          showToast('Notifications not enabled.');
+          return;
+        }
+        navigator.serviceWorker.ready.then(function(registration){
+          window.fbMessagingFns.getToken(window.fbMessaging, {
+            vapidKey: BODA_FCM_VAPID_KEY,
+            serviceWorkerRegistration: registration
+          }).then(function(token){
+            if (!token || !currentRider || !window.fbDb || !window.fbFns) return;
+            var { doc, setDoc } = window.fbFns;
+            setDoc(doc(window.fbDb, 'boda_fcm_tokens', token), {
+              riderId: currentRider.fbDocId,
+              name: currentRider.name,
+              phone: currentRider.phone,
+              updatedAt: new Date().toISOString()
+            }).then(function(){
+              showToast('✅ Job alerts turned on!');
+              updateBodaNotifyBannerVisibility();
+            }).catch(function(e){
+              console.error('[boda] saving token failed:', e);
+              showToast('Could not save — check your connection.');
+            });
+          }).catch(function(e){
+            console.error('[boda] getToken failed:', e);
+            showToast('Could not enable notifications right now.');
+          });
+        });
+      });
     }
 
     // ── AUDIBLE ALERT — reliable as long as the app is open (foreground or a
