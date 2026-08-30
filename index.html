@@ -214,6 +214,11 @@
       0%,100%{ box-shadow:0 4px 12px rgba(255,95,109,0.3); }
       50%{ box-shadow:0 6px 18px rgba(255,95,109,0.5); }
     }
+    @keyframes notifyBtnPulse{
+      0%,100%{ box-shadow:0 0 0 0 rgba(212,163,53,0.45); transform:scale(1); }
+      50%{ box-shadow:0 0 0 8px rgba(212,163,53,0); transform:scale(1.015); }
+    }
+    #success-notify-btn{ animation:notifyBtnPulse 1.8s ease-in-out infinite; }
     @keyframes livePulseDot{
       0%,100%{ opacity:1; transform:scale(1); }
       50%{ opacity:0.4; transform:scale(0.7); }

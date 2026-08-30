@@ -31,6 +31,11 @@
   #error-state{display:none;padding:80px 20px;text-align:center;color:var(--grey);}
   .spinner{width:34px;height:34px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px;}
   @keyframes spin{to{transform:rotate(360deg);}}
+  @keyframes notifyBtnPulse{
+    0%,100%{ box-shadow:0 0 0 0 rgba(212,163,53,0.45); transform:scale(1); }
+    50%{ box-shadow:0 0 0 8px rgba(212,163,53,0); transform:scale(1.015); }
+  }
+  #success-notify-btn{ animation:notifyBtnPulse 1.8s ease-in-out infinite; }
 
   #product-content{display:none;}
 
