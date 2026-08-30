@@ -523,6 +523,47 @@
       if (!banner) return;
       var alreadyGranted = ('Notification' in window) && Notification.permission === 'granted';
       banner.style.display = alreadyGranted ? 'none' : 'flex';
+      if (alreadyGranted) {
+        // IMPORTANT: notification permission is granted per WEBSITE, not per
+        // page — if this rider's phone ever granted it on any other page of
+        // swiftimporters.com, Chrome already reports "granted" here even
+        // though THIS app never actually finished registering a token. Since
+        // permission already exists, completing registration silently is safe
+        // (no browser popup appears either way) — the bug being fixed here was
+        // treating "permission granted" and "token actually saved" as the same
+        // thing, when they're genuinely two separate steps.
+        registerBodaFcmToken(false);
+      }
+    }
+
+    // Does the actual getToken + Firestore save. showToastOnSuccess controls
+    // whether this reports back to the rider (true for the manual button,
+    // false for the silent auto-completion path above).
+    function registerBodaFcmToken(showToastOnSuccess) {
+      if (!('serviceWorker' in navigator) || !currentRider || !window.fbDb || !window.fbFns) return;
+      navigator.serviceWorker.ready.then(function(registration){
+        window.fbMessagingFns.getToken(window.fbMessaging, {
+          vapidKey: BODA_FCM_VAPID_KEY,
+          serviceWorkerRegistration: registration
+        }).then(function(token){
+          if (!token) return;
+          var { doc, setDoc } = window.fbFns;
+          setDoc(doc(window.fbDb, 'boda_fcm_tokens', token), {
+            riderId: currentRider.fbDocId,
+            name: currentRider.name,
+            phone: currentRider.phone,
+            updatedAt: new Date().toISOString()
+          }).then(function(){
+            if (showToastOnSuccess) { showToast('✅ Job alerts turned on!'); updateBodaNotifyBannerVisibility(); }
+          }).catch(function(e){
+            console.error('[boda] saving token failed:', e);
+            if (showToastOnSuccess) showToast('Could not save — check your connection.');
+          });
+        }).catch(function(e){
+          console.error('[boda] getToken failed:', e);
+          if (showToastOnSuccess) showToast('Could not enable notifications right now.');
+        });
+      });
     }
 
     function enableBodaNotifications() {
@@ -539,30 +580,7 @@
           showToast('Notifications not enabled.');
           return;
         }
-        navigator.serviceWorker.ready.then(function(registration){
-          window.fbMessagingFns.getToken(window.fbMessaging, {
-            vapidKey: BODA_FCM_VAPID_KEY,
-            serviceWorkerRegistration: registration
-          }).then(function(token){
-            if (!token || !currentRider || !window.fbDb || !window.fbFns) return;
-            var { doc, setDoc } = window.fbFns;
-            setDoc(doc(window.fbDb, 'boda_fcm_tokens', token), {
-              riderId: currentRider.fbDocId,
-              name: currentRider.name,
-              phone: currentRider.phone,
-              updatedAt: new Date().toISOString()
-            }).then(function(){
-              showToast('✅ Job alerts turned on!');
-              updateBodaNotifyBannerVisibility();
-            }).catch(function(e){
-              console.error('[boda] saving token failed:', e);
-              showToast('Could not save — check your connection.');
-            });
-          }).catch(function(e){
-            console.error('[boda] getToken failed:', e);
-            showToast('Could not enable notifications right now.');
-          });
-        });
+        registerBodaFcmToken(true);
       });
     }
 

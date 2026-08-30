@@ -886,7 +886,7 @@
     .step-num{background:var(--black);color:var(--gold-light);border:1px solid var(--gold-dark);width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.8rem;flex-shrink:0;margin-top:2px;}
     .step-text strong{display:block;font-size:0.88rem;font-weight:600;}
     .step-text span{font-size:0.8rem;color:var(--grey);}
-    .order-form{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:30px;box-shadow:0 20px 50px rgba(20,18,10,0.06);}
+    .order-form{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:30px;padding-bottom:90px;box-shadow:0 20px 50px rgba(20,18,10,0.06);}
     .order-form h3{font-family:var(--serif);font-size:1.25rem;font-weight:600;margin-bottom:22px;}
     .form-group{margin-bottom:16px;}
     .form-group label{display:block;font-size:0.72rem;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;margin-bottom:6px;color:#6b6858;}
@@ -905,7 +905,7 @@
       50%{ box-shadow:0 0 0 4px rgba(214,59,47,0); }
     }
     .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-    .submit-btn{width:100%;background:linear-gradient(160deg,var(--gold-light),var(--gold));color:var(--black);border:none;padding:15px;border-radius:6px;font-weight:700;font-size:0.85rem;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;margin-top:4px;transition:box-shadow 0.25s,transform 0.2s;}
+    .submit-btn{position:fixed;bottom:0;left:0;right:0;max-width:600px;margin:0 auto;width:100%;background:linear-gradient(160deg,var(--gold-light),var(--gold));color:var(--black);border:none;padding:17px;border-radius:8px 8px 0 0;font-weight:800;font-size:0.9rem;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;transition:box-shadow 0.25s,transform 0.2s;z-index:400;box-shadow:0 -6px 20px rgba(0,0,0,0.18);}
     .submit-btn:hover{box-shadow:0 8px 24px rgba(199,162,72,0.35);transform:translateY(-1px);}
     .maps-pin-btn{width:100%;margin-top:8px;background:#1a1a1a;color:var(--white);border:1.5px dashed #444;padding:11px 14px;border-radius:6px;font-size:0.88rem;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
     .maps-pin-btn:hover{border-color:var(--gold);color:var(--gold);}
@@ -1033,7 +1033,7 @@
       .payment-grid{grid-template-columns:repeat(2,1fr);gap:12px;}
       .checkout-grid{grid-template-columns:1fr;gap:28px;}
       .form-row{grid-template-columns:1fr;}
-      .order-form{padding:20px 16px;}
+      .order-form{padding:20px 16px;padding-bottom:90px;}
       .footer-grid{grid-template-columns:1fr 1fr;gap:24px;}
       footer{padding:36px 4vw 20px;}
       .footer-bottom{flex-direction:column;gap:6px;text-align:center;}
@@ -1376,7 +1376,7 @@
         <div id="payment-copy-hint" style="display:none; font-size:0.76rem; color:#2a9d50; font-weight:700; margin-top:6px;"></div>
       </div>
       <div class="form-group"><label>Notes (optional)</label><input id="order-notes" type="text" placeholder="e.g. specific colour, delivery time preference"/></div>
-      <button class="submit-btn" onclick="submitOrder()">Send Order</button>
+      <button class="submit-btn" onclick="submitOrder()">PAY NOW</button>
     </div>
   </div>
 </section>
@@ -6661,7 +6661,7 @@
     if (document.getElementById('order-products-manual')) document.getElementById('order-products-manual').value = '';
     if (document.getElementById('order-payment')) document.getElementById('order-payment').value = '';
     if (document.getElementById('order-notes')) document.getElementById('order-notes').value = '';
-    if (submitBtn){ submitBtn.textContent='Send Order'; submitBtn.disabled=false; }
+    if (submitBtn){ submitBtn.textContent='PAY NOW'; submitBtn.disabled=false; }
     orderJustSubmitted = true;
     // NOTE: deliberately NOT calling history.back() here even though the guard
     // is still armed. Doing so immediately before openOverlayEl() (which also
