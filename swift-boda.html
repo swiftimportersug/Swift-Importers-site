@@ -278,6 +278,75 @@
       startBoardListener();
     }
 
+    // ── AUDIBLE ALERT — reliable as long as the app is open (foreground or a
+    // background tab), unlike OS-level push sound, which no website can control
+    // (browsers never implemented custom notification sounds, and it was
+    // formally removed from the web standard in 2018). This plays a real chime
+    // directly via Web Audio, same proven technique already used in the admin
+    // and employee panels — this one WILL make sound, guaranteed, whenever the
+    // app is open, since it doesn't go through the Notifications API at all.
+    var bodaSoundTimeout = null;
+    function playBodaAlertSound() {
+      if (bodaSoundTimeout) { clearTimeout(bodaSoundTimeout); bodaSoundTimeout = null; }
+      try {
+        var ctx = new (window.AudioContext || window.webkitAudioContext)();
+        var notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
+        var chimeDuration = 0.4;
+        var chimeSpacing = 0.18;
+        var totalChimeLength = notes.length * chimeSpacing + chimeDuration;
+        var repeatInterval = totalChimeLength + 0.3;
+        var totalDuration = 22; // rings for 22 seconds — a job up for grabs is time-sensitive
+
+        function playChime(startOffset) {
+          notes.forEach(function(freq, i){
+            var osc = ctx.createOscillator();
+            var gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            var start = ctx.currentTime + startOffset + i * chimeSpacing;
+            gain.gain.setValueAtTime(0, start);
+            gain.gain.linearRampToValueAtTime(0.5, start + 0.05);
+            gain.gain.linearRampToValueAtTime(0, start + chimeDuration);
+            osc.start(start);
+            osc.stop(start + chimeDuration + 0.05);
+          });
+        }
+
+        var offset = 0;
+        while (offset < totalDuration) {
+          playChime(offset);
+          offset += repeatInterval;
+        }
+
+        bodaSoundTimeout = setTimeout(function(){
+          try { ctx.close(); } catch(e) {}
+          bodaSoundTimeout = null;
+        }, 23000);
+      } catch(e) { console.log('[boda] Audio not available:', e); }
+    }
+    function stopBodaAlertSound() {
+      if (bodaSoundTimeout) { clearTimeout(bodaSoundTimeout); bodaSoundTimeout = null; }
+    }
+
+    // Tracks which job IDs were already visible, so the chime only fires for
+    // GENUINELY NEW jobs — not on first load (which would otherwise ring for
+    // every pre-existing job the instant a rider logs in).
+    var knownAvailableJobIds = null;
+    function checkForNewAvailableJobs() {
+      var availableIds = boardOrders.filter(function(o){ return !o.bodaClaimedBy; }).map(function(o){ return o.fbDocId; });
+      if (knownAvailableJobIds === null) {
+        knownAvailableJobIds = {};
+        availableIds.forEach(function(id){ knownAvailableJobIds[id] = true; });
+        return;
+      }
+      var hasNew = availableIds.some(function(id){ return !knownAvailableJobIds[id]; });
+      if (hasNew) playBodaAlertSound();
+      knownAvailableJobIds = {};
+      availableIds.forEach(function(id){ knownAvailableJobIds[id] = true; });
+    }
+
     // ── LIVE BOARD LISTENER ──
     function startBoardListener() {
       if (!window.fbDb || !window.fbFns) return;
@@ -286,11 +355,13 @@
       var q = query(collection(window.fbDb, 'orders'), where('postedToBodaBoard', '==', true));
       unsubscribeBoard = onSnapshot(q, function(snapshot){
         boardOrders = snapshot.docs.map(function(d){ return Object.assign({ fbDocId: d.id }, d.data()); });
+        checkForNewAvailableJobs();
         renderBodaTabs();
       }, function(e){ console.error('[boda] board listener failed:', e); });
     }
 
     function switchBodaTab(tab) {
+      stopBodaAlertSound();
       activeBodaTab = tab;
       document.getElementById('tab-btn-available').classList.toggle('active', tab === 'available');
       document.getElementById('tab-btn-mine').classList.toggle('active', tab === 'mine');
@@ -382,12 +453,19 @@
 
     // ── CLAIMING — first tap wins, enforced by Firestore rules themselves ──
     function claimJob(docId) {
+      stopBodaAlertSound();
       if (!currentRider || !window.fbDb || !window.fbFns) return;
       var { doc, updateDoc } = window.fbFns;
       var o = boardOrders.find(function(x){ return x.fbDocId === docId; });
       updateDoc(doc(window.fbDb, 'orders', docId), {
         bodaClaimedBy: { riderId: currentRider.fbDocId, name: currentRider.name, phone: currentRider.phone, claimedAt: new Date().toISOString() },
-        postedToBodaBoard: false,
+        // NOTE: deliberately NOT touching postedToBodaBoard here. The live
+        // listener below is filtered by postedToBodaBoard == true — flipping it
+        // to false at claim time would make the order fall out of THIS query's
+        // results entirely, vanishing from both tabs (including "My Jobs")
+        // instead of just moving between them. "Available" vs "claimed" is
+        // worked out client-side from bodaClaimedBy alone; postedToBodaBoard
+        // only ever needs to mean "this order belongs on the board at all."
         delivery: {
           type: (o && o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus')) ? o.delivery.type : 'boda',
           bodaName: currentRider.name,
