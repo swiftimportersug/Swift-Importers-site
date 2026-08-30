@@ -4982,15 +4982,16 @@
     if (o.status === 'cancelled') return '❌ Cancelled';
     if (o.status === 'closed') return '✔ Completed';
     if (o.status === 'confirmed') {
-      var type = o.delivery && o.delivery.type;
-      var driverLabel = type === 'boda' ? 'Boda Rider' : (type === 'taxi' || type === 'bus') ? 'Driver' : 'Rider/Driver';
       var stageKeyDisp = orderCurrentStageKey(o);
       var dispLabels = {
         ordered: '🧾 Order Placed — Awaiting Shipment',
         shipped: '📦 Shipped — In Transit',
         customs: '🛃 Clearing Customs (Entebbe)',
         warehouse: '🏭 Arrived at Our Warehouse',
-        handed: '📦 Package Handed to ' + driverLabel,
+        // The boda always does the initial store pickup, regardless of whether
+        // the final leg is a boda ride, a taxi, or a bus.
+        handed: '📦 Package Handed to Boda Rider',
+        at_station: '🚏 Dropped at the Bus/Taxi Station',
         on_the_way: '🚚 On the Way',
         delivered: '🎉 Delivered'
       };
@@ -5004,12 +5005,17 @@
   // Makes the current status impossible to miss — a bold colored badge plus a
   // Jumia/Uber-Eats-style step tracker, since that visual language is something even a
   // first-time customer instantly recognizes without needing to read anything closely.
-  var orderStageOrder = ['pending', 'handed', 'on_the_way', 'delivered'];
+  var localStageOrderStandard = ['pending', 'handed', 'on_the_way', 'delivered'];
+  // Taxi/bus deliveries have a real extra handoff most orders don't: the item goes
+  // from the store to a boda rider FIRST, who takes it to the bus/taxi station,
+  // where it's handed off a second time to actually start its journey. Boda-only
+  // and self-pick orders keep the simpler 3-step flow — this only applies when the
+  // final leg is genuinely taxi or bus.
+  var localStageOrderTaxiBus = ['pending', 'handed', 'at_station', 'on_the_way', 'delivered'];
   // Orders that include a "To Be Shipped" item get a longer, single continuous
   // journey: the import leg flows straight into the same local-delivery leg used by
   // every other order — same component, same animation, just more steps.
   var importStageOrder = ['ordered', 'shipped', 'customs', 'warehouse'];
-  var shippedStageOrder = importStageOrder.concat(orderStageOrder.slice(1)); // drop local 'pending', import stages cover that phase
   var orderStageMeta = {
     pending:     { icon:'📥', short:'Received',    color:'#f5a623', bg:'rgba(245,166,35,0.16)' },
     ordered:     { icon:'🧾', short:'Ordered',     color:'#f5a623', bg:'rgba(245,166,35,0.16)' },
@@ -5017,25 +5023,34 @@
     customs:     { icon:'🛃', short:'At Customs',  color:'#e2a336', bg:'rgba(226,163,54,0.16)' },
     warehouse:   { icon:'🏭', short:'Warehouse',   color:'#b46dff', bg:'rgba(180,109,255,0.16)' },
     handed:      { icon:'📦', short:'Sent Out',    color:'#4a9eff', bg:'rgba(74,158,255,0.16)' },
+    at_station:  { icon:'🚏', short:'At Station',  color:'#e2a336', bg:'rgba(226,163,54,0.16)' },
     on_the_way:  { icon:'🚚', short:'On the Way',  color:'#b46dff', bg:'rgba(180,109,255,0.16)' },
     delivered:   { icon:'🎉', short:'Delivered',   color:'#4ade80', bg:'rgba(74,222,128,0.16)' }
   };
 
-  // Single source of truth: which stage list applies, and which stage within it is
-  // "current" — used by the badge, the step tracker, and the status text alike.
+  // Single source of truth: which local (non-import) stage list applies to THIS
+  // order, based on how it's actually being delivered.
+  function localStageOrderFor(o) {
+    var type = o && o.delivery && o.delivery.type;
+    return (type === 'taxi' || type === 'bus') ? localStageOrderTaxiBus : localStageOrderStandard;
+  }
+  // Single source of truth: which FULL stage list applies, and which stage within
+  // it is "current" — used by the badge, the step tracker, and the status text alike.
   function orderStageList(o) {
-    return (o && o.hasShippedItems) ? shippedStageOrder : orderStageOrder;
+    var localOrder = localStageOrderFor(o);
+    return (o && o.hasShippedItems) ? importStageOrder.concat(localOrder.slice(1)) : localOrder;
   }
   function orderCurrentStageKey(o) {
     if (!o) return 'pending';
+    var localOrder = localStageOrderFor(o);
     if (o.hasShippedItems) {
       // Once local delivery has actually started, that takes over from import tracking.
-      if (o.status === 'confirmed' && orderStageOrder.slice(1).indexOf(o.deliveryStage) > -1) return o.deliveryStage;
+      if (o.status === 'confirmed' && localOrder.slice(1).indexOf(o.deliveryStage) > -1) return o.deliveryStage;
       if (o.importStage && importStageOrder.indexOf(o.importStage) > -1) return o.importStage;
       return 'ordered';
     }
     var stageKey = 'pending';
-    if (o.status === 'confirmed' && orderStageOrder.indexOf(o.deliveryStage) > -1) stageKey = o.deliveryStage;
+    if (o.status === 'confirmed' && localOrder.indexOf(o.deliveryStage) > -1) stageKey = o.deliveryStage;
     return stageKey;
   }
 
@@ -5196,8 +5211,6 @@
     if (o.delivery && o.delivery.type === 'selfpick') {
       return { style: 'background:rgba(74,222,128,0.16); color:#4ade80; border:1.5px solid #4ade80;', html: '<span style="font-size:1.1rem;">🏪</span> Ready for Pickup — Munyonyo Store' };
     }
-    var type = o.delivery && o.delivery.type;
-    var driverLabel = type === 'boda' ? 'Boda Rider' : (type === 'taxi' || type === 'bus') ? 'Driver' : 'Rider/Driver';
     var stageKey = orderCurrentStageKey(o);
     var meta = orderStageMeta[stageKey];
     var labels = {
@@ -5206,7 +5219,10 @@
       customs: 'Clearing Customs (Entebbe)',
       warehouse: 'Arrived at Our Warehouse',
       pending: 'Order Received — Being Prepared',
-      handed: 'Handed to ' + driverLabel,
+      // The boda always does the initial store pickup, regardless of whether
+      // the final leg is a boda ride, a taxi, or a bus.
+      handed: 'Handed to Boda Rider',
+      at_station: 'Dropped at the Bus/Taxi Station',
       on_the_way: 'On the Way',
       delivered: 'Delivered'
     };

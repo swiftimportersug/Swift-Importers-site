@@ -3350,16 +3350,21 @@
             </div>
           ` : ''}
           ${!isClosed && o.status === 'confirmed' && o.delivery && o.delivery.type && o.delivery.type !== 'selfpick' ? (function(){
-            const driverLabel = o.delivery.type === 'boda' ? 'Boda Rider' : 'Driver';
-            const stages = [
-              { key: 'handed', label: '📦 Handed to ' + driverLabel },
+            const isTaxiBus = o.delivery.type === 'taxi' || o.delivery.type === 'bus';
+            const stages = isTaxiBus ? [
+              { key: 'handed', label: '📦 Handed to Boda' },
+              { key: 'at_station', label: '🚏 At Bus/Taxi Station' },
+              { key: 'on_the_way', label: '🚌 On the Way' },
+              { key: 'delivered', label: '🎉 Delivered' }
+            ] : [
+              { key: 'handed', label: '📦 Handed to Boda Rider' },
               { key: 'on_the_way', label: '🚚 On the Way' },
               { key: 'delivered', label: '🎉 Delivered' }
             ];
-            return '<div style="width:100%; display:flex; gap:6px; margin-top:6px;">' +
+            return '<div style="width:100%; display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;">' +
               stages.map(s => {
                 const active = o.deliveryStage === s.key;
-                return `<button onclick="updateDeliveryStage('${o.fbDocId}','${s.key}')" style="flex:1; background:${active ? 'var(--black)' : '#fff'}; color:${active ? '#fff' : '#555'}; border:1.5px solid ${active ? 'var(--black)' : 'var(--border)'}; padding:6px 4px; border-radius:6px; font-size:0.68rem; font-weight:700; cursor:pointer;">${s.label}</button>`;
+                return `<button onclick="updateDeliveryStage('${o.fbDocId}','${s.key}')" style="flex:1; min-width:${isTaxiBus ? '90px' : '0'}; background:${active ? 'var(--black)' : '#fff'}; color:${active ? '#fff' : '#555'}; border:1.5px solid ${active ? 'var(--black)' : 'var(--border)'}; padding:6px 4px; border-radius:6px; font-size:0.68rem; font-weight:700; cursor:pointer;">${s.label}</button>`;
               }).join('') +
             '</div>';
           })() : ''}
@@ -3609,9 +3614,10 @@
 
       const o = orders.find(x => x.fbDocId === docId);
       if (o) {
-        const driverLabel = (o.delivery && o.delivery.type === 'boda') ? 'boda rider' : 'driver';
+        const isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
         const stageMessages = {
-          handed: { title: '📦 On Its Way', body: 'Your order has been handed to the ' + driverLabel + ' for delivery.' },
+          handed: { title: '📦 Picked Up', body: isTaxiBus ? 'Your order has been picked up and is on its way to the bus/taxi station.' : 'Your order has been handed to the boda rider for delivery.' },
+          at_station: { title: '🚏 At the Station', body: 'Your order has arrived at the bus/taxi station and will depart shortly.' },
           on_the_way: { title: '🚚 Almost There', body: 'Your order is on the way!' },
           delivered: { title: '🎉 Delivered!', body: 'Your order has been delivered. Thank you for shopping with Swift Importers!' }
         };
