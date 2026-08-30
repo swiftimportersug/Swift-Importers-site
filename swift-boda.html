@@ -58,19 +58,23 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --black: #0D0D0D;
-      --white: #F7F6F2;
-      --gold: #E8A020;
-      --gold-dark: #B87D12;
-      --red: #D63B2F;
-      --green: #2a9d50;
-      --grey: #888;
-      --light: #F0EFE9;
-      --border: #E2E0D8;
-      --card: #FFFFFF;
+      /* "Rider's Dashboard" palette — a motorbike instrument cluster at dusk:
+         dark bezel housing, backlit amber gauge glow, LED accent lights. */
+      --bezel: #100E0C;
+      --panel: #1C1815;
+      --panel-raised: #221D19;
+      --chrome: #3A342C;
+      --amber: #F0A93B;
+      --amber-dim: #C98A28;
+      --amber-glow: rgba(240,169,59,0.35);
+      --led-green: #3ddc84;
+      --led-red: #ff5c5c;
+      --blue-gauge: #5aa6ff;
+      --ink: #F7F1E6;
+      --ink-dim: #A69C8C;
     }
     html, body { height: 100%; overflow-x: hidden; }
-    body { font-family: 'Inter', sans-serif; background: var(--light); color: var(--black); font-size: 15px; }
+    body { font-family: 'Inter', sans-serif; background: var(--bezel); color: var(--ink); font-size: 15px; }
     h1, h2, h3 { font-family: 'Syne', sans-serif; }
     button { font-family: 'Inter', sans-serif; cursor: pointer; }
     input { font-family: 'Inter', sans-serif; }
@@ -78,53 +82,142 @@
     .screen { display: none; min-height: 100vh; }
     .screen.active { display: flex; flex-direction: column; }
 
-    /* LOGIN / PIN SCREENS */
+    /* ── WORDMARK — same badge used on the admin/employee login screens ── */
+    .brand-badge {
+      display: flex; flex-direction: column; align-items: center;
+      border: 2px solid var(--ink); border-radius: 8px; padding: 10px 16px 8px;
+      margin-bottom: 22px; position: relative; width: 100%; box-sizing: border-box;
+    }
+    .brand-badge::before {
+      content: ''; position: absolute; inset: 3px;
+      border: 1px solid rgba(247,241,230,0.25); border-radius: 5px;
+    }
+    .brand-badge-main {
+      font-family: 'Inter', sans-serif; font-size: clamp(0.95rem, 4vw, 1.4rem);
+      font-weight: 800; color: var(--ink); letter-spacing: 0.05em; white-space: nowrap;
+      width: 100%; text-align: center;
+    }
+    .brand-badge-main .dot {
+      display: inline-block; width: 8px; height: 8px; background: var(--amber);
+      border-radius: 50%; margin: 0 1px; vertical-align: middle; position: relative; top: -2px;
+      box-shadow: 0 0 6px var(--amber-glow);
+    }
+    .brand-badge-sub {
+      font-size: clamp(0.36rem, 1.2vw, 0.48rem); font-weight: 600; color: var(--amber-dim);
+      letter-spacing: 0.28em; text-transform: uppercase; margin-top: 3px; width: 100%; text-align: center;
+    }
+
+    /* ── LOGIN / PIN SCREENS ── */
     .center-screen { align-items: center; justify-content: center; padding: 24px; }
-    .auth-box { background: var(--card); border-radius: 16px; padding: 32px 26px; max-width: 360px; width: 100%; box-shadow: 0 8px 30px rgba(0,0,0,0.08); text-align: center; }
-    .auth-box .logo { font-size: 2.2rem; margin-bottom: 6px; }
-    .auth-box h1 { font-size: 1.3rem; margin-bottom: 4px; }
-    .auth-box p { color: var(--grey); font-size: 0.85rem; margin-bottom: 22px; }
-    .auth-box input { width: 100%; padding: 13px 14px; border: 1.5px solid var(--border); border-radius: 9px; font-size: 1rem; margin-bottom: 14px; }
-    .auth-box input#pin-input { text-align: center; letter-spacing: 0.5em; font-size: 1.4rem; font-weight: 700; }
-    .btn-primary { width: 100%; background: var(--gold); color: var(--black); border: none; padding: 13px; border-radius: 9px; font-weight: 800; font-size: 0.95rem; }
-    .btn-primary:disabled { opacity: 0.6; }
-    .auth-error { color: var(--red); font-size: 0.8rem; margin-top: 12px; min-height: 1em; }
+    .auth-box {
+      background: var(--panel); border: 1px solid var(--chrome); border-radius: 18px;
+      padding: 30px 24px; max-width: 360px; width: 100%; text-align: center;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+    .auth-box h1 { font-size: 1.15rem; margin-bottom: 4px; color: var(--ink); }
+    .auth-box p { color: var(--ink-dim); font-size: 0.83rem; margin-bottom: 22px; }
+    .auth-box input {
+      width: 100%; padding: 13px 14px; border: 1.5px solid var(--chrome); border-radius: 10px;
+      font-size: 1rem; margin-bottom: 14px; background: var(--bezel); color: var(--ink);
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.4);
+    }
+    .auth-box input:focus { outline: none; border-color: var(--amber); }
+    .auth-box input#pin-input { text-align: center; letter-spacing: 0.5em; font-size: 1.4rem; font-weight: 700; color: var(--amber); }
+    .auth-error { color: var(--led-red); font-size: 0.8rem; margin-top: 12px; min-height: 1em; }
+
     .rider-pick { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; text-align: left; max-height: 240px; overflow-y: auto; }
-    .rider-pick button { background: var(--light); border: 1.5px solid var(--border); border-radius: 9px; padding: 11px 14px; font-size: 0.9rem; font-weight: 700; text-align: left; }
-    .rider-pick button.selected { border-color: var(--gold); background: #fff7e6; }
+    .rider-pick button {
+      background: var(--panel-raised); border: 1.5px solid var(--chrome); border-radius: 10px;
+      padding: 12px 14px; font-size: 0.9rem; font-weight: 700; text-align: left; color: var(--ink);
+      box-shadow: 0 2px 0 rgba(0,0,0,0.4);
+    }
+    .rider-pick button.selected { border-color: var(--amber); background: linear-gradient(180deg, #2a2118, #201911); color: var(--amber); }
 
-    /* MAIN APP */
-    .topbar { background: var(--black); color: #fff; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
-    .topbar .brand { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.05rem; }
-    .topbar .rider-name { font-size: 0.78rem; color: var(--gold); }
-    .topbar button { background: none; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 6px 12px; border-radius: 7px; font-size: 0.76rem; font-weight: 700; }
+    /* ── TACTILE 3D BUTTONS — the signature element: real dashboard switches,
+       not flat web buttons. Gradient face, a hard "contact shadow" ledge below,
+       and a genuine press-down on :active so tapping feels physical. ── */
+    .btn-primary, .claim-btn, .action-btn {
+      width: 100%; border: none; font-weight: 800; letter-spacing: 0.01em;
+      position: relative; transition: transform 0.08s ease, box-shadow 0.08s ease;
+    }
+    .btn-primary, .claim-btn {
+      background: linear-gradient(180deg, #ffcf6e 0%, var(--amber) 45%, var(--amber-dim) 100%);
+      color: #1a1206; padding: 14px; border-radius: 11px; font-size: 0.92rem;
+      box-shadow: 0 5px 0 #8f6112, 0 8px 18px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.5);
+      margin-top: 8px;
+    }
+    .btn-primary:active, .claim-btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #8f6112, 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.5); }
+    .btn-primary:disabled { opacity: 0.5; }
+    .action-btn {
+      flex: 1; background: linear-gradient(180deg, #3a3530, var(--panel-raised) 60%, #151210);
+      color: var(--ink); padding: 13px 8px; border-radius: 11px; font-size: 0.82rem;
+      box-shadow: 0 5px 0 #0a0908, 0 8px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+    .action-btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #0a0908, 0 2px 6px rgba(0,0,0,0.3); }
+    .action-btn.done {
+      background: linear-gradient(180deg, #57e9a0, var(--led-green) 60%, #1c8452);
+      color: #052b17; box-shadow: 0 5px 0 #1c8452, 0 8px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.4);
+    }
+    .action-btn.done:active { box-shadow: 0 1px 0 #1c8452, 0 2px 6px rgba(0,0,0,0.3); }
 
-    .tabs { display: flex; background: var(--card); border-bottom: 1.5px solid var(--border); position: sticky; top: 53px; z-index: 40; }
-    .tabs button { flex: 1; background: none; border: none; padding: 13px 6px; font-size: 0.82rem; font-weight: 800; color: var(--grey); border-bottom: 3px solid transparent; display: flex; align-items: center; justify-content: center; gap: 6px; }
-    .tabs button.active { color: var(--black); border-bottom-color: var(--gold); }
-    .tab-badge { background: var(--red); color: #fff; font-size: 0.65rem; font-weight: 800; padding: 1px 7px; border-radius: 20px; }
+    /* ── MAIN APP ── */
+    .topbar {
+      background: linear-gradient(180deg, var(--panel-raised), var(--bezel));
+      border-bottom: 1px solid var(--chrome);
+      color: var(--ink); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 50;
+    }
+    .topbar .brand { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.02rem; letter-spacing: 0.02em; }
+    .topbar .brand .dot { color: var(--amber); }
+    .topbar .rider-name { font-size: 0.76rem; color: var(--amber); font-weight: 700; }
+    .topbar button {
+      background: var(--panel-raised); border: 1px solid var(--chrome); color: var(--ink-dim);
+      padding: 7px 13px; border-radius: 8px; font-size: 0.74rem; font-weight: 700;
+      box-shadow: 0 2px 0 rgba(0,0,0,0.4);
+    }
+    .topbar button:active { transform: translateY(2px); box-shadow: none; }
+
+    #boda-notify-banner { background: linear-gradient(180deg, #2a2118, #1c150e) !important; border-bottom: 1px solid var(--chrome) !important; }
+    #boda-notify-banner div { color: var(--amber-dim) !important; }
+    #boda-notify-banner button { background: linear-gradient(180deg, #ffcf6e, var(--amber)); color: #1a1206; border: none; box-shadow: 0 3px 0 #8f6112; }
+
+    .tabs { display: flex; background: var(--panel); border-bottom: 1px solid var(--chrome); position: sticky; top: 53px; z-index: 40; }
+    .tabs button { flex: 1; background: none; border: none; padding: 14px 6px; font-size: 0.8rem; font-weight: 800; color: var(--ink-dim); border-bottom: 3px solid transparent; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .tabs button.active { color: var(--amber); border-bottom-color: var(--amber); text-shadow: 0 0 12px var(--amber-glow); }
+    .tab-badge { background: var(--led-red); color: #fff; font-size: 0.64rem; font-weight: 800; padding: 1px 7px; border-radius: 20px; box-shadow: 0 0 8px rgba(255,92,92,0.6); }
 
     .content { flex: 1; padding: 16px; max-width: 640px; margin: 0 auto; width: 100%; }
-    .empty-state { text-align: center; color: var(--grey); padding: 60px 20px; font-size: 0.9rem; }
+    .empty-state { text-align: center; color: var(--ink-dim); padding: 60px 20px; font-size: 0.9rem; }
 
-    .job-card { background: var(--card); border: 1.5px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
-    .job-card .ref { font-size: 0.7rem; color: var(--grey); font-weight: 700; margin-bottom: 4px; }
-    .job-card .items { background: var(--light); border-radius: 8px; padding: 10px 12px; font-size: 0.83rem; margin: 8px 0; white-space: pre-wrap; }
-    .job-card .loc { display: flex; align-items: flex-start; gap: 8px; font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; }
-    .job-card .customer { font-size: 0.82rem; color: #444; margin-bottom: 4px; }
-    .job-card .notes { background: #fff8e6; border: 1.5px solid var(--gold); border-radius: 8px; padding: 8px 10px; font-size: 0.78rem; color: #6b5410; margin: 8px 0; }
-    .job-card .mode-badge { display: inline-block; font-size: 0.72rem; font-weight: 800; padding: 3px 10px; border-radius: 20px; margin-bottom: 8px; }
-    .mode-boda { background: rgba(232,160,32,0.16); color: var(--gold-dark); }
-    .mode-taxibus { background: rgba(74,158,255,0.16); color: #2a6fbf; }
+    /* Job cards read like a dash LCD readout: dark panel, faint amber inset glow */
+    .job-card {
+      background: var(--panel); border: 1px solid var(--chrome); border-radius: 14px;
+      padding: 16px; margin-bottom: 14px;
+      box-shadow: inset 0 0 0 1px rgba(240,169,59,0.06), 0 6px 16px rgba(0,0,0,0.35);
+    }
+    .job-card .ref { font-size: 0.68rem; color: var(--ink-dim); font-weight: 700; margin-bottom: 4px; letter-spacing: 0.04em; }
+    .job-card .items { background: var(--bezel); border: 1px solid var(--chrome); border-radius: 8px; padding: 10px 12px; font-size: 0.83rem; margin: 8px 0; white-space: pre-wrap; color: var(--ink); }
+    .job-card .loc { display: flex; align-items: flex-start; gap: 8px; font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; color: var(--ink); }
+    .job-card .customer { font-size: 0.82rem; color: var(--ink-dim); margin-bottom: 4px; }
+    .job-card .notes { background: rgba(240,169,59,0.1); border: 1.5px solid var(--amber-dim); border-radius: 8px; padding: 8px 10px; font-size: 0.78rem; color: var(--amber); margin: 8px 0; }
+    .job-card .mode-badge { display: inline-block; font-size: 0.7rem; font-weight: 800; padding: 3px 10px; border-radius: 20px; margin-bottom: 8px; }
+    .mode-boda { background: rgba(240,169,59,0.16); color: var(--amber); }
+    .mode-taxibus { background: rgba(90,166,255,0.16); color: var(--blue-gauge); }
 
-    .claim-btn { width: 100%; background: var(--gold); color: var(--black); border: none; padding: 13px; border-radius: 9px; font-weight: 800; font-size: 0.9rem; margin-top: 8px; }
     .claim-btn:disabled { opacity: 0.5; }
     .action-row { display: flex; gap: 8px; margin-top: 10px; }
-    .action-btn { flex: 1; background: var(--black); color: #fff; border: none; padding: 12px 8px; border-radius: 9px; font-weight: 800; font-size: 0.82rem; }
-    .action-btn.done { background: var(--green); }
-    .stage-pill { display: inline-block; font-size: 0.72rem; font-weight: 800; padding: 4px 11px; border-radius: 20px; background: rgba(74,222,128,0.16); color: var(--green); margin-bottom: 8px; }
+    .stage-pill {
+      display: inline-block; font-size: 0.72rem; font-weight: 800; padding: 4px 12px; border-radius: 20px;
+      background: rgba(61,220,132,0.14); color: var(--led-green); margin-bottom: 8px;
+      box-shadow: 0 0 10px rgba(61,220,132,0.25);
+    }
 
-    .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--black); color: #fff; padding: 12px 20px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; z-index: 999; display: none; box-shadow: 0 8px 24px rgba(0,0,0,0.3); max-width: 90%; text-align: center; }
+    .toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: var(--panel-raised); border: 1px solid var(--chrome); color: var(--ink);
+      padding: 12px 20px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; z-index: 999;
+      display: none; box-shadow: 0 8px 24px rgba(0,0,0,0.5); max-width: 90%; text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -132,9 +225,12 @@
   <!-- LOGIN SCREEN -->
   <div class="screen center-screen active" id="screen-login">
     <div class="auth-box">
-      <div class="logo">🏍️</div>
-      <h1>Swift Importers</h1>
-      <p>Boda Rider Claim Board</p>
+      <div class="brand-badge">
+        <div class="brand-badge-main">SWIFT IMP<span class="dot"></span>RTERS</div>
+        <div class="brand-badge-sub">Delivering Quality</div>
+      </div>
+      <h1>🏍️ Boda Rider Claim Board</h1>
+      <p>Sign in to see available deliveries</p>
       <button class="btn-primary" id="login-btn" onclick="doBodaLogin()">Sign In</button>
       <div class="auth-error" id="login-error"></div>
     </div>
@@ -143,7 +239,10 @@
   <!-- PIN / IDENTIFY SCREEN -->
   <div class="screen center-screen" id="screen-pin">
     <div class="auth-box">
-      <div class="logo">🔑</div>
+      <div class="brand-badge">
+        <div class="brand-badge-main">SWIFT IMP<span class="dot"></span>RTERS</div>
+        <div class="brand-badge-sub">Delivering Quality</div>
+      </div>
       <h1>Who Are You?</h1>
       <p>Select your name, then enter your personal code</p>
       <div class="rider-pick" id="rider-pick-list"></div>
@@ -498,14 +597,21 @@
       var actionsHtml;
       if (!stage) {
         actionsHtml = '<button class="action-btn" onclick="markBodaStage(\'' + o.fbDocId + '\',\'handed\')">✅ I\'ve Picked It Up</button>';
-      } else if (stage === 'handed' && isTaxiBus) {
+      } else if (isTaxiBus && stage === 'handed') {
         actionsHtml = '<span class="stage-pill">✅ Picked Up</span><br/><button class="action-btn" onclick="markBodaStage(\'' + o.fbDocId + '\',\'at_station\')">📍 Dropped at the Station</button>';
-      } else if (stage === 'handed' && !isTaxiBus) {
-        actionsHtml = '<span class="stage-pill">✅ Picked Up</span><br/><button class="action-btn done" onclick="markBodaStage(\'' + o.fbDocId + '\',\'delivered\')">🎉 I\'ve Delivered It</button>';
-      } else if (stage === 'at_station') {
+      } else if (isTaxiBus && stage === 'at_station') {
         actionsHtml = '<span class="stage-pill">📍 Dropped at Station</span><div class="empty-state" style="padding:8px 0; font-size:0.78rem;">Your part is done — the bus/taxi takes it from here.</div>';
+      } else if (isTaxiBus) {
+        // Admin/employee progressed it further themselves (on_the_way/delivered) —
+        // the boda's own leg genuinely ends at the station, nothing left to confirm.
+        actionsHtml = '<span class="stage-pill">✅ Your Part is Done</span>';
       } else {
-        actionsHtml = '<span class="stage-pill">' + stage + '</span>';
+        // Boda-only delivery: no matter what the current stage is — "handed", or
+        // "on_the_way" if admin/employee set that manually in between — the boda
+        // must ALWAYS still be able to confirm final delivery. Losing this button
+        // once admin touched the order was the actual bug being fixed here.
+        var stageLabel = stage === 'on_the_way' ? '🚚 On the Way' : '✅ Picked Up';
+        actionsHtml = '<span class="stage-pill">' + stageLabel + '</span><br/><button class="action-btn done" onclick="markBodaStage(\'' + o.fbDocId + '\',\'delivered\')">🎉 I\'ve Delivered It</button>';
       }
 
       return '<div class="job-card">' +
@@ -565,7 +671,7 @@
       fetch(CUSTOMER_NOTIFY_WORKER_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Notify-Key': CUSTOMER_NOTIFY_SHARED_KEY },
-        body: JSON.stringify({ targetToken: order.customerFcmToken, title: title, body: body, url: '/index.html' })
+        body: JSON.stringify({ targetToken: order.customerFcmToken, title: title, body: body, url: '/index.html?trackOrder=' + order.fbDocId })
       }).catch(function(e){ console.error('[boda] customer push failed:', e); });
     }
 

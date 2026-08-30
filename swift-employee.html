@@ -3193,7 +3193,7 @@
     fetch(CUSTOMER_NOTIFY_WORKER_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Notify-Key': CUSTOMER_NOTIFY_SHARED_KEY },
-      body: JSON.stringify({ targetToken: order.customerFcmToken, title: title, body: body, url: '/index.html' })
+      body: JSON.stringify({ targetToken: order.customerFcmToken, title: title, body: body, url: '/index.html?trackOrder=' + order.fbDocId })
     }).catch(function(e){ console.error('[notify] customer push failed:', e); });
   }
 

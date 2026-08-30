@@ -1739,9 +1739,44 @@
   <div class="modal hto-modal">
     <div class="hto-close-bar"><span>Track Your Order</span><button onclick="closeOverlayEl(document.getElementById('track-order-modal'))">X</button></div>
     <div class="hto-body">
-      <div class="hto-header"><div class="hto-icon">&#128225;</div><h2>Order Tracking</h2><p>We are committed to keeping you informed every step of the way.</p></div>
-      <div class="hto-option" id="track-opt-1"><div class="hto-num">&#128679;</div><div class="hto-content"><div class="hto-title">Live Tracking - Coming Soon</div><p>Our team is working hard to build a <strong>real-time order tracking feature</strong> that will allow you to follow the movement of your package step by step. This feature will be available soon.</p></div></div>
-      <div class="hto-option" id="track-opt-2"><div class="hto-num">&#128222;</div><div class="hto-content"><div class="hto-title">Track Your Order Right Now</div><p>In the meantime, you can easily check on your delivery by <strong>calling your delivery rider directly</strong> - we will share their contact once dispatched. Or <strong>call or WhatsApp us</strong> and our team will give you a real-time update.</p></div></div>
+
+      <!-- Shown while looking up a specific order (from a notification click) -->
+      <div id="track-live-loading" style="display:none; text-align:center; padding:30px 10px;">
+        <div style="font-size:2rem; margin-bottom:10px;">⏳</div>
+        <p style="color:var(--grey);">Loading your order...</p>
+      </div>
+
+      <!-- The real live tracker — same tracker system used in My Orders -->
+      <div id="track-live-found" style="display:none;">
+        <div id="track-live-badge" style="text-align:center; font-weight:800; font-size:0.9rem; padding:10px 14px; border-radius:10px; margin-bottom:14px;"></div>
+        <div id="track-live-steps" style="background:linear-gradient(135deg,#1a1a1a,#2c2c2c); border-radius:12px; padding:16px; margin-bottom:14px;"></div>
+        <div id="track-live-delivery" style="background:var(--light); border-radius:10px; padding:12px 14px; font-size:0.85rem; line-height:1.7; margin-bottom:14px; display:none;"></div>
+        <div id="track-live-items" style="background:var(--light); border-radius:10px; padding:12px 14px; font-size:0.85rem; margin-bottom:14px;"></div>
+        <div id="track-live-footer" style="margin-bottom:14px;"></div>
+        <div id="track-live-account-nudge" style="display:none; background:linear-gradient(160deg,#fff3d6,#ffe6b3); border:1.5px solid #e0b74a; border-radius:10px; padding:14px 16px; margin-bottom:14px;">
+          <div style="font-weight:800; font-size:0.88rem; margin-bottom:6px; color:#6b4a00;">📱 Track all your orders in one place</div>
+          <p style="font-size:0.8rem; color:#6b4a00; line-height:1.6; margin-bottom:10px;">Create a free account to see every order's live status in one spot, save your delivery address for faster checkout, and unlock loyalty tier perks like discounts as you shop more.</p>
+          <button onclick="closeOverlayEl(document.getElementById('track-order-modal')); openAccountEntry();" class="btn-primary" style="width:100%; padding:11px; border-radius:8px; font-weight:700; font-size:0.85rem;">Create Free Account</button>
+        </div>
+      </div>
+
+      <!-- Not found via a bad/expired link -->
+      <div id="track-live-notfound" style="display:none; text-align:center; padding:20px 10px;">
+        <div style="font-size:2rem; margin-bottom:10px;">🔍</div>
+        <p style="color:var(--grey); margin-bottom:16px;">We couldn't find that order. It may have been removed, or the link may be out of date.</p>
+      </div>
+
+      <!-- Generic entry point (footer link, no specific order) — simple phone lookup -->
+      <div id="track-live-lookup" style="display:none;">
+        <div class="hto-header"><div class="hto-icon">&#128225;</div><h2>Track Your Order</h2><p>Enter the phone number you ordered with to see your most recent order's status.</p></div>
+        <div style="display:flex; gap:8px; margin-bottom:16px;">
+          <input type="tel" id="track-lookup-phone" placeholder="+256 7XX XXX XXX" style="flex:1; padding:12px 14px; border:1.5px solid var(--border); border-radius:8px; font-size:0.9rem;"/>
+          <button onclick="lookupOrderByPhone()" class="btn-primary" style="padding:12px 18px; border-radius:8px; font-weight:700; white-space:nowrap;">Find</button>
+        </div>
+        <div id="track-lookup-status" style="font-size:0.82rem; color:var(--red); margin-bottom:10px; display:none;"></div>
+      </div>
+
+      <div class="hto-option" id="track-opt-2"><div class="hto-num">&#128222;</div><div class="hto-content"><div class="hto-title">Prefer to Ask Us Directly?</div><p>You can always <strong>call or WhatsApp us</strong> and our team will give you a real-time update.</p></div></div>
       <div class="hto-footer-btn" id="track-footer-btn">
         <a href="tel:+256757675088" class="btn-primary" style="display:block;text-align:center;margin-top:8px;text-decoration:none;margin-bottom:10px;">Call Us Now</a>
         <a href="https://wa.me/256757675088" target="_blank" class="btn-outline" style="display:block;text-align:center;text-decoration:none;padding:13px;border-radius:4px;font-weight:600;font-size:0.9rem;border:1.5px solid #444;color:var(--black);">WhatsApp Us</a>
@@ -6300,6 +6335,14 @@
     window.addEventListener('firebaseReady', tryAutoLoginAccount, { once: true });
   }
 
+  // Deep-link support: a notification click lands here as
+  // index.html?trackOrder=<id> — open straight to that order's tracker.
+  if (window.firebaseReady) {
+    checkForTrackOrderDeepLink();
+  } else {
+    window.addEventListener('firebaseReady', checkForTrackOrderDeepLink, { once: true });
+  }
+
   function validateOrderFieldsVisual() {
     if (!orderValidationArmed) return;
     ORDER_REQUIRED_FIELD_IDS.forEach(function(id){
@@ -6725,12 +6768,113 @@
     [['ret-opt-1',150],['ret-opt-2',280],['ret-opt-3',410],['ret-opt-4',540],['ret-opt-5',670],['ret-opt-6',800],['ret-footer-btn',930]].forEach(function(pair){setTimeout(function(){var e=document.getElementById(pair[0]);if(e)e.classList.add('visible');},pair[1]);});
   }
 
-  function openTrackModal() {
-    ['track-opt-1','track-opt-2','track-footer-btn'].forEach(function(id){var e=document.getElementById(id);if(e)e.classList.remove('visible');});
+  function openTrackModal(orderId) {
+    ['track-opt-2','track-footer-btn'].forEach(function(id){var e=document.getElementById(id);if(e)e.classList.remove('visible');});
     openOverlayEl(document.getElementById('track-order-modal'));
-    setTimeout(function(){var e=document.getElementById('track-opt-1');if(e)e.classList.add('visible');},200);
-    setTimeout(function(){var e=document.getElementById('track-opt-2');if(e)e.classList.add('visible');},380);
-    setTimeout(function(){var e=document.getElementById('track-footer-btn');if(e)e.classList.add('visible');},560);
+    setTimeout(function(){var e=document.getElementById('track-opt-2');if(e)e.classList.add('visible');},280);
+    setTimeout(function(){var e=document.getElementById('track-footer-btn');if(e)e.classList.add('visible');},420);
+
+    var loadingEl = document.getElementById('track-live-loading');
+    var foundEl = document.getElementById('track-live-found');
+    var notFoundEl = document.getElementById('track-live-notfound');
+    var lookupEl = document.getElementById('track-live-lookup');
+    [loadingEl, foundEl, notFoundEl, lookupEl].forEach(function(e){ if (e) e.style.display = 'none'; });
+
+    if (orderId) {
+      // Came from a notification click / direct link — go straight to that order.
+      if (loadingEl) loadingEl.style.display = 'block';
+      if (!window.fbDb || !window.fbFns) return;
+      var { doc, getDoc } = window.fbFns;
+      getDoc(doc(window.fbDb, 'orders', orderId)).then(function(snap){
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (!snap.exists()) { if (notFoundEl) notFoundEl.style.display = 'block'; return; }
+        renderLiveTrackedOrder(Object.assign({ fbDocId: snap.id }, snap.data()));
+      }).catch(function(e){
+        console.error('[track] order lookup failed:', e);
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (notFoundEl) notFoundEl.style.display = 'block';
+      });
+    } else {
+      // Plain footer click, no specific order in context — offer a phone lookup.
+      if (lookupEl) lookupEl.style.display = 'block';
+    }
+  }
+
+  function lookupOrderByPhone() {
+    var phoneInput = document.getElementById('track-lookup-phone');
+    var statusEl = document.getElementById('track-lookup-status');
+    var phone = phoneInput ? phoneInput.value.trim() : '';
+    if (!phone) { if (statusEl) { statusEl.textContent = 'Please enter a phone number.'; statusEl.style.display = 'block'; } return; }
+    if (!window.fbDb || !window.fbFns) return;
+    var { collection, query, where, getDocs } = window.fbFns;
+    if (statusEl) statusEl.style.display = 'none';
+    getDocs(query(collection(window.fbDb, 'orders'), where('phone', '==', phone))).then(function(snap){
+      if (snap.empty) {
+        if (statusEl) { statusEl.textContent = 'No orders found for that number.'; statusEl.style.display = 'block'; }
+        return;
+      }
+      var ords = snap.docs.map(function(d){ return Object.assign({ fbDocId: d.id }, d.data()); });
+      ords.sort(function(a,b){ return new Date(b.timestamp) - new Date(a.timestamp); });
+      var lookupEl = document.getElementById('track-live-lookup');
+      if (lookupEl) lookupEl.style.display = 'none';
+      renderLiveTrackedOrder(ords[0]);
+    }).catch(function(e){
+      console.error('[track] phone lookup failed:', e);
+      if (statusEl) { statusEl.textContent = 'Something went wrong — please try again or WhatsApp us.'; statusEl.style.display = 'block'; }
+    });
+  }
+
+  // Renders the exact same tracker system used in My Orders / the Active Order
+  // card — reused wholesale here so a customer clicking a notification link (even
+  // as a guest, with no account) sees the identical, real-time-accurate view.
+  function renderLiveTrackedOrder(o) {
+    var foundEl = document.getElementById('track-live-found');
+    var badgeEl = document.getElementById('track-live-badge');
+    var stepsEl = document.getElementById('track-live-steps');
+    var deliveryEl = document.getElementById('track-live-delivery');
+    var itemsEl = document.getElementById('track-live-items');
+    var footerEl = document.getElementById('track-live-footer');
+    var nudgeEl = document.getElementById('track-live-account-nudge');
+    if (!foundEl) return;
+
+    var badge = buildOrderStageBadgeHtml(o);
+    if (badgeEl) { badgeEl.style.cssText += badge.style; badgeEl.innerHTML = badge.html; }
+
+    var stepsHtml = buildOrderStepsHtml(o);
+    if (stepsEl) {
+      if (stepsHtml) { stepsEl.innerHTML = stepsHtml; stepsEl.style.display = 'block'; }
+      else stepsEl.style.display = 'none';
+    }
+
+    if (deliveryEl && o.delivery && (o.delivery.bodaName || o.delivery.eta)) {
+      var lines = [];
+      if (o.delivery.bodaName) lines.push('<span style="color:#888;">Rider/Driver:</span> <strong>' + o.delivery.bodaName + '</strong>');
+      if (o.delivery.plateNumber) lines.push('<span style="color:#888;">Plate:</span> <strong>' + o.delivery.plateNumber + '</strong>');
+      if (o.delivery.eta) lines.push('<span style="color:#888;">Expected In:</span> <strong>' + o.delivery.eta + '</strong>');
+      deliveryEl.innerHTML = lines.join('<br/>');
+      deliveryEl.style.display = 'block';
+    } else if (deliveryEl) {
+      deliveryEl.style.display = 'none';
+    }
+
+    if (itemsEl) {
+      itemsEl.textContent = o.products || (o.cartItems ? o.cartItems.map(function(i){ return i.name + ' x' + i.qty; }).join(', ') : '');
+    }
+
+    if (footerEl) footerEl.innerHTML = buildOrderReferenceAndCancelHtml(o);
+
+    if (nudgeEl) nudgeEl.style.display = currentAccount ? 'none' : 'block';
+
+    foundEl.style.display = 'block';
+  }
+
+  // Deep-link support: a notification click lands here as
+  // index.html?trackOrder=<orderDocId> — open straight to that order's live
+  // tracker once Firebase is ready, instead of just landing on the homepage.
+  function checkForTrackOrderDeepLink() {
+    var params = new URLSearchParams(window.location.search);
+    var orderId = params.get('trackOrder');
+    if (orderId) openTrackModal(orderId);
   }
 
   function openPaymentModal() {
