@@ -1086,6 +1086,9 @@
       <div class="nav-item" onclick="showPage('emp-performance')">
         <span class="nav-icon">📊</span> Employee Performance
       </div>
+      <div class="nav-item" onclick="showPage('boda-riders')">
+        <span class="nav-icon">🏍️</span> Boda Riders
+      </div>
       <div class="nav-item" onclick="showPage('scanner')">
         <span class="nav-icon">📷</span> QR Scanner
       </div>
@@ -1463,6 +1466,30 @@
             </thead>
             <tbody id="profits-tbody"></tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- BODA RIDERS PAGE -->
+      <div class="page" id="page-boda-riders">
+        <div class="section-hdr"><h2>🏍️ Boda Riders</h2></div>
+        <div class="card" style="max-width:720px;">
+          <div style="font-size:0.85rem; color:#555; margin-bottom:16px; line-height:1.6;">
+            Riders you add here can log into <strong>swift-boda.html</strong> using the shared boda login, then their own 4-digit code below to identify themselves. Once confirmed orders are posted to the board, any rider can claim one — first to tap wins.
+          </div>
+          <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+            <input type="text" id="new-boda-name-input" placeholder="e.g. Joseph Okello"
+              style="flex:1; min-width:160px; max-width:220px; padding:9px 12px; border:1.5px solid var(--border); border-radius:7px; font-size:0.85rem; font-family:'Inter',sans-serif;"
+              onkeydown="if(event.key==='Enter') document.getElementById('new-boda-phone-input').focus();"/>
+            <input type="tel" id="new-boda-phone-input" placeholder="0765 XXX XXX"
+              style="width:150px; padding:9px 12px; border:1.5px solid var(--border); border-radius:7px; font-size:0.85rem; font-family:'Inter',sans-serif;"
+              onkeydown="if(event.key==='Enter') document.getElementById('new-boda-code-input').focus();"/>
+            <input type="text" id="new-boda-code-input" maxlength="4" inputmode="numeric" placeholder="4-digit code"
+              style="width:130px; text-align:center; letter-spacing:0.2em; padding:9px 12px; border:1.5px solid var(--border); border-radius:7px; font-size:0.85rem; font-family:'Inter',sans-serif;"
+              oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4);"
+              onkeydown="if(event.key==='Enter') addBodaRider();"/>
+            <button class="btn-gold" style="padding:9px 16px; font-size:0.8rem;" onclick="addBodaRider()">+ Add Rider</button>
+          </div>
+          <div id="boda-riders-list" style="display:flex; flex-wrap:wrap; gap:12px;"></div>
         </div>
       </div>
 
@@ -3539,6 +3566,7 @@
       fbListenFinance();
       fbListenStores();
       fbListenEmployees();
+      fbListenBodaRiders();
       fbListenAdjustmentsLog();
       fbListenCategories();
       fbListenGlobalPromoCodes();
@@ -3671,16 +3699,17 @@
     document.getElementById('page-' + name).classList.add('active');
     document.body.classList.toggle('on-dashboard-page', name === 'dashboard');
     document.querySelectorAll('.nav-item').forEach(n => {
-      const label = name === 'dashboard' ? 'dashboard' : name === 'inventory' ? 'inventory' : name === 'tracking' ? 'product tracking' : name === 'alerts' ? 'alert' : name === 'profits' ? 'profit' : name === 'emp-performance' ? 'employee performance' : name === 'open-orders' ? 'open orders' : name === 'closed-orders' ? 'closed orders' : name === 'customers' ? 'customers' : name === 'messages' ? 'messages' : 'scanner';
+      const label = name === 'dashboard' ? 'dashboard' : name === 'inventory' ? 'inventory' : name === 'tracking' ? 'product tracking' : name === 'alerts' ? 'alert' : name === 'profits' ? 'profit' : name === 'emp-performance' ? 'employee performance' : name === 'boda-riders' ? 'boda riders' : name === 'open-orders' ? 'open orders' : name === 'closed-orders' ? 'closed orders' : name === 'customers' ? 'customers' : name === 'messages' ? 'messages' : 'scanner';
       if (n.textContent.toLowerCase().includes(label)) {
         n.classList.add('active');
       }
     });
-    const titles = { dashboard:'📊 Dashboard', inventory:'📦 Inventory', tracking:'🚚 Product Tracking', alerts:'🔔 Stock Alerts', profits:'💰 Profits', 'open-orders':'📋 Open Orders', 'closed-orders':'✅ Closed Orders', 'emp-performance':'📊 Employee Performance', customers:'👥 Customers', messages:'💬 Messages', scanner:'📷 QR Scanner' };
+    const titles = { dashboard:'📊 Dashboard', inventory:'📦 Inventory', tracking:'🚚 Product Tracking', alerts:'🔔 Stock Alerts', profits:'💰 Profits', 'open-orders':'📋 Open Orders', 'closed-orders':'✅ Closed Orders', 'emp-performance':'📊 Employee Performance', 'boda-riders':'🏍️ Boda Riders', customers:'👥 Customers', messages:'💬 Messages', scanner:'📷 QR Scanner' };
     document.getElementById('page-title').textContent = titles[name] || name;
     if (name !== 'scanner') stopScanner();
     if (name !== 'tracking' && typeof stopTrackingScanner === 'function') stopTrackingScanner();
     if (name === 'emp-performance') renderEmployeePerformance();
+    if (name === 'boda-riders') renderBodaRiders();
     if (name === 'customers') { loadTierSettingsIntoForm(); searchCustomers(document.getElementById('customer-search-input') ? document.getElementById('customer-search-input').value : ''); }
     if (name === 'messages' && !opts.keepThread) { document.body.classList.remove('admin-thread-open'); activeThreadCustomerId = null; renderAdminThreadsList(); }
     if (name === 'tracking') { renderTrackingStats(); renderTrackingList(); }
@@ -3898,6 +3927,93 @@
     } else {
       selectEl.setAttribute('data-current', selectEl.value);
     }
+  }
+
+  // ── BODA RIDERS (for the separate swift-boda.html claim board) ──
+  let bodaRiders = [];
+  let unsubscribeBodaRiders = null;
+
+  function fbListenBodaRiders() {
+    if (!window.fbDb) return;
+    const { collection, onSnapshot } = window.fbFns;
+    if (unsubscribeBodaRiders) unsubscribeBodaRiders();
+    unsubscribeBodaRiders = onSnapshot(collection(window.fbDb, 'boda_riders'), (snapshot) => {
+      bodaRiders = snapshot.docs.map(d => ({ fbDocId: d.id, ...d.data() }));
+      bodaRiders.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+      renderBodaRiders();
+    });
+  }
+
+  function renderBodaRiders() {
+    const wrap = document.getElementById('boda-riders-list');
+    if (!wrap) return;
+    if (bodaRiders.length === 0) {
+      wrap.innerHTML = '<div style="font-size:0.8rem; color:var(--grey);">No riders added yet.</div>';
+      return;
+    }
+    wrap.innerHTML = bodaRiders.map(r => `
+      <div style="width:230px; flex:0 0 230px; box-sizing:border-box; display:flex; flex-direction:column; gap:8px; background:var(--light); border:1px solid var(--border); border-radius:10px; padding:12px 14px;">
+        <div style="display:flex; align-items:center; gap:9px;">
+          <span style="font-size:1.4rem; flex-shrink:0;">🏍️</span>
+          <span style="font-weight:700; font-size:0.85rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.name}</span>
+        </div>
+        <div style="font-size:0.76rem; color:#666;">📞 ${r.phone || '—'}</div>
+        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+          <span style="font-family:'Inter',sans-serif; font-size:0.78rem; font-weight:700; letter-spacing:0.15em; color:var(--gold-dark); background:#fff; border:1px solid var(--gold); border-radius:6px; padding:3px 9px;" id="boda-code-display-${r.fbDocId}" data-code="${r.code||''}">••••</span>
+          <button onclick="toggleBodaCodeVisibility('${r.fbDocId}')" style="background:none; border:none; cursor:pointer; font-size:0.85rem; padding:2px;" title="Show/hide code">👁️</button>
+        </div>
+        <div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:2px;">
+          <button onclick="removeBodaRider('${r.fbDocId}','${(r.name||'').replace(/'/g,"\\'")}')" style="flex:1; background:#fdecea; border:1.5px solid #f5c6c0; color:var(--red); cursor:pointer; font-size:0.68rem; font-weight:700; padding:5px 6px; border-radius:6px;">🗑️ Remove</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function toggleBodaCodeVisibility(id) {
+    const el = document.getElementById('boda-code-display-' + id);
+    if (!el) return;
+    el.textContent = el.textContent === '••••' ? (el.getAttribute('data-code') || '') : '••••';
+  }
+
+  async function addBodaRider() {
+    const nameInput = document.getElementById('new-boda-name-input');
+    const phoneInput = document.getElementById('new-boda-phone-input');
+    const codeInput = document.getElementById('new-boda-code-input');
+    const name = nameInput.value.trim();
+    const phone = phoneInput.value.trim();
+    const code = codeInput.value.trim();
+    if (!name) { nameInput.focus(); return; }
+    if (!/^\d{4}$/.test(code)) { showAppAlert('Please set a 4-digit secret code for this rider.'); codeInput.focus(); return; }
+    if (bodaRiders.some(r => (r.name||'').toLowerCase() === name.toLowerCase())) {
+      showAppAlert('That name is already on the list.');
+      return;
+    }
+    if (!window.fbDb || !window.fbFns) { showAppAlert('Not connected. Check your internet connection.'); return; }
+    const { addDoc, collection } = window.fbFns;
+    try {
+      await addDoc(collection(window.fbDb, 'boda_riders'), { name, phone, code, createdAt: new Date().toISOString() });
+      nameInput.value = '';
+      phoneInput.value = '';
+      codeInput.value = '';
+      showAppAlert('✅ ' + name + ' added. Share their 4-digit code with them privately.');
+    } catch(e) {
+      showAppAlert('Error adding rider. Check your internet connection.');
+      console.error(e);
+    }
+  }
+
+  async function removeBodaRider(id, name) {
+    showAppConfirm('Remove "' + name + '" from the boda list? They will no longer be able to identify themselves on the claim board.', async function(){
+      if (!window.fbDb || !window.fbFns) return;
+      const { doc, deleteDoc } = window.fbFns;
+      try {
+        await deleteDoc(doc(window.fbDb, 'boda_riders', id));
+        showSuccessToast('✅ Rider removed.');
+      } catch(e) {
+        showAppAlert('Error removing rider. Check your connection.');
+        console.error(e);
+      }
+    }, null, { icon: '🗑️', confirmText: 'Remove' });
   }
 
   // ── STAFF NAMES (for sale/adjustment attribution in Employee Panel) ──
@@ -5056,6 +5172,18 @@
                 : '<div style="font-size:0.72rem; color:#999; margin-top:5px;">Set delivery info below once this reaches the warehouse.</div>') +
             '</div>';
           })() : ''}
+          ${!isClosed && o.status === 'confirmed' && (!o.delivery || o.delivery.type !== 'selfpick') ? (function(){
+            if (o.bodaClaimedBy) {
+              return '<div style="width:100%; margin-top:8px; background:rgba(74,222,128,0.14); border:1.5px solid #4ade80; border-radius:8px; padding:9px 11px; font-size:0.78rem; color:#1a5c2e; font-weight:700;">🏍️ Claimed by ' + o.bodaClaimedBy.name + ' — ' + o.bodaClaimedBy.phone + '</div>';
+            }
+            if (o.postedToBodaBoard) {
+              return '<div style="width:100%; margin-top:8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">' +
+                '<div style="flex:1; background:#fff3d6; border:1.5px solid var(--gold); border-radius:8px; padding:9px 11px; font-size:0.78rem; color:#6b5410; font-weight:700;">📢 Posted — waiting for a rider to claim it...</div>' +
+                `<button onclick="removeFromBodaBoard('${o.fbDocId}')" style="background:#fdecea; border:1.5px solid #f5c6c0; color:var(--red); padding:9px 11px; border-radius:8px; font-size:0.76rem; font-weight:700; cursor:pointer;">✕ Remove</button>` +
+              '</div>';
+            }
+            return `<button onclick="postToBodaBoard('${o.fbDocId}')" style="width:100%; margin-top:8px; background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:8px 10px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer;">📢 Post to Boda Board</button>`;
+          })() : ''}
           ${!isClosed && o.status === 'confirmed' ? `
             <div style="width:100%; display:flex; gap:6px; margin-top:8px;">
               <button onclick="quickSetETA('${o.fbDocId}')" style="flex:1; background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:8px 10px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer;">⏱️ ${o.delivery && o.delivery.eta ? 'Update' : 'Set'} ETA</button>
@@ -5457,6 +5585,30 @@
       null,
       { icon: '🗑️', confirmText: 'Delete Permanently' }
     );
+  }
+
+  async function postToBodaBoard(docId) {
+    if (!docId || !window.fbDb || !window.fbFns) return;
+    try {
+      const { doc, updateDoc } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'orders', docId), { postedToBodaBoard: true });
+      showSuccessToast('📢 Posted to the boda claim board.');
+    } catch(e) {
+      showAppAlert('Error posting to boda board. Check your connection.');
+      console.error('[order] postToBodaBoard failed:', e);
+    }
+  }
+
+  async function removeFromBodaBoard(docId) {
+    if (!docId || !window.fbDb || !window.fbFns) return;
+    try {
+      const { doc, updateDoc } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'orders', docId), { postedToBodaBoard: false });
+      showSuccessToast('Removed from the boda claim board.');
+    } catch(e) {
+      showAppAlert('Error removing from boda board. Check your connection.');
+      console.error('[order] removeFromBodaBoard failed:', e);
+    }
   }
 
   async function updateOrderStatus(docId, newStatus) {

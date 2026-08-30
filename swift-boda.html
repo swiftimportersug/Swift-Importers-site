@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Swift Importers — Boda Riders</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, collection, doc, getDocs, onSnapshot, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    // Same project as the rest of the site. This shared login is only a first
+    // gate — like the employee panel, real identification happens via each
+    // rider's own 4-digit code, checked against the boda_riders collection.
+    const BODA_EMAIL = "swiftimportersboda@gmail.com";
+    const BODA_PASSWORD = "amonaN2-boda.$$77";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDqOE4NDmp3xJrTf71MzlClTZ201Uhyk0Q",
+      authDomain: "swift-importers.firebaseapp.com",
+      projectId: "swift-importers",
+      storageBucket: "swift-importers.firebasestorage.app",
+      messagingSenderId: "223766904777",
+      appId: "1:223766904777:web:aae5780e08d0800aff7218"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    window.fbDb = db;
+    window.fbFns = { collection, doc, getDocs, onSnapshot, updateDoc, query, where };
+    window.fbAuthFns = { signInWithEmailAndPassword, signOut, onAuthStateChanged };
+    window.BODA_EMAIL = BODA_EMAIL;
+    window.BODA_PASSWORD = BODA_PASSWORD;
+    window.firebaseReady = true;
+    window.dispatchEvent(new Event('firebaseReady'));
+
+    onAuthStateChanged(auth, function(user) {
+      window.dispatchEvent(new CustomEvent('bodaAuthState', { detail: { user } }));
+    });
+
+    window.bodaSignIn = function() {
+      return signInWithEmailAndPassword(auth, BODA_EMAIL, BODA_PASSWORD);
+    };
+    window.bodaSignOut = function() {
+      return signOut(auth);
+    };
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --black: #0D0D0D;
+      --white: #F7F6F2;
+      --gold: #E8A020;
+      --gold-dark: #B87D12;
+      --red: #D63B2F;
+      --green: #2a9d50;
+      --grey: #888;
+      --light: #F0EFE9;
+      --border: #E2E0D8;
+      --card: #FFFFFF;
+    }
+    html, body { height: 100%; overflow-x: hidden; }
+    body { font-family: 'Inter', sans-serif; background: var(--light); color: var(--black); font-size: 15px; }
+    h1, h2, h3 { font-family: 'Syne', sans-serif; }
+    button { font-family: 'Inter', sans-serif; cursor: pointer; }
+    input { font-family: 'Inter', sans-serif; }
+
+    .screen { display: none; min-height: 100vh; }
+    .screen.active { display: flex; flex-direction: column; }
+
+    /* LOGIN / PIN SCREENS */
+    .center-screen { align-items: center; justify-content: center; padding: 24px; }
+    .auth-box { background: var(--card); border-radius: 16px; padding: 32px 26px; max-width: 360px; width: 100%; box-shadow: 0 8px 30px rgba(0,0,0,0.08); text-align: center; }
+    .auth-box .logo { font-size: 2.2rem; margin-bottom: 6px; }
+    .auth-box h1 { font-size: 1.3rem; margin-bottom: 4px; }
+    .auth-box p { color: var(--grey); font-size: 0.85rem; margin-bottom: 22px; }
+    .auth-box input { width: 100%; padding: 13px 14px; border: 1.5px solid var(--border); border-radius: 9px; font-size: 1rem; margin-bottom: 14px; }
+    .auth-box input#pin-input { text-align: center; letter-spacing: 0.5em; font-size: 1.4rem; font-weight: 700; }
+    .btn-primary { width: 100%; background: var(--gold); color: var(--black); border: none; padding: 13px; border-radius: 9px; font-weight: 800; font-size: 0.95rem; }
+    .btn-primary:disabled { opacity: 0.6; }
+    .auth-error { color: var(--red); font-size: 0.8rem; margin-top: 12px; min-height: 1em; }
+    .rider-pick { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; text-align: left; max-height: 240px; overflow-y: auto; }
+    .rider-pick button { background: var(--light); border: 1.5px solid var(--border); border-radius: 9px; padding: 11px 14px; font-size: 0.9rem; font-weight: 700; text-align: left; }
+    .rider-pick button.selected { border-color: var(--gold); background: #fff7e6; }
+
+    /* MAIN APP */
+    .topbar { background: var(--black); color: #fff; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+    .topbar .brand { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.05rem; }
+    .topbar .rider-name { font-size: 0.78rem; color: var(--gold); }
+    .topbar button { background: none; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 6px 12px; border-radius: 7px; font-size: 0.76rem; font-weight: 700; }
+
+    .tabs { display: flex; background: var(--card); border-bottom: 1.5px solid var(--border); position: sticky; top: 53px; z-index: 40; }
+    .tabs button { flex: 1; background: none; border: none; padding: 13px 6px; font-size: 0.82rem; font-weight: 800; color: var(--grey); border-bottom: 3px solid transparent; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .tabs button.active { color: var(--black); border-bottom-color: var(--gold); }
+    .tab-badge { background: var(--red); color: #fff; font-size: 0.65rem; font-weight: 800; padding: 1px 7px; border-radius: 20px; }
+
+    .content { flex: 1; padding: 16px; max-width: 640px; margin: 0 auto; width: 100%; }
+    .empty-state { text-align: center; color: var(--grey); padding: 60px 20px; font-size: 0.9rem; }
+
+    .job-card { background: var(--card); border: 1.5px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+    .job-card .ref { font-size: 0.7rem; color: var(--grey); font-weight: 700; margin-bottom: 4px; }
+    .job-card .items { background: var(--light); border-radius: 8px; padding: 10px 12px; font-size: 0.83rem; margin: 8px 0; white-space: pre-wrap; }
+    .job-card .loc { display: flex; align-items: flex-start; gap: 8px; font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; }
+    .job-card .customer { font-size: 0.82rem; color: #444; margin-bottom: 4px; }
+    .job-card .notes { background: #fff8e6; border: 1.5px solid var(--gold); border-radius: 8px; padding: 8px 10px; font-size: 0.78rem; color: #6b5410; margin: 8px 0; }
+    .job-card .mode-badge { display: inline-block; font-size: 0.72rem; font-weight: 800; padding: 3px 10px; border-radius: 20px; margin-bottom: 8px; }
+    .mode-boda { background: rgba(232,160,32,0.16); color: var(--gold-dark); }
+    .mode-taxibus { background: rgba(74,158,255,0.16); color: #2a6fbf; }
+
+    .claim-btn { width: 100%; background: var(--gold); color: var(--black); border: none; padding: 13px; border-radius: 9px; font-weight: 800; font-size: 0.9rem; margin-top: 8px; }
+    .claim-btn:disabled { opacity: 0.5; }
+    .action-row { display: flex; gap: 8px; margin-top: 10px; }
+    .action-btn { flex: 1; background: var(--black); color: #fff; border: none; padding: 12px 8px; border-radius: 9px; font-weight: 800; font-size: 0.82rem; }
+    .action-btn.done { background: var(--green); }
+    .stage-pill { display: inline-block; font-size: 0.72rem; font-weight: 800; padding: 4px 11px; border-radius: 20px; background: rgba(74,222,128,0.16); color: var(--green); margin-bottom: 8px; }
+
+    .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--black); color: #fff; padding: 12px 20px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; z-index: 999; display: none; box-shadow: 0 8px 24px rgba(0,0,0,0.3); max-width: 90%; text-align: center; }
+  </style>
+</head>
+<body>
+
+  <!-- LOGIN SCREEN -->
+  <div class="screen center-screen active" id="screen-login">
+    <div class="auth-box">
+      <div class="logo">🏍️</div>
+      <h1>Swift Importers</h1>
+      <p>Boda Rider Claim Board</p>
+      <button class="btn-primary" id="login-btn" onclick="doBodaLogin()">Sign In</button>
+      <div class="auth-error" id="login-error"></div>
+    </div>
+  </div>
+
+  <!-- PIN / IDENTIFY SCREEN -->
+  <div class="screen center-screen" id="screen-pin">
+    <div class="auth-box">
+      <div class="logo">🔑</div>
+      <h1>Who Are You?</h1>
+      <p>Select your name, then enter your personal code</p>
+      <div class="rider-pick" id="rider-pick-list"></div>
+      <input type="text" id="pin-input" maxlength="4" inputmode="numeric" placeholder="••••" style="display:none;"
+        oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4);"/>
+      <button class="btn-primary" id="pin-confirm-btn" onclick="confirmRiderPin()" style="display:none;">Confirm</button>
+      <div class="auth-error" id="pin-error"></div>
+    </div>
+  </div>
+
+  <!-- MAIN APP -->
+  <div class="screen" id="screen-app">
+    <div class="topbar">
+      <div>
+        <div class="brand">🏍️ Swift Boda</div>
+        <div class="rider-name" id="topbar-rider-name"></div>
+      </div>
+      <button onclick="doBodaLogout()">Switch Rider</button>
+    </div>
+    <div class="tabs">
+      <button class="active" id="tab-btn-available" onclick="switchBodaTab('available')">
+        📦 Available <span class="tab-badge" id="available-count-badge" style="display:none;"></span>
+      </button>
+      <button id="tab-btn-mine" onclick="switchBodaTab('mine')">
+        🚴 My Jobs <span class="tab-badge" id="mine-count-badge" style="display:none;"></span>
+      </button>
+    </div>
+    <div class="content">
+      <div id="tab-available"></div>
+      <div id="tab-mine" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ── STATE ──
+    var currentRider = null; // { fbDocId, name, phone }
+    var allBodaRiders = [];
+    var boardOrders = []; // live snapshot of everything postedToBodaBoard === true
+    var activeBodaTab = 'available';
+    var unsubscribeBoard = null;
+
+    function showToast(text) {
+      var t = document.getElementById('toast');
+      t.textContent = text;
+      t.style.display = 'block';
+      clearTimeout(showToast._timer);
+      showToast._timer = setTimeout(function(){ t.style.display = 'none'; }, 3200);
+    }
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+      document.getElementById(id).classList.add('active');
+    }
+
+    // ── AUTH FLOW ──
+    function doBodaLogin() {
+      var btn = document.getElementById('login-btn');
+      var errEl = document.getElementById('login-error');
+      btn.disabled = true;
+      errEl.textContent = '';
+      window.bodaSignIn().catch(function(e){
+        console.error('[boda] sign-in failed:', e);
+        errEl.textContent = 'Could not sign in. Check your internet connection.';
+        btn.disabled = false;
+      });
+    }
+
+    function doBodaLogout() {
+      currentRider = null;
+      if (unsubscribeBoard) { unsubscribeBoard(); unsubscribeBoard = null; }
+      window.bodaSignOut().catch(function(e){ console.error(e); });
+      showScreen('screen-pin');
+      renderRiderPickList();
+    }
+
+    window.addEventListener('bodaAuthState', function(e){
+      if (e.detail.user) {
+        loadBodaRidersForPicker();
+        if (!currentRider) showScreen('screen-pin');
+      } else {
+        showScreen('screen-login');
+        document.getElementById('login-btn').disabled = false;
+      }
+    });
+
+    // ── RIDER IDENTIFICATION (shared login + personal 4-digit code) ──
+    var selectedRiderForPin = null;
+
+    function loadBodaRidersForPicker() {
+      if (!window.fbDb || !window.fbFns) return;
+      var { collection, getDocs } = window.fbFns;
+      getDocs(collection(window.fbDb, 'boda_riders')).then(function(snap){
+        allBodaRiders = snap.docs.map(function(d){ return Object.assign({ fbDocId: d.id }, d.data()); });
+        allBodaRiders.sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+        renderRiderPickList();
+      }).catch(function(e){ console.error('[boda] loading riders failed:', e); });
+    }
+
+    function renderRiderPickList() {
+      var wrap = document.getElementById('rider-pick-list');
+      if (!wrap) return;
+      if (allBodaRiders.length === 0) {
+        wrap.innerHTML = '<div style="font-size:0.82rem; color:var(--grey); text-align:center;">No riders set up yet — ask the shop to add you.</div>';
+        return;
+      }
+      wrap.innerHTML = allBodaRiders.map(function(r){
+        return '<button data-id="' + r.fbDocId + '" onclick="selectRiderForPin(\'' + r.fbDocId + '\')">' + r.name + '</button>';
+      }).join('');
+    }
+
+    function selectRiderForPin(riderId) {
+      selectedRiderForPin = allBodaRiders.find(function(r){ return r.fbDocId === riderId; });
+      document.querySelectorAll('.rider-pick button').forEach(function(b){
+        b.classList.toggle('selected', b.getAttribute('data-id') === riderId);
+      });
+      document.getElementById('pin-input').style.display = 'block';
+      document.getElementById('pin-confirm-btn').style.display = 'block';
+      document.getElementById('pin-input').value = '';
+      document.getElementById('pin-input').focus();
+      document.getElementById('pin-error').textContent = '';
+    }
+
+    function confirmRiderPin() {
+      var code = document.getElementById('pin-input').value.trim();
+      var errEl = document.getElementById('pin-error');
+      if (!selectedRiderForPin) { errEl.textContent = 'Select your name first.'; return; }
+      if (code !== (selectedRiderForPin.code || '')) {
+        errEl.textContent = 'Incorrect code — try again.';
+        return;
+      }
+      currentRider = selectedRiderForPin;
+      document.getElementById('topbar-rider-name').textContent = currentRider.name;
+      showScreen('screen-app');
+      startBoardListener();
+    }
+
+    // ── LIVE BOARD LISTENER ──
+    function startBoardListener() {
+      if (!window.fbDb || !window.fbFns) return;
+      var { collection, onSnapshot, query, where } = window.fbFns;
+      if (unsubscribeBoard) unsubscribeBoard();
+      var q = query(collection(window.fbDb, 'orders'), where('postedToBodaBoard', '==', true));
+      unsubscribeBoard = onSnapshot(q, function(snapshot){
+        boardOrders = snapshot.docs.map(function(d){ return Object.assign({ fbDocId: d.id }, d.data()); });
+        renderBodaTabs();
+      }, function(e){ console.error('[boda] board listener failed:', e); });
+    }
+
+    function switchBodaTab(tab) {
+      activeBodaTab = tab;
+      document.getElementById('tab-btn-available').classList.toggle('active', tab === 'available');
+      document.getElementById('tab-btn-mine').classList.toggle('active', tab === 'mine');
+      document.getElementById('tab-available').style.display = tab === 'available' ? 'block' : 'none';
+      document.getElementById('tab-mine').style.display = tab === 'mine' ? 'block' : 'none';
+    }
+
+    function itemsSummaryFor(o) {
+      if (o.products) return o.products;
+      if (o.cartItems && o.cartItems.length) return o.cartItems.map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
+      return 'Item details unavailable';
+    }
+
+    function refCodeFor(o) {
+      return o.refCode || (o.fbDocId ? o.fbDocId.slice(-6).toUpperCase() : 'N/A');
+    }
+
+    function renderBodaTabs() {
+      var available = boardOrders.filter(function(o){ return !o.bodaClaimedBy; });
+      var mine = boardOrders.filter(function(o){
+        return o.bodaClaimedBy && o.bodaClaimedBy.riderId === (currentRider && currentRider.fbDocId) && o.deliveryStage !== 'delivered';
+      });
+
+      var availBadge = document.getElementById('available-count-badge');
+      if (available.length > 0) { availBadge.textContent = available.length; availBadge.style.display = 'inline-block'; }
+      else availBadge.style.display = 'none';
+
+      var mineBadge = document.getElementById('mine-count-badge');
+      if (mine.length > 0) { mineBadge.textContent = mine.length; mineBadge.style.display = 'inline-block'; }
+      else mineBadge.style.display = 'none';
+
+      var availEl = document.getElementById('tab-available');
+      if (available.length === 0) {
+        availEl.innerHTML = '<div class="empty-state">🎉 No jobs waiting right now.<br/>Check back soon!</div>';
+      } else {
+        availEl.innerHTML = available.map(renderAvailableJobCard).join('');
+      }
+
+      var mineEl = document.getElementById('tab-mine');
+      if (mine.length === 0) {
+        mineEl.innerHTML = '<div class="empty-state">You don\'t have any active jobs.<br/>Claim one from the Available tab.</div>';
+      } else {
+        mineEl.innerHTML = mine.map(renderMyJobCard).join('');
+      }
+    }
+
+    function renderAvailableJobCard(o) {
+      var isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
+      var locationText = [o.deliveryArea, o.exactLocation].filter(Boolean).join(' — ') || 'Location not specified';
+      return '<div class="job-card">' +
+        '<div class="ref">Order #' + refCodeFor(o) + '</div>' +
+        (isTaxiBus ? '<span class="mode-badge mode-taxibus">🚏 Pickup for ' + (o.delivery.type === 'bus' ? 'Bus' : 'Taxi') + ' Station</span>' : '<span class="mode-badge mode-boda">🏍️ Direct Delivery</span>') +
+        '<div class="items">' + itemsSummaryFor(o) + '</div>' +
+        '<div class="loc">📍 ' + locationText + '</div>' +
+        '<div class="customer">👤 ' + (o.customerName || 'Customer') + ' &middot; ' + (o.phone || '') + '</div>' +
+        (o.notes && o.notes.trim() ? '<div class="notes">💬 ' + o.notes.trim() + '</div>' : '') +
+        '<button class="claim-btn" onclick="claimJob(\'' + o.fbDocId + '\')">✅ I\'ll Take This</button>' +
+      '</div>';
+    }
+
+    function renderMyJobCard(o) {
+      var isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
+      var locationText = [o.deliveryArea, o.exactLocation].filter(Boolean).join(' — ') || 'Location not specified';
+      var stage = o.deliveryStage || null;
+
+      var actionsHtml;
+      if (!stage) {
+        actionsHtml = '<button class="action-btn" onclick="markBodaStage(\'' + o.fbDocId + '\',\'handed\')">✅ I\'ve Picked It Up</button>';
+      } else if (stage === 'handed' && isTaxiBus) {
+        actionsHtml = '<span class="stage-pill">✅ Picked Up</span><br/><button class="action-btn" onclick="markBodaStage(\'' + o.fbDocId + '\',\'at_station\')">📍 Dropped at the Station</button>';
+      } else if (stage === 'handed' && !isTaxiBus) {
+        actionsHtml = '<span class="stage-pill">✅ Picked Up</span><br/><button class="action-btn done" onclick="markBodaStage(\'' + o.fbDocId + '\',\'delivered\')">🎉 I\'ve Delivered It</button>';
+      } else if (stage === 'at_station') {
+        actionsHtml = '<span class="stage-pill">📍 Dropped at Station</span><div class="empty-state" style="padding:8px 0; font-size:0.78rem;">Your part is done — the bus/taxi takes it from here.</div>';
+      } else {
+        actionsHtml = '<span class="stage-pill">' + stage + '</span>';
+      }
+
+      return '<div class="job-card">' +
+        '<div class="ref">Order #' + refCodeFor(o) + '</div>' +
+        (isTaxiBus ? '<span class="mode-badge mode-taxibus">🚏 Pickup for ' + (o.delivery.type === 'bus' ? 'Bus' : 'Taxi') + ' Station</span>' : '<span class="mode-badge mode-boda">🏍️ Direct Delivery</span>') +
+        '<div class="items">' + itemsSummaryFor(o) + '</div>' +
+        '<div class="loc">📍 ' + locationText + '</div>' +
+        '<div class="customer">👤 ' + (o.customerName || 'Customer') + ' &middot; ' + (o.phone || '') + '</div>' +
+        (o.notes && o.notes.trim() ? '<div class="notes">💬 ' + o.notes.trim() + '</div>' : '') +
+        '<div class="action-row" style="flex-direction:column;">' + actionsHtml + '</div>' +
+      '</div>';
+    }
+
+    // ── CLAIMING — first tap wins, enforced by Firestore rules themselves ──
+    function claimJob(docId) {
+      if (!currentRider || !window.fbDb || !window.fbFns) return;
+      var { doc, updateDoc } = window.fbFns;
+      var o = boardOrders.find(function(x){ return x.fbDocId === docId; });
+      updateDoc(doc(window.fbDb, 'orders', docId), {
+        bodaClaimedBy: { riderId: currentRider.fbDocId, name: currentRider.name, phone: currentRider.phone, claimedAt: new Date().toISOString() },
+        postedToBodaBoard: false,
+        delivery: {
+          type: (o && o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus')) ? o.delivery.type : 'boda',
+          bodaName: currentRider.name,
+          bodaPhone: currentRider.phone,
+          plateNumber: (o && o.delivery && o.delivery.plateNumber) || '',
+          eta: (o && o.delivery && o.delivery.eta) || '',
+          location: (o && o.delivery && o.delivery.location) || '',
+          bodaFee: (o && o.delivery && o.delivery.bodaFee) || 0
+        }
+      }).then(function(){
+        showToast('✅ Job claimed! Check "My Jobs" to get started.');
+        switchBodaTab('mine');
+      }).catch(function(e){
+        // Most likely reason: someone else claimed it a moment earlier, and the
+        // rule's "still unclaimed" check now correctly rejects this attempt.
+        console.error('[boda] claimJob failed:', e);
+        showToast('Someone else already claimed this job.');
+      });
+    }
+
+    // ── PROGRESS UPDATES ──
+    // Same Worker used everywhere else on the site, so customers still get their
+    // push notification regardless of whether admin, an employee, or a boda rider
+    // is the one making the update.
+    var CUSTOMER_NOTIFY_WORKER_URL = 'https://swift-order-alert.swiftimportersug.workers.dev';
+    var CUSTOMER_NOTIFY_SHARED_KEY = 'swiftorders2026alertkey93x7';
+    function notifyCustomerOrderUpdate(order, title, body) {
+      if (!order || !order.customerFcmToken) return;
+      fetch(CUSTOMER_NOTIFY_WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Notify-Key': CUSTOMER_NOTIFY_SHARED_KEY },
+        body: JSON.stringify({ targetToken: order.customerFcmToken, title: title, body: body, url: '/index.html' })
+      }).catch(function(e){ console.error('[boda] customer push failed:', e); });
+    }
+
+    function markBodaStage(docId, stage) {
+      if (!window.fbDb || !window.fbFns) return;
+      var { doc, updateDoc } = window.fbFns;
+      var o = boardOrders.find(function(x){ return x.fbDocId === docId; });
+      updateDoc(doc(window.fbDb, 'orders', docId), { deliveryStage: stage }).then(function(){
+        showToast('✅ Updated!');
+        if (o) {
+          var isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
+          var messages = {
+            handed: { title: '📦 Picked Up', body: isTaxiBus ? 'Your order has been picked up and is on its way to the bus/taxi station.' : 'Your order has been handed to the boda rider for delivery.' },
+            at_station: { title: '🚏 At the Station', body: 'Your order has arrived at the bus/taxi station and will depart shortly.' },
+            delivered: { title: '🎉 Delivered!', body: 'Your order has been delivered. Thank you for shopping with Swift Importers!' }
+          };
+          var msg = messages[stage];
+          if (msg) notifyCustomerOrderUpdate(o, msg.title, msg.body);
+        }
+      }).catch(function(e){
+        console.error('[boda] markBodaStage failed:', e);
+        showToast('Could not update — check your connection and try again.');
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', function(){
+      renderRiderPickList();
+    });
+  </script>
+</body>
+</html>
