@@ -3756,7 +3756,7 @@
     try {
       const orderRef = doc(window.fbDb, 'orders', docId);
       const orderSnap = await getDoc(orderRef);
-      const order = orderSnap.exists() ? orderSnap.data() : null;
+      const order = orderSnap.exists() ? Object.assign({ fbDocId: docId }, orderSnap.data()) : null;
       const updates = { status: newStatus };
 
       if (order) {

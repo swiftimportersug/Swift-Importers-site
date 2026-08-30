@@ -1089,6 +1089,9 @@
       <div class="nav-item" onclick="showPage('boda-riders')">
         <span class="nav-icon">🏍️</span> Boda Riders
       </div>
+      <div class="nav-item" onclick="showPage('rider-performance')">
+        <span class="nav-icon">📊</span> Rider Performance
+      </div>
       <div class="nav-item" onclick="showPage('scanner')">
         <span class="nav-icon">📷</span> QR Scanner
       </div>
@@ -1490,6 +1493,46 @@
             <button class="btn-gold" style="padding:9px 16px; font-size:0.8rem;" onclick="addBodaRider()">+ Add Rider</button>
           </div>
           <div id="boda-riders-list" style="display:flex; flex-wrap:wrap; gap:12px;"></div>
+        </div>
+      </div>
+
+      <!-- RIDER PERFORMANCE PAGE -->
+      <div class="page" id="page-rider-performance">
+        <div class="section-hdr"><h2>📊 Rider Performance</h2></div>
+
+        <div class="card" style="max-width:720px; margin-bottom:20px;">
+          <div style="font-weight:700; font-size:0.9rem; margin-bottom:6px;">🔍 Find deliveries by customer</div>
+          <div style="font-size:0.8rem; color:#888; margin-bottom:12px;">See which rider delivered to a specific customer, and when.</div>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="rider-perf-search-input" placeholder="e.g. Sarah Namuli"
+              style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:7px; font-size:0.85rem; font-family:'Inter',sans-serif;"
+              oninput="searchDeliveriesByCustomer(this.value)"/>
+          </div>
+          <div id="rider-perf-search-results" style="margin-top:12px;"></div>
+        </div>
+
+        <div id="rider-perf-list-view">
+          <div style="font-size:0.82rem; color:#888; margin-bottom:16px;">Tap a rider to see their delivery history.</div>
+          <div id="rider-perf-cards" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:14px;"></div>
+        </div>
+
+        <div id="rider-perf-detail-view" style="display:none;">
+          <button onclick="closeRiderPerfDetail()" style="background:none; border:none; color:#888; font-size:0.82rem; cursor:pointer; padding:0; margin-bottom:14px;">&#8592; Back to Rider List</button>
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+            <div id="rider-perf-avatar" style="width:44px; height:44px; border-radius:50%; background:var(--black); color:#fff; display:flex; align-items:center; justify-content:center; font-size:1.2rem; font-weight:800; overflow:hidden;">🏍️</div>
+            <h2 id="rider-perf-name" style="margin:0;"></h2>
+          </div>
+
+          <div class="period-tabs" id="rider-perf-period-tabs">
+            <button class="period-tab active" data-period="today" onclick="setRiderPerfPeriod('today')">Today</button>
+            <button class="period-tab" data-period="week" onclick="setRiderPerfPeriod('week')">This Week</button>
+            <button class="period-tab" data-period="month" onclick="setRiderPerfPeriod('month')">This Month</button>
+            <button class="period-tab" data-period="all" onclick="setRiderPerfPeriod('all')">All Time</button>
+          </div>
+
+          <div class="stats-grid" id="rider-perf-summary" style="margin-bottom:20px;"></div>
+
+          <div id="rider-perf-deliveries-list"></div>
         </div>
       </div>
 
@@ -3699,17 +3742,18 @@
     document.getElementById('page-' + name).classList.add('active');
     document.body.classList.toggle('on-dashboard-page', name === 'dashboard');
     document.querySelectorAll('.nav-item').forEach(n => {
-      const label = name === 'dashboard' ? 'dashboard' : name === 'inventory' ? 'inventory' : name === 'tracking' ? 'product tracking' : name === 'alerts' ? 'alert' : name === 'profits' ? 'profit' : name === 'emp-performance' ? 'employee performance' : name === 'boda-riders' ? 'boda riders' : name === 'open-orders' ? 'open orders' : name === 'closed-orders' ? 'closed orders' : name === 'customers' ? 'customers' : name === 'messages' ? 'messages' : 'scanner';
+      const label = name === 'dashboard' ? 'dashboard' : name === 'inventory' ? 'inventory' : name === 'tracking' ? 'product tracking' : name === 'alerts' ? 'alert' : name === 'profits' ? 'profit' : name === 'emp-performance' ? 'employee performance' : name === 'boda-riders' ? 'boda riders' : name === 'rider-performance' ? 'rider performance' : name === 'open-orders' ? 'open orders' : name === 'closed-orders' ? 'closed orders' : name === 'customers' ? 'customers' : name === 'messages' ? 'messages' : 'scanner';
       if (n.textContent.toLowerCase().includes(label)) {
         n.classList.add('active');
       }
     });
-    const titles = { dashboard:'📊 Dashboard', inventory:'📦 Inventory', tracking:'🚚 Product Tracking', alerts:'🔔 Stock Alerts', profits:'💰 Profits', 'open-orders':'📋 Open Orders', 'closed-orders':'✅ Closed Orders', 'emp-performance':'📊 Employee Performance', 'boda-riders':'🏍️ Boda Riders', customers:'👥 Customers', messages:'💬 Messages', scanner:'📷 QR Scanner' };
+    const titles = { dashboard:'📊 Dashboard', inventory:'📦 Inventory', tracking:'🚚 Product Tracking', alerts:'🔔 Stock Alerts', profits:'💰 Profits', 'open-orders':'📋 Open Orders', 'closed-orders':'✅ Closed Orders', 'emp-performance':'📊 Employee Performance', 'boda-riders':'🏍️ Boda Riders', 'rider-performance':'📊 Rider Performance', customers:'👥 Customers', messages:'💬 Messages', scanner:'📷 QR Scanner' };
     document.getElementById('page-title').textContent = titles[name] || name;
     if (name !== 'scanner') stopScanner();
     if (name !== 'tracking' && typeof stopTrackingScanner === 'function') stopTrackingScanner();
     if (name === 'emp-performance') renderEmployeePerformance();
     if (name === 'boda-riders') renderBodaRiders();
+    if (name === 'rider-performance') renderRiderPerformanceList();
     if (name === 'customers') { loadTierSettingsIntoForm(); searchCustomers(document.getElementById('customer-search-input') ? document.getElementById('customer-search-input').value : ''); }
     if (name === 'messages' && !opts.keepThread) { document.body.classList.remove('admin-thread-open'); activeThreadCustomerId = null; renderAdminThreadsList(); }
     if (name === 'tracking') { renderTrackingStats(); renderTrackingList(); }
@@ -4069,6 +4113,143 @@
         console.error(e);
       }
     }, null, { icon: '🗑️', confirmText: 'Remove' });
+  }
+
+  // ── RIDER PERFORMANCE ──
+  // A delivery counts as "complete" once the rider's own part is genuinely
+  // finished — final delivery for a boda-only order, or dropping at the
+  // station for a taxi/bus order (matches the same logic swift-boda.html uses
+  // for its own "Completed" tab, so the two stay consistent).
+  function isRiderDeliveryComplete(o) {
+    const isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
+    if (isTaxiBus) return o.deliveryStage === 'at_station' || o.deliveryStage === 'on_the_way' || o.deliveryStage === 'delivered';
+    return o.deliveryStage === 'delivered';
+  }
+
+  let riderPerfSelectedId = null;
+  let riderPerfPeriod = 'today';
+
+  function renderRiderPerformanceList() {
+    const wrap = document.getElementById('rider-perf-cards');
+    if (!wrap) return;
+    document.getElementById('rider-perf-list-view').style.display = 'block';
+    document.getElementById('rider-perf-detail-view').style.display = 'none';
+
+    if (bodaRiders.length === 0) {
+      wrap.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:32px; color:var(--grey);">No riders added yet. Add riders from the Boda Riders page first.</div>';
+      return;
+    }
+    wrap.innerHTML = bodaRiders.map(r => {
+      const completedAllTime = orders.filter(o => o.bodaClaimedBy && o.bodaClaimedBy.riderId === r.fbDocId && isRiderDeliveryComplete(o)).length;
+      const avatar = r.photoUrl
+        ? `<img src="${r.photoUrl}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;" onerror="this.outerHTML='<span style=&quot;font-size:1.4rem;&quot;>🏍️</span>'"/>`
+        : `<span style="font-size:1.4rem;">🏍️</span>`;
+      return `
+        <div onclick="openRiderPerfDetail('${r.fbDocId}')" style="cursor:pointer; background:var(--light); border:1px solid var(--border); border-radius:10px; padding:14px; display:flex; align-items:center; gap:12px;">
+          ${avatar}
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:700; font-size:0.9rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.name}</div>
+            <div style="font-size:0.76rem; color:#888;">${completedAllTime} deliveries all-time</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function openRiderPerfDetail(riderId) {
+    riderPerfSelectedId = riderId;
+    riderPerfPeriod = 'today';
+    document.getElementById('rider-perf-list-view').style.display = 'none';
+    document.getElementById('rider-perf-detail-view').style.display = 'block';
+    document.querySelectorAll('#rider-perf-period-tabs .period-tab').forEach(t => t.classList.toggle('active', t.dataset.period === 'today'));
+
+    const r = bodaRiders.find(x => x.fbDocId === riderId);
+    if (!r) return;
+    document.getElementById('rider-perf-name').textContent = r.name;
+    const avatarEl = document.getElementById('rider-perf-avatar');
+    avatarEl.innerHTML = r.photoUrl
+      ? `<img src="${r.photoUrl}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;" onerror="this.outerHTML='🏍️'"/>`
+      : '🏍️';
+
+    renderRiderPerfDetail();
+  }
+
+  function closeRiderPerfDetail() {
+    riderPerfSelectedId = null;
+    renderRiderPerformanceList();
+  }
+
+  function setRiderPerfPeriod(period) {
+    riderPerfPeriod = period;
+    document.querySelectorAll('#rider-perf-period-tabs .period-tab').forEach(t => t.classList.toggle('active', t.dataset.period === period));
+    renderRiderPerfDetail();
+  }
+
+  function renderRiderPerfDetail() {
+    if (!riderPerfSelectedId) return;
+    const r = bodaRiders.find(x => x.fbDocId === riderPerfSelectedId);
+    if (!r) return;
+
+    const allForRider = orders.filter(o => o.bodaClaimedBy && o.bodaClaimedBy.riderId === riderPerfSelectedId);
+    // Approximate: uses when the rider claimed the job as the reference date,
+    // since there's no separate "completed at" timestamp stored per delivery.
+    const inPeriod = allForRider.filter(o => isInPeriod(o.bodaClaimedBy.claimedAt, riderPerfPeriod));
+    const completed = inPeriod.filter(isRiderDeliveryComplete);
+    const active = allForRider.filter(o => !isRiderDeliveryComplete(o));
+
+    const summaryEl = document.getElementById('rider-perf-summary');
+    if (summaryEl) {
+      summaryEl.innerHTML = `
+        <div class="stat-card"><div class="stat-label">Deliveries Completed</div><div class="stat-value">${completed.length}</div></div>
+        <div class="stat-card"><div class="stat-label">Currently Active</div><div class="stat-value">${active.length}</div></div>
+      `;
+    }
+
+    const listEl = document.getElementById('rider-perf-deliveries-list');
+    if (!listEl) return;
+    if (completed.length === 0) {
+      listEl.innerHTML = '<div class="orders-empty">No completed deliveries in this period.</div>';
+      return;
+    }
+    const sorted = completed.slice().sort((a,b) => new Date(b.bodaClaimedBy.claimedAt) - new Date(a.bodaClaimedBy.claimedAt));
+    listEl.innerHTML = sorted.map(o => {
+      const when = new Date(o.bodaClaimedBy.claimedAt).toLocaleDateString('en-UG', { day:'numeric', month:'short', year:'numeric' });
+      return `
+        <div style="background:var(--light); border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:10px;">
+          <div style="font-size:0.7rem; color:#888; font-weight:700; margin-bottom:4px;">Order #${o.refCode || (o.fbDocId ? o.fbDocId.slice(-6).toUpperCase() : 'N/A')} &middot; ${when}</div>
+          <div style="font-size:0.85rem; font-weight:700; margin-bottom:3px;">${o.customerName || 'Customer'}</div>
+          <div style="font-size:0.8rem; color:#555;">${buildOrderItemsDisplay(o)}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Cross-rider search: "which rider delivered to this customer, and when?"
+  function searchDeliveriesByCustomer(query) {
+    const resultsEl = document.getElementById('rider-perf-search-results');
+    if (!resultsEl) return;
+    const q = (query || '').trim().toLowerCase();
+    if (!q) { resultsEl.innerHTML = ''; return; }
+
+    const matches = orders.filter(o =>
+      o.bodaClaimedBy && (o.customerName || '').toLowerCase().includes(q) && isRiderDeliveryComplete(o)
+    ).sort((a,b) => new Date(b.bodaClaimedBy.claimedAt) - new Date(a.bodaClaimedBy.claimedAt));
+
+    if (matches.length === 0) {
+      resultsEl.innerHTML = '<div style="font-size:0.82rem; color:var(--grey); padding:8px 0;">No completed deliveries found for that name.</div>';
+      return;
+    }
+    resultsEl.innerHTML = matches.map(o => {
+      const when = new Date(o.bodaClaimedBy.claimedAt).toLocaleDateString('en-UG', { day:'numeric', month:'short', year:'numeric' });
+      return `
+        <div style="background:var(--light); border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:8px;">
+          <div style="font-size:0.7rem; color:#888; font-weight:700; margin-bottom:4px;">Order #${o.refCode || (o.fbDocId ? o.fbDocId.slice(-6).toUpperCase() : 'N/A')} &middot; ${when}</div>
+          <div style="font-size:0.85rem; font-weight:700; margin-bottom:3px;">${o.customerName}</div>
+          <div style="font-size:0.8rem; color:#555; margin-bottom:3px;">🏍️ Delivered by <strong>${o.bodaClaimedBy.name}</strong> &middot; ${o.bodaClaimedBy.phone || ''}</div>
+          <div style="font-size:0.78rem; color:#777;">${buildOrderItemsDisplay(o)}</div>
+        </div>
+      `;
+    }).join('');
   }
 
   // ── STAFF NAMES (for sale/adjustment attribution in Employee Panel) ──
@@ -5687,7 +5868,7 @@
     try {
       const orderRef = doc(window.fbDb, 'orders', docId);
       const orderSnap = await getDoc(orderRef);
-      const order = orderSnap.exists() ? orderSnap.data() : null;
+      const order = orderSnap.exists() ? Object.assign({ fbDocId: docId }, orderSnap.data()) : null;
       const updates = { status: newStatus };
 
       if (order) {
