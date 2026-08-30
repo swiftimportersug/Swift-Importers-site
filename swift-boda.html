@@ -248,6 +248,7 @@
       </div>
       <h1>Who Are You?</h1>
       <p>Select your name, then enter your personal code</p>
+      <button id="biometric-login-btn" onclick="tryBodaBiometricLogin()" style="display:none; width:100%; background:var(--panel-raised); border:1.5px solid var(--amber-dim); color:var(--amber); padding:12px; border-radius:10px; font-weight:800; font-size:0.88rem; margin-bottom:16px; box-shadow:0 3px 0 #0a0908;">🔐 Sign in with Face/Touch ID</button>
       <div class="rider-pick" id="rider-pick-list"></div>
       <input type="text" id="pin-input" maxlength="4" inputmode="numeric" placeholder="••••" style="display:none;"
         oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4);"/>
@@ -311,6 +312,10 @@
     function showScreen(id) {
       document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
       document.getElementById(id).classList.add('active');
+      if (id === 'screen-pin') {
+        var bioBtn = document.getElementById('biometric-login-btn');
+        if (bioBtn) bioBtn.style.display = isWebAuthnSupported() ? 'block' : 'none';
+      }
     }
 
     // ── AUTH FLOW ──
@@ -372,6 +377,90 @@
       }).join('');
     }
 
+    // ── BIOMETRIC (WEBAUTHN) LOGIN ──
+    // Same technique as the customer-facing biometric sign-in on the storefront:
+    // uses the device's own fingerprint/Face ID sensor to unlock a credential
+    // registered earlier. This is a device-level convenience layer, not
+    // cryptographic proof of identity to a server — same honest limitation as
+    // the PIN system it sits alongside. Requires HTTPS and a platform
+    // authenticator (won't appear on devices/browsers without one).
+    function isWebAuthnSupported() {
+      return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create && window.isSecureContext);
+    }
+    function randomChallenge() {
+      var arr = new Uint8Array(32);
+      (window.crypto || window.msCrypto).getRandomValues(arr);
+      return arr;
+    }
+    function bufferToBase64Url(buf) {
+      var bytes = new Uint8Array(buf);
+      var str = '';
+      for (var i = 0; i < bytes.byteLength; i++) str += String.fromCharCode(bytes[i]);
+      return btoa(str).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    }
+
+    async function enableBodaBiometricLogin(rider) {
+      if (!isWebAuthnSupported() || !window.fbDb || !window.fbFns) return;
+      try {
+        var challenge = randomChallenge();
+        var userId = new TextEncoder().encode(rider.fbDocId);
+        var credential = await navigator.credentials.create({
+          publicKey: {
+            challenge: challenge,
+            rp: { name: 'Swift Importers Boda' },
+            user: { id: userId, name: rider.phone || rider.name, displayName: rider.name },
+            pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
+            authenticatorSelection: { authenticatorAttachment: 'platform', residentKey: 'preferred', requireResidentKey: false, userVerification: 'required' },
+            timeout: 60000
+          }
+        });
+        var credentialId = bufferToBase64Url(credential.rawId);
+        var { doc, updateDoc } = window.fbFns;
+        await updateDoc(doc(window.fbDb, 'boda_riders', rider.fbDocId), { webauthnCredentialId: credentialId });
+        showToast('✅ Face/Touch ID enabled for next time!');
+      } catch(e) {
+        console.error('[boda] enable biometric failed:', e);
+        // Cancelling the prompt isn't an error worth interrupting the rider over.
+      }
+    }
+
+    async function tryBodaBiometricLogin() {
+      if (!isWebAuthnSupported() || !window.fbDb || !window.fbFns) return;
+      var errEl = document.getElementById('pin-error');
+      try {
+        var challenge = randomChallenge();
+        var assertion = await navigator.credentials.get({
+          publicKey: { challenge: challenge, userVerification: 'required', timeout: 60000 }
+          // No allowCredentials list — lets the device offer any discoverable
+          // credential it holds for this site, same as the customer flow.
+        });
+        if (!assertion) return;
+        var credentialId = bufferToBase64Url(assertion.rawId);
+        var { collection, query, where, getDocs } = window.fbFns;
+        var snap = await getDocs(query(collection(window.fbDb, 'boda_riders'), where('webauthnCredentialId', '==', credentialId)));
+        if (snap.empty) {
+          if (errEl) errEl.textContent = 'That fingerprint/Face ID isn\'t linked to a rider yet — enter your code instead.';
+          return;
+        }
+        var docSnap = snap.docs[0];
+        currentRider = Object.assign({ fbDocId: docSnap.id }, docSnap.data());
+        document.getElementById('topbar-rider-name').textContent = currentRider.name;
+        var avatarEl = document.getElementById('topbar-rider-avatar');
+        if (avatarEl) {
+          if (currentRider.photoUrl) { avatarEl.src = currentRider.photoUrl; avatarEl.style.display = 'inline-block'; }
+          else avatarEl.style.display = 'none';
+        }
+        showScreen('screen-app');
+        history.pushState({ bodaTab: 'available' }, '');
+        startBoardListener();
+        registerBodaServiceWorker();
+        updateBodaNotifyBannerVisibility();
+      } catch(e) {
+        console.error('[boda] biometric login failed:', e);
+        if (errEl && e && e.name !== 'NotAllowedError') errEl.textContent = 'Could not sign in with Face/Touch ID — try your code instead.';
+      }
+    }
+
     function selectRiderForPin(riderId) {
       selectedRiderForPin = allBodaRiders.find(function(r){ return r.fbDocId === riderId; });
       document.querySelectorAll('.rider-pick button').forEach(function(b){
@@ -400,9 +489,23 @@
         else avatarEl.style.display = 'none';
       }
       showScreen('screen-app');
+      // Base state for the tab history system in switchBodaTab — 'available' is
+      // already the default active tab in the static markup, so this just gives
+      // the back button somewhere real to land after stepping back through tabs.
+      history.pushState({ bodaTab: 'available' }, '');
       startBoardListener();
       registerBodaServiceWorker();
       updateBodaNotifyBannerVisibility();
+
+      // One-time offer, right after a successful manual code entry — the
+      // natural moment to suggest a faster way in next time.
+      if (isWebAuthnSupported() && !currentRider.webauthnCredentialId) {
+        setTimeout(function(){
+          if (confirm('Enable Face/Touch ID sign-in on this device for next time?')) {
+            enableBodaBiometricLogin(currentRider);
+          }
+        }, 400);
+      }
     }
 
     // ── PUSH NOTIFICATIONS — real background alerts even with the app closed.
@@ -545,7 +648,7 @@
       }, function(e){ console.error('[boda] board listener failed:', e); });
     }
 
-    function switchBodaTab(tab) {
+    function switchBodaTab(tab, fromHistory) {
       stopBodaAlertSound();
       activeBodaTab = tab;
       document.getElementById('tab-btn-available').classList.toggle('active', tab === 'available');
@@ -555,7 +658,22 @@
       document.getElementById('tab-mine').style.display = tab === 'mine' ? 'block' : 'none';
       document.getElementById('tab-completed').style.display = tab === 'completed' ? 'block' : 'none';
       if (tab === 'completed') renderBodaTabs(); // completed list doesn't need a live badge, just refresh on open
+      // Push a real history entry for every tab switch a rider makes themselves,
+      // so the phone's back button steps back through tabs one at a time instead
+      // of immediately exiting the whole app on the very first press. When this
+      // call is itself the RESULT of a back-press (fromHistory), don't push again —
+      // that would just re-add the entry we're trying to leave.
+      if (!fromHistory) history.pushState({ bodaTab: tab }, '');
     }
+
+    window.addEventListener('popstate', function(e){
+      if (e.state && e.state.bodaTab) {
+        switchBodaTab(e.state.bodaTab, true);
+      }
+      // If there's no bodaTab state left, this is the very first screen the
+      // rider landed on — let the browser's default back behavior proceed
+      // rather than trapping them here permanently.
+    });
 
     function itemsSummaryFor(o) {
       if (o.products) return o.products;

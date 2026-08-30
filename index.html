@@ -219,6 +219,11 @@
       50%{ box-shadow:0 0 0 8px rgba(212,163,53,0); transform:scale(1.015); }
     }
     #success-notify-btn{ animation:notifyBtnPulse 1.8s ease-in-out infinite; }
+    @keyframes accountNudgeGlow{
+      0%,100%{ box-shadow:0 0 0 0 rgba(224,183,74,0.35); }
+      50%{ box-shadow:0 0 16px 4px rgba(224,183,74,0.35); }
+    }
+    #track-live-account-nudge{ animation:accountNudgeGlow 2.2s ease-in-out infinite; }
     @keyframes livePulseDot{
       0%,100%{ opacity:1; transform:scale(1); }
       50%{ opacity:0.4; transform:scale(0.7); }
@@ -6806,9 +6811,17 @@
     [['ret-opt-1',150],['ret-opt-2',280],['ret-opt-3',410],['ret-opt-4',540],['ret-opt-5',670],['ret-opt-6',800],['ret-footer-btn',930]].forEach(function(pair){setTimeout(function(){var e=document.getElementById(pair[0]);if(e)e.classList.add('visible');},pair[1]);});
   }
 
+  var unsubscribeTrackedOrder = null;
+
   function openTrackModal(orderId) {
     ['track-opt-2','track-footer-btn'].forEach(function(id){var e=document.getElementById(id);if(e)e.classList.remove('visible');});
-    openOverlayEl(document.getElementById('track-order-modal'));
+    // Stop watching whatever order was open before, if any — otherwise switching
+    // to a different order (or closing and reopening) would leave old listeners
+    // running in the background indefinitely.
+    if (unsubscribeTrackedOrder) { unsubscribeTrackedOrder(); unsubscribeTrackedOrder = null; }
+    openOverlayEl(document.getElementById('track-order-modal'), function(){
+      if (unsubscribeTrackedOrder) { unsubscribeTrackedOrder(); unsubscribeTrackedOrder = null; }
+    });
     setTimeout(function(){var e=document.getElementById('track-opt-2');if(e)e.classList.add('visible');},280);
     setTimeout(function(){var e=document.getElementById('track-footer-btn');if(e)e.classList.add('visible');},420);
 
@@ -6819,16 +6832,19 @@
     [loadingEl, foundEl, notFoundEl, lookupEl].forEach(function(e){ if (e) e.style.display = 'none'; });
 
     if (orderId) {
-      // Came from a notification click / direct link — go straight to that order.
+      // Came from a notification click / direct link — watch this order live, so
+      // any later update from admin/employee/a boda rider reflects immediately
+      // without needing a manual refresh.
       if (loadingEl) loadingEl.style.display = 'block';
       if (!window.fbDb || !window.fbFns) return;
-      var { doc, getDoc } = window.fbFns;
-      getDoc(doc(window.fbDb, 'orders', orderId)).then(function(snap){
+      var { doc, onSnapshot } = window.fbFns;
+      unsubscribeTrackedOrder = onSnapshot(doc(window.fbDb, 'orders', orderId), function(snap){
         if (loadingEl) loadingEl.style.display = 'none';
         if (!snap.exists()) { if (notFoundEl) notFoundEl.style.display = 'block'; return; }
+        if (notFoundEl) notFoundEl.style.display = 'none';
         renderLiveTrackedOrder(Object.assign({ fbDocId: snap.id }, snap.data()));
-      }).catch(function(e){
-        console.error('[track] order lookup failed:', e);
+      }, function(e){
+        console.error('[track] order listener failed:', e);
         if (loadingEl) loadingEl.style.display = 'none';
         if (notFoundEl) notFoundEl.style.display = 'block';
       });
@@ -6855,7 +6871,14 @@
       ords.sort(function(a,b){ return new Date(b.timestamp) - new Date(a.timestamp); });
       var lookupEl = document.getElementById('track-live-lookup');
       if (lookupEl) lookupEl.style.display = 'none';
-      renderLiveTrackedOrder(ords[0]);
+      // Switch into the same live-tracking mode as a notification-click lookup,
+      // so this order's card also updates in real time from here on.
+      if (unsubscribeTrackedOrder) { unsubscribeTrackedOrder(); unsubscribeTrackedOrder = null; }
+      var { doc, onSnapshot } = window.fbFns;
+      unsubscribeTrackedOrder = onSnapshot(doc(window.fbDb, 'orders', ords[0].fbDocId), function(liveSnap){
+        if (!liveSnap.exists()) return;
+        renderLiveTrackedOrder(Object.assign({ fbDocId: liveSnap.id }, liveSnap.data()));
+      }, function(e){ console.error('[track] live listener failed after phone lookup:', e); });
     }).catch(function(e){
       console.error('[track] phone lookup failed:', e);
       if (statusEl) { statusEl.textContent = 'Something went wrong — please try again or WhatsApp us.'; statusEl.style.display = 'block'; }
