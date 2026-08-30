@@ -967,6 +967,7 @@
             <label>Delivery Location</label>
             <input type="text" id="dlv-location" placeholder="e.g. Opposite Shoprite, Ntinda"/>
           </div>
+          <div id="dlv-customer-notes" style="display:none; background:#fff8e6; border:1.5px solid var(--gold); border-radius:8px; padding:9px 11px; margin:-10px 0 16px; font-size:0.78rem; color:#6b5410; line-height:1.5;"></div>
           <div class="form-group" style="margin-bottom:0;">
             <label>Delivery Fee (optional, UGX)</label>
             <input type="number" id="dlv-fee" min="0" placeholder="e.g. 5000"/>
@@ -5385,8 +5386,22 @@
     document.getElementById('dlv-phone').value = d.bodaPhone || '';
     document.getElementById('dlv-plate').value = d.plateNumber || '';
     document.getElementById('dlv-eta').value = d.eta || '';
-    document.getElementById('dlv-location').value = d.location || o.exactLocation || '';
+    // Fall back through BOTH what the customer typed exactly (usually the most
+    // specific) and the general area they picked — a customer who only picked an
+    // area without further detail still has something meaningful to pre-fill,
+    // rather than showing nothing at all.
+    document.getElementById('dlv-location').value =
+      d.location || [o.deliveryArea, o.exactLocation].filter(Boolean).join(' — ') || '';
     document.getElementById('dlv-fee').value = d.bodaFee || '';
+    const notesEl = document.getElementById('dlv-customer-notes');
+    if (notesEl) {
+      if (o.notes && o.notes.trim()) {
+        notesEl.innerHTML = '💬 <strong>Customer\'s Notes:</strong> ' + o.notes.trim();
+        notesEl.style.display = 'block';
+      } else {
+        notesEl.style.display = 'none';
+      }
+    }
     onDeliveryTypeChange();
     document.getElementById('delivery-update-modal').classList.add('open');
   }
