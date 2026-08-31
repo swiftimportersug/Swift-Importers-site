@@ -1759,6 +1759,16 @@
         <div id="track-live-delivery" style="background:var(--light); border-radius:10px; padding:12px 14px; font-size:0.85rem; line-height:1.7; margin-bottom:14px; display:none;"></div>
         <div id="track-live-items" style="background:var(--light); border-radius:10px; padding:12px 14px; font-size:0.85rem; margin-bottom:14px;"></div>
         <div id="track-live-footer" style="margin-bottom:14px;"></div>
+        <div id="track-live-feedback-prompt" style="display:none; background:linear-gradient(160deg,#fff8e6,#ffedc2); border:1.5px solid var(--gold); border-radius:10px; padding:14px 16px; margin-bottom:14px; text-align:center;">
+          <div style="font-weight:800; font-size:0.92rem; margin-bottom:10px; color:#6b4a00;">⭐ How was your order?</div>
+          <div id="track-feedback-stars" style="font-size:1.8rem; letter-spacing:6px; margin-bottom:10px; cursor:pointer;"></div>
+          <textarea id="track-feedback-text" placeholder="Anything you'd like to share? (optional)" style="width:100%; border:1.5px solid var(--border); border-radius:8px; padding:9px 11px; font-size:0.83rem; font-family:'Inter',sans-serif; resize:vertical; min-height:56px; margin-bottom:10px;"></textarea>
+          <button onclick="submitOrderFeedback()" class="btn-primary" style="width:100%; padding:11px; border-radius:8px; font-weight:700; font-size:0.85rem;">Submit Feedback</button>
+          <div style="font-size:0.72rem; color:#8a6d1f; margin-top:8px;">Submitted anonymously — thanks for helping us improve!</div>
+        </div>
+        <div id="track-live-feedback-thanks" style="display:none; background:rgba(74,222,128,0.14); border:1.5px solid #4ade80; border-radius:10px; padding:14px 16px; margin-bottom:14px; text-align:center; color:#1a5c2e; font-weight:700; font-size:0.85rem;">
+          🎉 Thanks for your feedback!
+        </div>
         <div id="track-live-account-nudge" style="display:none; background:linear-gradient(160deg,#fff3d6,#ffe6b3); border:1.5px solid #e0b74a; border-radius:10px; padding:14px 16px; margin-bottom:14px;">
           <div style="font-weight:800; font-size:0.88rem; margin-bottom:6px; color:#6b4a00;">📱 Track all your orders in one place</div>
           <p style="font-size:0.8rem; color:#6b4a00; line-height:1.6; margin-bottom:10px;">Create a free account to see every order's live status in one spot, save your delivery address for faster checkout, and unlock loyalty tier perks like discounts as you shop more.</p>
@@ -6889,6 +6899,47 @@
   // Renders the exact same tracker system used in My Orders / the Active Order
   // card — reused wholesale here so a customer clicking a notification link (even
   // as a guest, with no account) sees the identical, real-time-accurate view.
+  var trackedOrderId = null;
+  var trackFeedbackStarsSelected = 0;
+
+  function renderFeedbackStars() {
+    var wrap = document.getElementById('track-feedback-stars');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    for (var i = 1; i <= 5; i++) {
+      var star = document.createElement('span');
+      star.textContent = i <= trackFeedbackStarsSelected ? '★' : '☆';
+      star.style.color = i <= trackFeedbackStarsSelected ? 'var(--gold)' : '#ccc';
+      star.onclick = (function(n){ return function(){ trackFeedbackStarsSelected = n; renderFeedbackStars(); }; })(i);
+      wrap.appendChild(star);
+    }
+  }
+
+  function submitOrderFeedback() {
+    if (!trackedOrderId || !window.fbDb || !window.fbFns) return;
+    if (trackFeedbackStarsSelected === 0) {
+      showAppAlert('Please select a star rating first.');
+      return;
+    }
+    var { doc, updateDoc } = window.fbFns;
+    var comment = document.getElementById('track-feedback-text').value.trim();
+    updateDoc(doc(window.fbDb, 'orders', trackedOrderId), {
+      orderFeedback: {
+        rating: trackFeedbackStarsSelected,
+        comment: comment,
+        submittedAt: new Date().toISOString()
+      }
+    }).then(function(){
+      var promptEl = document.getElementById('track-live-feedback-prompt');
+      var thanksEl = document.getElementById('track-live-feedback-thanks');
+      if (promptEl) promptEl.style.display = 'none';
+      if (thanksEl) thanksEl.style.display = 'block';
+    }).catch(function(e){
+      console.error('[feedback] submit failed:', e);
+      showAppAlert('Could not submit your feedback. Please check your connection and try again.');
+    });
+  }
+
   function renderLiveTrackedOrder(o) {
     var foundEl = document.getElementById('track-live-found');
     var badgeEl = document.getElementById('track-live-badge');
@@ -6926,6 +6977,23 @@
     if (footerEl) footerEl.innerHTML = buildOrderReferenceAndCancelHtml(o);
 
     if (nudgeEl) nudgeEl.style.display = currentAccount ? 'none' : 'block';
+
+    // "How was your order?" — only shown once admin/employee has actually
+    // requested it (not automatic), and only until the customer submits once.
+    var feedbackPromptEl = document.getElementById('track-live-feedback-prompt');
+    var feedbackThanksEl = document.getElementById('track-live-feedback-thanks');
+    trackedOrderId = o.fbDocId;
+    if (o.orderFeedback) {
+      if (feedbackPromptEl) feedbackPromptEl.style.display = 'none';
+      if (feedbackThanksEl) feedbackThanksEl.style.display = 'block';
+    } else if (o.orderFeedbackRequested) {
+      if (feedbackThanksEl) feedbackThanksEl.style.display = 'none';
+      if (feedbackPromptEl) feedbackPromptEl.style.display = 'block';
+      renderFeedbackStars();
+    } else {
+      if (feedbackPromptEl) feedbackPromptEl.style.display = 'none';
+      if (feedbackThanksEl) feedbackThanksEl.style.display = 'none';
+    }
 
     foundEl.style.display = 'block';
   }

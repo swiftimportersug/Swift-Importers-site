@@ -3381,6 +3381,16 @@
               }).join('') +
             '</div>';
           })() : ''}
+          ${!isClosed && o.deliveryStage === 'delivered' && !o.accountId ? (function(){
+            if (o.orderFeedback) {
+              const stars = '⭐'.repeat(o.orderFeedback.rating) + '☆'.repeat(5 - o.orderFeedback.rating);
+              return `<div style="width:100%; margin-top:8px; background:rgba(74,222,128,0.14); border:1.5px solid #4ade80; border-radius:8px; padding:9px 11px; font-size:0.78rem; color:#1a5c2e;"><strong>${stars}</strong>${o.orderFeedback.comment ? ' — "' + o.orderFeedback.comment + '"' : ''}</div>`;
+            }
+            if (o.orderFeedbackRequested) {
+              return '<div style="width:100%; margin-top:8px; background:var(--light); border:1.5px solid var(--border); border-radius:8px; padding:9px 11px; font-size:0.78rem; color:#777;">⭐ Feedback requested — awaiting response</div>';
+            }
+            return `<button onclick="requestOrderFeedback('${o.fbDocId}')" style="width:100%; margin-top:8px; background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:8px 10px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer;">⭐ How Was Your Order?</button>`;
+          })() : ''}
           ${o.pricing && (o.pricing.discount || o.pricing.otherFees) ? `
             <div style="width:100%; margin-top:6px; font-size:0.74rem; color:#777;">
               Subtotal ${fmt(o.pricing.subtotal)}${o.pricing.discount ? ' &minus; discount ' + fmt(o.pricing.discount) : ''}${o.pricing.otherFees ? ' + fees ' + fmt(o.pricing.otherFees) : ''} = <strong>${fmt(o.pricing.total)}</strong>
@@ -3747,6 +3757,20 @@
     } catch(e) {
       showAppAlert('Error removing from boda board. Check your connection.');
       console.error('[order] removeFromBodaBoard failed:', e);
+    }
+  }
+
+  async function requestOrderFeedback(docId) {
+    if (!docId || !window.fbDb || !window.fbFns) return;
+    try {
+      const { doc, updateDoc } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'orders', docId), { orderFeedbackRequested: true });
+      showSuccessToast('⭐ Feedback request sent.');
+      const o = orders.find(x => x.fbDocId === docId);
+      if (o) notifyCustomerOrderUpdate(o, '⭐ How Was Your Order?', 'We\'d love to hear your feedback! Tap to leave a quick, anonymous review.');
+    } catch(e) {
+      showAppAlert('Error sending feedback request. Check your connection.');
+      console.error('[order] requestOrderFeedback failed:', e);
     }
   }
 
