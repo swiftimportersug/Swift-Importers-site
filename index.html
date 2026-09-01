@@ -5252,6 +5252,12 @@
         '<span style="color:rgba(255,255,255,0.55);">Include this when sending Mobile Money, or share it with us on WhatsApp along with your payment screenshot.</span>' +
       '</div>';
     }
+    // Once a rider has claimed the delivery, their name/phone is already on the
+    // order — a direct call link saves the customer from having to dig up a
+    // number themselves or wait for a WhatsApp reply.
+    if (o.delivery && o.delivery.bodaPhone) {
+      html += '<a href="tel:' + o.delivery.bodaPhone + '" style="display:block; width:100%; margin-top:10px; background:rgba(74,222,128,0.14); border:1.5px solid rgba(74,222,128,0.45); color:#4ade80; padding:9px; border-radius:8px; font-size:0.78rem; font-weight:700; text-align:center; text-decoration:none; box-sizing:border-box;">📞 Call Rider' + (o.delivery.bodaName ? ' (' + o.delivery.bodaName + ')' : '') + '</a>';
+    }
     // Lets a customer re-pin their exact location even after checkout — handy if
     // a rider calls asking them to drop a pin because the typed address wasn't
     // enough to find them. Not shown for self-pickup orders, since there's no
