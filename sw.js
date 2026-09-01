@@ -53,7 +53,20 @@ self.addEventListener('notificationclick', function(event) {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
       for (var i = 0; i < clientList.length; i++) {
         var client = clientList[i];
-        if ('focus' in client) return client.focus();
+        if ('focus' in client) {
+          // Navigate the existing tab to where the notification actually points
+          // BEFORE focusing it — just calling focus() alone was the bug: an
+          // already-open tab gets brought to the front but stays wherever it
+          // already was (often the plain homepage), completely ignoring the
+          // notification's real destination. This is why clicks only worked
+          // reliably when no tab happened to be open yet.
+          if ('navigate' in client) {
+            return client.navigate(targetUrl).then(function(navigatedClient) {
+              return navigatedClient ? navigatedClient.focus() : client.focus();
+            }).catch(function() { return client.focus(); });
+          }
+          return client.focus();
+        }
       }
       if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
     })
