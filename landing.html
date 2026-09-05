@@ -108,6 +108,7 @@
     font-size:0.88rem;font-family:'Inter',sans-serif;background:#fff;box-sizing:border-box;
   }
   .form-group textarea{resize:vertical;}
+  #exact-location[readonly]{background:#f0f7ff;border-color:#8fc4ff;color:#2a5a8a;cursor:default;}
   input.field-invalid,select.field-invalid,textarea.field-invalid{border-color:var(--red)!important;background:#fff5f3;}
   input.field-valid,select.field-valid,textarea.field-valid{border-color:var(--green)!important;background:#f3fbf5;}
   .maps-pin-btn{margin-top:6px;background:#fff;border:1.5px solid var(--border);color:#555;padding:8px 12px;border-radius:7px;font-size:0.76rem;font-weight:700;cursor:pointer;width:100%;}
@@ -681,14 +682,30 @@
       var lat = pos.coords.latitude.toFixed(6), lng = pos.coords.longitude.toFixed(6);
       var link = 'https://www.google.com/maps?q=' + lat + ',' + lng;
       field.value = (field.value ? field.value + ' | ' : '') + 'GPS: ' + lat + ', ' + lng;
+      field.readOnly = true;
       result.style.display = 'block';
-      result.innerHTML = 'Location pinned! <a href="' + link + '" target="_blank">View on Google Maps</a>';
+      result.innerHTML = '📍 Location pinned and locked! <a href="' + link + '" target="_blank">View on Google Maps</a><br/><button type="button" onclick="unlockLocationField()" style="margin-top:6px; background:none; border:none; color:#4a9eff; text-decoration:underline; cursor:pointer; font-size:0.78rem; padding:0;">✏️ Need to change this? Tap to unlock</button>';
       btn.textContent = '📍 Location Pinned!';
-    }, function(){
+    }, function(err){
       btn.textContent = '📍 Drop a Google Maps Pin';
       result.style.display = 'block';
-      result.textContent = 'Could not get your location. Please type your address manually.';
+      // Different failure reasons need different advice — a generic message
+      // for all three hides what's actually wrong and what to do about it.
+      var msg;
+      if (err.code === 1) msg = 'Location access was denied. Please allow location access for this site in your browser settings, or type your address manually.';
+      else if (err.code === 3) msg = 'Getting your location took too long — this often happens indoors with a weak GPS signal. Try again near a window, or type your address manually.';
+      else msg = 'Could not determine your location right now. Please try again, or type your address manually.';
+      result.textContent = msg;
     }, { enableHighAccuracy: true, timeout: 10000 });
+  }
+
+  function unlockLocationField() {
+    var field = document.getElementById('exact-location');
+    var btn = document.getElementById('pin-btn-text');
+    var result = document.getElementById('location-result');
+    if (field) { field.readOnly = false; field.focus(); }
+    if (btn) btn.textContent = '📍 Drop a Google Maps Pin';
+    if (result) result.style.display = 'none';
   }
 
   function validateLandingForm() {

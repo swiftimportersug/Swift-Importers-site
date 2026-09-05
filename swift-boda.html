@@ -80,6 +80,13 @@
     input { font-family: 'Inter', sans-serif; }
 
     .screen { display: none; min-height: 100vh; }
+    /* The main app screen specifically gets a fixed-height, non-scrolling shell —
+       topbar/banner/tabs stay physically outside the scrolling area entirely,
+       which is a more robust way to keep them always visible than
+       position:sticky (which has known inconsistencies when its element is a
+       direct flex child, exactly the setup here). Login/PIN screens keep the
+       simpler min-height behavior above since they don't need this. */
+    #screen-app.active { height: 100vh; overflow: hidden; }
     .screen.active { display: flex; flex-direction: column; }
 
     /* ── WORDMARK — same badge used on the admin/employee login screens ── */
@@ -166,7 +173,7 @@
       background: linear-gradient(180deg, var(--panel-raised), var(--bezel));
       border-bottom: 1px solid var(--chrome);
       color: var(--ink); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between;
-      position: sticky; top: 0; z-index: 50;
+      flex-shrink: 0; z-index: 50;
     }
     .topbar .brand { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.02rem; letter-spacing: 0.02em; }
     .topbar .brand .dot { color: var(--amber); }
@@ -178,16 +185,16 @@
     }
     .topbar button:active { transform: translateY(2px); box-shadow: none; }
 
-    #boda-notify-banner { background: linear-gradient(180deg, #2a2118, #1c150e) !important; border-bottom: 1px solid var(--chrome) !important; }
+    #boda-notify-banner { background: linear-gradient(180deg, #2a2118, #1c150e) !important; border-bottom: 1px solid var(--chrome) !important; flex-shrink: 0; }
     #boda-notify-banner div { color: var(--amber-dim) !important; }
     #boda-notify-banner button { background: linear-gradient(180deg, #ffcf6e, var(--amber)); color: #1a1206; border: none; box-shadow: 0 3px 0 #8f6112; }
 
-    .tabs { display: flex; background: var(--panel); border-bottom: 1px solid var(--chrome); position: sticky; top: 53px; z-index: 40; }
+    .tabs { display: flex; background: var(--panel); border-bottom: 1px solid var(--chrome); flex-shrink: 0; z-index: 40; }
     .tabs button { flex: 1; background: none; border: none; padding: 14px 6px; font-size: 0.8rem; font-weight: 800; color: var(--ink-dim); border-bottom: 3px solid transparent; display: flex; align-items: center; justify-content: center; gap: 6px; }
     .tabs button.active { color: var(--amber); border-bottom-color: var(--amber); text-shadow: 0 0 12px var(--amber-glow); }
     .tab-badge { background: var(--led-red); color: #fff; font-size: 0.64rem; font-weight: 800; padding: 1px 7px; border-radius: 20px; box-shadow: 0 0 8px rgba(255,92,92,0.6); }
 
-    .content { flex: 1; padding: 16px; max-width: 640px; margin: 0 auto; width: 100%; }
+    .content { flex: 1; overflow-y: auto; padding: 16px; max-width: 640px; margin: 0 auto; width: 100%; -webkit-overflow-scrolling: touch; }
     .empty-state { text-align: center; color: var(--ink-dim); padding: 60px 20px; font-size: 0.9rem; }
 
     /* Job cards read like a dash LCD readout: dark panel, faint amber inset glow */

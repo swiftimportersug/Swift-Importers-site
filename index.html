@@ -891,6 +891,7 @@
     .form-group{margin-bottom:16px;}
     .form-group label{display:block;font-size:0.72rem;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;margin-bottom:6px;color:#6b6858;}
     .form-group input,.form-group select,.form-group textarea{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem;font-family:'Inter',sans-serif;background:var(--white);color:var(--black);outline:none;transition:border-color 0.2s, box-shadow 0.2s;}
+    #exact-location[readonly]{background:#f0f7ff;border-color:#8fc4ff;color:#2a5a8a;cursor:default;}
     .form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--gold);}
     .form-group input.field-invalid,.form-group select.field-invalid,.form-group textarea.field-invalid{
       border-color:var(--red);
@@ -5298,8 +5299,12 @@
         showAppAlert('Could not update your location. Check your connection and try again.');
       });
     }, function(err){
-      showAppAlert('Could not get your location. Please check location permissions and try again.');
-    }, { enableHighAccuracy: true, timeout: 10000 });
+      var msg;
+      if (err.code === 1) msg = 'Location access was denied. Please allow location access for this site in your browser settings, or share your location by text or WhatsApp instead.';
+      else if (err.code === 3) msg = 'Getting your location took too long — this often happens indoors with a weak GPS signal. Try again near a window.';
+      else msg = 'Could not determine your location right now. Please try again.';
+      showAppAlert(msg);
+    }, { enableHighAccuracy: true, timeout: 25000, maximumAge: 60000 });
   }
 
   function buildOrderStageBadgeHtml(o) {
@@ -6803,13 +6808,42 @@
         var lat=pos.coords.latitude.toFixed(6); var lng=pos.coords.longitude.toFixed(6);
         var link='https://www.google.com/maps?q='+lat+','+lng;
         if(!field.value){field.value='GPS: '+lat+', '+lng;}else{field.value+=' | GPS: '+lat+', '+lng;}
+        // Locking prevents an accidental keystroke from corrupting exact
+        // coordinates once they're captured — "Unlock" below is the deliberate
+        // escape hatch for when a real change is actually needed.
+        field.readOnly = true;
         result.className='location-result'; result.style.display='block';
-        result.innerHTML='Location pinned! <a href="'+link+'" target="_blank">View on Google Maps</a>';
+        result.innerHTML='📍 Location pinned and locked! <a href="'+link+'" target="_blank">View on Google Maps</a><br/><button type="button" onclick="unlockLocationField()" style="margin-top:6px; background:none; border:none; color:#4a9eff; text-decoration:underline; cursor:pointer; font-size:0.78rem; padding:0;">✏️ Need to change this? Tap to unlock</button>';
         btn.textContent='Location Pinned!';
       },
-      function(err){ btn.textContent='Drop a Google Maps Pin'; result.className='location-result location-error'; result.style.display='block'; result.innerHTML='Could not get your location. Please type your address manually.'; },
-      {enableHighAccuracy:true,timeout:10000}
+      function(err){
+        btn.textContent='Drop a Google Maps Pin';
+        result.className='location-result location-error'; result.style.display='block';
+        // Different failure reasons need different advice — a generic message
+        // for all three hides what's actually wrong and what to do about it.
+        var msg;
+        if (err.code === 1) msg = 'Location access was denied. Please allow location access for this site in your browser settings, or type your address manually.';
+        else if (err.code === 3) msg = 'Getting your location took too long — this often happens indoors with a weak GPS signal. Try again near a window, or type your address manually.';
+        else msg = 'Could not determine your location right now. Please try again, or type your address manually.';
+        result.innerHTML = msg;
+      },
+      // enableHighAccuracy forces a precise GPS-satellite fix rather than a
+      // faster network-based approximation, which can genuinely take a while
+      // indoors — 10 seconds often isn't enough. maximumAge lets the browser
+      // use a recent cached position instead of always demanding a brand new
+      // fix, which is usually still accurate enough for a delivery address and
+      // returns near-instantly when available.
+      {enableHighAccuracy:true,timeout:25000,maximumAge:60000}
     );
+  }
+
+  function unlockLocationField() {
+    var field = document.getElementById('exact-location');
+    var btn = document.getElementById('pin-btn-text');
+    var result = document.getElementById('location-result');
+    if (field) { field.readOnly = false; field.focus(); }
+    if (btn) btn.textContent = 'Drop a Google Maps Pin';
+    if (result) result.style.display = 'none';
   }
 
   // POPUP MODALS
