@@ -1094,6 +1094,7 @@
       </div>
       <div class="nav-item" onclick="showPage('import-requests')">
         <span class="nav-icon">📦</span> Import Requests
+        <span id="import-requests-badge" style="margin-left:auto;background:var(--red);color:#fff;font-size:0.65rem;font-weight:700;padding:2px 7px;border-radius:20px;display:none;"></span>
       </div>
       <div class="nav-item" onclick="showPage('scanner')">
         <span class="nav-icon">📷</span> QR Scanner
@@ -1126,6 +1127,16 @@
 
       <!-- DASHBOARD PAGE -->
       <div class="page active" id="page-dashboard">
+        <div id="dash-import-requests-callout" onclick="showPage('import-requests')" style="display:none; cursor:pointer; background:linear-gradient(160deg,#fff3d6,#ffe6b3); border:1.5px solid var(--gold); border-radius:12px; padding:14px 18px; margin-bottom:18px; align-items:center; justify-content:space-between; gap:12px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <span style="font-size:1.6rem;">📦</span>
+            <div>
+              <div style="font-weight:800; font-size:0.9rem; color:#6b4a00;" id="dash-import-requests-callout-text"></div>
+              <div style="font-size:0.76rem; color:#8a6d1f;">Tap to review and quote</div>
+            </div>
+          </div>
+          <span style="font-size:1.2rem; color:#8a6d1f;">&#8594;</span>
+        </div>
         <div class="stats-grid admin-focusable" id="stats-grid"></div>
 
         <!-- TRANSACTION SEARCH -->
@@ -4283,7 +4294,27 @@
       importRequests = snapshot.docs.map(d => ({ fbDocId: d.id, ...d.data() }));
       importRequests.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
       renderImportRequestsList();
+      updateImportRequestsBadge();
     });
+  }
+
+  function updateImportRequestsBadge() {
+    const pending = importRequests.filter(r => r.status === 'pending');
+    const badge = document.getElementById('import-requests-badge');
+    if (badge) {
+      if (pending.length > 0) { badge.style.display = 'inline'; badge.textContent = pending.length; }
+      else { badge.style.display = 'none'; }
+    }
+    const callout = document.getElementById('dash-import-requests-callout');
+    const calloutText = document.getElementById('dash-import-requests-callout-text');
+    if (callout && calloutText) {
+      if (pending.length > 0) {
+        callout.style.display = 'flex';
+        calloutText.textContent = pending.length + ' new Import Request' + (pending.length > 1 ? 's' : '') + ' waiting for a quote';
+      } else {
+        callout.style.display = 'none';
+      }
+    }
   }
 
   function setImportRequestsFilter(status) {
@@ -4351,12 +4382,32 @@
     const price = parseInt(priceStr.replace(/[^0-9]/g, ''), 10);
     if (!price || price <= 0) { showAppAlert('Please enter a valid price.'); return; }
     if (!window.fbDb || !window.fbFns) return;
-    const { doc, updateDoc } = window.fbFns;
+    const { doc, updateDoc, getDoc } = window.fbFns;
     try {
       await updateDoc(doc(window.fbDb, 'import_requests', reqId), {
         status: 'quoted', quotedPrice: price, quotedAt: new Date().toISOString()
       });
       showSuccessToast('💰 Quote sent — now reach out to the customer directly with the price.');
+
+      // Also push a real notification if the customer opted in when they
+      // submitted the request. Import requests are tied to an ACCOUNT, so the
+      // token lives on the customer doc, not on the request itself.
+      const req = importRequests.find(r => r.fbDocId === reqId);
+      if (req && req.customerId) {
+        const custSnap = await getDoc(doc(window.fbDb, 'customers', req.customerId));
+        if (custSnap.exists() && custSnap.data().fcmToken) {
+          fetch(CUSTOMER_NOTIFY_WORKER_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Notify-Key': CUSTOMER_NOTIFY_SHARED_KEY },
+            body: JSON.stringify({
+              targetToken: custSnap.data().fcmToken,
+              title: '💰 Your Import Request Has Been Quoted!',
+              body: 'Price: ' + fmt(price) + ' — open the app to see the details.',
+              url: '/index.html?importRequest=1'
+            })
+          }).catch(function(e){ console.error('[notify] import quote push failed:', e); });
+        }
+      }
     } catch(e) {
       showAppAlert('Error saving quote. Check your connection.');
       console.error(e);

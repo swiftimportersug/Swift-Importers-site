@@ -1765,7 +1765,9 @@
   <div class="modal" style="max-width:400px; text-align:center; padding:32px 24px;">
     <div style="font-size:2.5rem; margin-bottom:10px;">📦</div>
     <h2 style="margin-bottom:8px;">Request Sent!</h2>
-    <p style="color:#666; font-size:0.88rem; line-height:1.6; margin-bottom:20px;">We'll review your link and get back to you with a price soon. You can check the status anytime under "My Import Requests" in your account.</p>
+    <p style="color:#666; font-size:0.88rem; line-height:1.6; margin-bottom:16px;">We'll review your link and get back to you with a price soon. You can check the status anytime under "My Import Requests" in your account.</p>
+    <button id="import-notify-btn" onclick="enableImportRequestNotifications()" style="display:block; width:100%; margin-bottom:12px; background:#fff3d6; border:1.5px solid var(--gold); color:var(--gold-dark); padding:11px; border-radius:8px; font-weight:700; font-size:0.85rem; cursor:pointer; font-family:'Inter',sans-serif;">🔔 Notify Me When Quoted</button>
+    <div id="import-notify-status" style="display:none; margin-bottom:12px; font-size:0.8rem; font-weight:700;"></div>
     <button class="btn-primary" style="width:100%; padding:12px; border-radius:8px; font-weight:700;" onclick="closeOverlayEl(document.getElementById('import-success-modal'))">Got It</button>
   </div>
 </div>
@@ -7023,6 +7025,51 @@
     });
   }
 
+  // Import requests are tied to an account (not a single order), so the token
+  // is saved on the CUSTOMER'S ACCOUNT doc rather than an order — the same
+  // account then receives a push whenever ANY of their requests gets quoted.
+  function enableImportRequestNotifications() {
+    var statusEl = document.getElementById('import-notify-status');
+    var btnEl = document.getElementById('import-notify-btn');
+    function showStatus(text, isError) {
+      if (!statusEl) return;
+      statusEl.textContent = text;
+      statusEl.style.color = isError ? 'var(--red)' : '#2a9d50';
+      statusEl.style.display = 'block';
+    }
+    if (!currentAccount) return;
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+      showStatus('Notifications aren\'t supported on this browser.', true);
+      return;
+    }
+    Notification.requestPermission().then(function(permission) {
+      if (permission !== 'granted') {
+        showStatus('Notifications not enabled — you can still check "My Import Requests" anytime.', true);
+        return;
+      }
+      navigator.serviceWorker.ready.then(function(registration) {
+        window.fbMessagingFns.getToken(window.fbMessaging, {
+          vapidKey: CUSTOMER_FCM_VAPID_KEY,
+          serviceWorkerRegistration: registration
+        }).then(function(token) {
+          if (!token) { showStatus('Could not enable notifications right now.', true); return; }
+          window.fbFns.updateDoc(window.fbFns.doc(window.fbDb, 'customers', currentAccount.fbDocId), {
+            fcmToken: token
+          }).then(function(){
+            showStatus('✅ You\'ll be notified once we quote your request!', false);
+            if (btnEl) btnEl.style.display = 'none';
+          }).catch(function(e){
+            console.error('[import] Failed to save customer FCM token:', e);
+            showStatus('Could not enable notifications right now.', true);
+          });
+        }).catch(function(e){
+          console.error('[import] getToken failed:', e);
+          showStatus('Could not enable notifications right now.', true);
+        });
+      });
+    });
+  }
+
   function openTrackModal(orderId) {
     ['track-opt-2','track-footer-btn'].forEach(function(id){var e=document.getElementById(id);if(e)e.classList.remove('visible');});
     // Stop watching whatever order was open before, if any — otherwise switching
@@ -7239,6 +7286,16 @@
     var params = new URLSearchParams(window.location.search);
     var orderId = params.get('trackOrder');
     if (orderId) openTrackModal(orderId);
+    if (params.get('importRequest')) {
+      // Requires the account to actually be logged in/restored first — if a
+      // persisted session exists it should already be restored by the time
+      // firebaseReady fires (same event this whole check is tied to).
+      if (currentAccount) openMyImportRequestsModal();
+      else {
+        // Give the auto-login restore a brief moment to finish, then try once more.
+        setTimeout(function(){ if (currentAccount) openMyImportRequestsModal(); }, 800);
+      }
+    }
   }
 
   function openPaymentModal() {
