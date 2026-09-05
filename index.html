@@ -29,6 +29,9 @@
     /* CAT DROPDOWN */
     .cat-dropdown-wrap{position:relative;max-width:480px;margin-bottom:4px;}
     .cat-dropdown-btn{width:100%;display:flex;align-items:center;justify-content:space-between;background:#1a1a1a;border:1.5px solid #333;color:var(--white);padding:12px 18px;border-radius:8px;font-size:0.88rem;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;transition:border-color 0.2s;}
+    .hero-action-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;background:#1a1a1a;border:1.5px solid #333;color:var(--white);padding:13px 14px;border-radius:8px;font-size:0.85rem;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;transition:border-color 0.2s,transform 0.15s;text-align:center;}
+    .hero-action-btn:hover{border-color:var(--gold);transform:translateY(-1px);}
+    .hero-action-import{background:linear-gradient(160deg,var(--gold-light),var(--gold));color:var(--black);border-color:var(--gold);}
     .cat-dropdown-btn:hover{border-color:var(--gold);}
     .cat-arrow{font-size:0.7rem;transition:transform 0.25s;color:var(--gold);}
     .cat-arrow.open{transform:rotate(180deg);}
@@ -1020,6 +1023,7 @@
       .hero-hotdeals{aspect-ratio:4/3;}
       .hero-headline{font-size:2rem;}
       .cat-dropdown-wrap{max-width:100%;}
+      .hero-action-row{max-width:100%;}
       .hero-ctas{flex-direction:column;gap:10px;}
       .btn-primary,.btn-outline{text-align:center;width:100%;}
       .trust-bar{gap:0;padding:0 4vw;justify-content:flex-start;overflow-x:auto;flex-wrap:nowrap;}
@@ -1119,6 +1123,7 @@
       <div id="nav-account-dropdown" class="nav-account-dropdown">
         <button onclick="closeAccountDropdown();openAccountEntry();">👤 <span style="flex:1;">Profile</span><span id="nav-dropdown-profile-badge" class="nav-dropdown-badge" style="display:none;">!</span></button>
         <button onclick="closeAccountDropdown();openMyOrdersModal();">🧾 <span style="flex:1;">My Orders</span><span id="nav-dropdown-orders-badge" class="nav-dropdown-badge" style="display:none;background:#2a9d50;"></span></button>
+        <button onclick="closeAccountDropdown();openMyImportRequestsModal();">📦 <span style="flex:1;">My Import Requests</span></button>
         <button onclick="closeAccountDropdown();openSavedPage();">🔖 <span>Saved</span></button>
         <button onclick="closeAccountDropdown();openMessagesPage();">💬 <span style="flex:1;">Messages</span><span id="nav-dropdown-messages-badge" class="nav-dropdown-badge" style="display:none;"></span></button>
       </div>
@@ -1139,22 +1144,9 @@
 <!-- HERO -->
 <section class="hero">
   <div class="hero-text">
-    <div class="cat-dropdown-wrap">
-      <button class="cat-dropdown-btn" onclick="toggleCatDropdown()">
-        <span id="cat-btn-label">Browse by Category</span>
-        <span class="cat-arrow" id="cat-arrow">&#9660;</span>
-      </button>
-      <div class="cat-dropdown-menu" id="cat-dropdown-menu">
-        <div class="cat-option" onclick="filterByCategory('All')">All Products</div>
-        <div class="cat-option" onclick="filterByCategory('Smartphones')">Smartphones</div>
-        <div class="cat-option" onclick="filterByCategory('Laptops')">Laptops</div>
-        <div class="cat-option" onclick="filterByCategory('TVs')">TVs</div>
-        <div class="cat-option" onclick="filterByCategory('Audio')">Audio</div>
-        <div class="cat-option" onclick="filterByCategory('Printers')">Printers</div>
-        <div class="cat-option" onclick="filterByCategory('Accessories')">Accessories</div>
-        <div class="cat-option" onclick="filterByCategory('Cameras')">Cameras</div>
-        <div class="cat-option" onclick="filterByCategory('Home Appliances')">Home Appliances</div>
-      </div>
+    <div class="hero-action-row" style="display:flex; gap:10px; max-width:480px; margin-bottom:4px;">
+      <button class="hero-action-btn hero-action-import" onclick="openImportRequestFlow()">📦 Import For Me</button>
+      <button class="hero-action-btn hero-action-track" onclick="openTrackPackageFlow()">🔍 Track Package</button>
     </div>
     <p class="hero-eyebrow" style="margin-top:20px;">Uganda's trusted electronics supplier</p>
     <h1 class="hero-headline">Real gear.<br/><em>Fair prices.</em><br/>Fast delivery.</h1>
@@ -1742,6 +1734,42 @@
 </div>
 
 <!-- TRACK ORDER MODAL -->
+<div class="modal-overlay" id="import-request-modal">
+  <div class="modal" style="max-width:460px;">
+    <div class="hto-close-bar"><span>Import For Me</span><button onclick="closeOverlayEl(document.getElementById('import-request-modal'))">X</button></div>
+    <div style="padding:20px;">
+      <p style="font-size:0.85rem; color:#666; margin-bottom:16px; line-height:1.6;">Found something on another site you'd like us to import for you? Send us the link and we'll price it including delivery to Uganda, then send you a quote.</p>
+      <div class="form-group">
+        <label>Item Link *</label>
+        <input type="url" id="import-item-link" placeholder="https://www.amazon.com/..."/>
+      </div>
+      <div class="form-group">
+        <label>Quantity *</label>
+        <input type="number" id="import-quantity" min="1" value="1"/>
+      </div>
+      <div class="form-group">
+        <label>Photo Link (optional)</label>
+        <input type="url" id="import-photo-link" placeholder="Paste an image link, if you have one"/>
+      </div>
+      <div class="form-group">
+        <label>Your Phone</label>
+        <input type="tel" id="import-phone" placeholder="+256 7XX XXX XXX"/>
+      </div>
+      <div id="import-request-msg" style="display:none; color:var(--red); font-size:0.8rem; margin-bottom:10px;"></div>
+      <button class="submit-btn" onclick="submitImportRequestForm()" style="position:static;">Send Request</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="import-success-modal">
+  <div class="modal" style="max-width:400px; text-align:center; padding:32px 24px;">
+    <div style="font-size:2.5rem; margin-bottom:10px;">📦</div>
+    <h2 style="margin-bottom:8px;">Request Sent!</h2>
+    <p style="color:#666; font-size:0.88rem; line-height:1.6; margin-bottom:20px;">We'll review your link and get back to you with a price soon. You can check the status anytime under "My Import Requests" in your account.</p>
+    <button class="btn-primary" style="width:100%; padding:12px; border-radius:8px; font-weight:700;" onclick="closeOverlayEl(document.getElementById('import-success-modal'))">Got It</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="track-order-modal">
   <div class="modal hto-modal">
     <div class="hto-close-bar"><span>Track Your Order</span><button onclick="closeOverlayEl(document.getElementById('track-order-modal'))">X</button></div>
@@ -1785,9 +1813,14 @@
 
       <!-- Generic entry point (footer link, no specific order) — simple phone lookup -->
       <div id="track-live-lookup" style="display:none;">
-        <div class="hto-header"><div class="hto-icon">&#128225;</div><h2>Track Your Order</h2><p>Enter the phone number you ordered with to see your most recent order's status.</p></div>
+        <div class="hto-header"><div class="hto-icon">&#128225;</div><h2>Track Your Order</h2><p>Enter your order number to see its live status.</p></div>
+        <div style="display:flex; gap:8px; margin-bottom:10px;">
+          <input type="text" id="track-lookup-code" placeholder="e.g. GDRHHX" style="flex:1; padding:12px 14px; border:1.5px solid var(--border); border-radius:8px; font-size:0.9rem; text-transform:uppercase; letter-spacing:0.05em;" maxlength="6" oninput="this.value=this.value.toUpperCase();"/>
+          <button onclick="lookupOrderByCode()" class="btn-primary" style="padding:12px 18px; border-radius:8px; font-weight:700; white-space:nowrap;">Find</button>
+        </div>
+        <div style="text-align:center; color:#999; font-size:0.76rem; margin:10px 0;">— or —</div>
         <div style="display:flex; gap:8px; margin-bottom:16px;">
-          <input type="tel" id="track-lookup-phone" placeholder="+256 7XX XXX XXX" style="flex:1; padding:12px 14px; border:1.5px solid var(--border); border-radius:8px; font-size:0.9rem;"/>
+          <input type="tel" id="track-lookup-phone" placeholder="Search by phone number instead" style="flex:1; padding:12px 14px; border:1.5px solid var(--border); border-radius:8px; font-size:0.9rem;"/>
           <button onclick="lookupOrderByPhone()" class="btn-primary" style="padding:12px 18px; border-radius:8px; font-weight:700; white-space:nowrap;">Find</button>
         </div>
         <div id="track-lookup-status" style="font-size:0.82rem; color:var(--red); margin-bottom:10px; display:none;"></div>
@@ -1839,6 +1872,14 @@
     <button class="modal-close" onclick="closeOverlayEl(document.getElementById('my-orders-modal'))">✕</button>
     <h2 style="font-size:1.25rem;">🧾 My Orders</h2>
     <div id="my-orders-modal-body" style="margin-top:14px;"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="my-import-requests-modal" style="z-index:900;" onclick="if(event.target===this) closeOverlayEl(this);">
+  <div class="modal" style="max-width:640px; max-height:85vh; overflow-y:auto; padding:26px;">
+    <button class="modal-close" onclick="closeOverlayEl(document.getElementById('my-import-requests-modal'))">✕</button>
+    <h2 style="font-size:1.25rem;">📦 My Import Requests</h2>
+    <div id="my-import-requests-modal-body" style="margin-top:14px;"></div>
   </div>
 </div>
 
@@ -5900,6 +5941,7 @@
     recordVisit();
     startActiveOrderListener();
     restoreCartForAccount();
+    resumePendingIntentAfterAccountReady();
   }
 
   async function accountSignupSubmit() {
@@ -5930,6 +5972,7 @@
     recordVisit();
     startActiveOrderListener();
     restoreCartForAccount();
+    resumePendingIntentAfterAccountReady();
     } catch(e) {
       msg.textContent = 'Error creating your account. Please try again.';
       msg.style.display = 'block';
@@ -6113,6 +6156,53 @@
     }
     var navBtn = document.getElementById('nav-account-label');
     // (nav label stays text-based — avatar is a dashboard-only touch, keeps the nav compact)
+  }
+
+  function openMyImportRequestsModal() {
+    if (!currentAccount) return;
+    var body = document.getElementById('my-import-requests-modal-body');
+    body.innerHTML = '<div style="font-size:0.85rem;color:var(--grey);text-align:center;padding:20px 0;">Loading...</div>';
+    openOverlayEl(document.getElementById('my-import-requests-modal'));
+    renderMyImportRequestsModalContent();
+  }
+
+  async function renderMyImportRequestsModalContent() {
+    var body = document.getElementById('my-import-requests-modal-body');
+    if (!currentAccount || !window.fbDb || !window.fbFns || !body) return;
+    try {
+      var { collection, query, where, getDocs } = window.fbFns;
+      var q = query(collection(window.fbDb, 'import_requests'), where('customerId', '==', currentAccount.fbDocId));
+      var snap = await getDocs(q);
+      var reqs = snap.docs.map(function(d){ return Object.assign({ fbDocId: d.id }, d.data()); })
+        .sort(function(a,b){ return new Date(b.createdAt) - new Date(a.createdAt); });
+      if (reqs.length === 0) {
+        body.innerHTML = '<div style="font-size:0.85rem;color:var(--grey);text-align:center;padding:20px 0;">No import requests yet. Tap "📦 Import For Me" on the homepage to send us a link!</div>';
+        return;
+      }
+      var statusMeta = {
+        pending:   { label: '⏳ Awaiting Review', color: '#f5a623', bg: 'rgba(245,166,35,0.12)' },
+        quoted:    { label: '💰 Quoted — Awaiting Your Payment', color: '#4a9eff', bg: 'rgba(74,158,255,0.12)' },
+        converted: { label: '✅ Converted to Order', color: '#2a9d50', bg: 'rgba(42,157,80,0.12)' },
+        rejected:  { label: '✕ Not Available', color: '#d63b2f', bg: 'rgba(214,59,47,0.12)' }
+      };
+      body.innerHTML = reqs.map(function(r){
+        var meta = statusMeta[r.status] || statusMeta.pending;
+        var when = new Date(r.createdAt).toLocaleDateString('en-UG', { day:'numeric', month:'short', year:'numeric' });
+        return '<div style="background:var(--light); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:12px;">' +
+          '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;">' +
+            '<div style="font-size:0.78rem; color:#888;">' + when + '</div>' +
+            '<span style="background:' + meta.bg + '; color:' + meta.color + '; font-size:0.72rem; font-weight:800; padding:4px 10px; border-radius:20px; white-space:nowrap;">' + meta.label + '</span>' +
+          '</div>' +
+          '<div style="font-size:0.85rem; margin-bottom:6px; word-break:break-all;"><a href="' + r.itemLink + '" target="_blank" style="color:var(--black); text-decoration:underline;">' + r.itemLink + '</a></div>' +
+          '<div style="font-size:0.8rem; color:#666;">Quantity: ' + r.quantity + '</div>' +
+          (r.status === 'quoted' && r.quotedPrice ? '<div style="margin-top:10px; background:#fff; border:1.5px solid #4a9eff; border-radius:8px; padding:10px 12px;"><div style="font-weight:800; font-size:0.9rem; color:#1a5c8a;">Quoted Price: ' + fmtPrice(r.quotedPrice) + '</div><div style="font-size:0.78rem; color:#555; margin-top:4px;">Deposit required (60%): ' + fmtPrice(Math.ceil(r.quotedPrice * 0.6)) + '</div><div style="font-size:0.78rem; color:#555; margin-top:6px;">We\'ll be in touch by phone/WhatsApp to arrange payment — feel free to reach out to us too!</div></div>' : '') +
+          (r.status === 'converted' && r.convertedOrderId ? '<div style="margin-top:10px;"><button onclick="closeOverlayEl(document.getElementById(\'my-import-requests-modal\')); openTrackModal(\'' + r.convertedOrderId + '\');" class="btn-primary" style="padding:9px 14px; border-radius:7px; font-size:0.8rem; font-weight:700;">Track This Order</button></div>' : '') +
+        '</div>';
+      }).join('');
+    } catch(e) {
+      console.error('[import] loading requests failed:', e);
+      body.innerHTML = '<div style="font-size:0.85rem;color:var(--red);text-align:center;padding:20px 0;">Could not load your requests. Please try again.</div>';
+    }
   }
 
   function openMyOrdersModal() {
@@ -6864,6 +6954,75 @@
 
   var unsubscribeTrackedOrder = null;
 
+  // ── IMPORT FOR ME ──
+  var pendingIntentAfterAccount = null;
+
+  function openImportRequestFlow() {
+    if (!currentAccount) {
+      pendingIntentAfterAccount = 'import';
+      showToastMessage('📦 Create a free account first so we can keep you updated on your request.', '#4a9eff');
+      openAccountEntry();
+      return;
+    }
+    openImportRequestModal();
+  }
+
+  function resumePendingIntentAfterAccountReady() {
+    if (pendingIntentAfterAccount === 'import') {
+      pendingIntentAfterAccount = null;
+      closeOverlayEl(document.getElementById('account-modal'));
+      setTimeout(openImportRequestModal, 350); // let the account modal finish closing first
+    }
+  }
+
+  function openImportRequestModal() {
+    document.getElementById('import-item-link').value = '';
+    document.getElementById('import-quantity').value = '1';
+    document.getElementById('import-photo-link').value = '';
+    document.getElementById('import-phone').value = (currentAccount && currentAccount.phone) || '';
+    document.getElementById('import-request-msg').style.display = 'none';
+    openOverlayEl(document.getElementById('import-request-modal'));
+  }
+
+  function submitImportRequestForm() {
+    var msgEl = document.getElementById('import-request-msg');
+    var link = document.getElementById('import-item-link').value.trim();
+    var qty = parseInt(document.getElementById('import-quantity').value, 10) || 1;
+    var photoLink = document.getElementById('import-photo-link').value.trim();
+    var phone = document.getElementById('import-phone').value.trim();
+    if (!link) { msgEl.textContent = 'Please paste the item link.'; msgEl.style.display = 'block'; return; }
+    if (!phone) { msgEl.textContent = 'Please enter a phone number so we can reach you.'; msgEl.style.display = 'block'; return; }
+    if (!currentAccount || !window.fbDb || !window.fbFns) { msgEl.textContent = 'Not connected. Check your internet connection.'; msgEl.style.display = 'block'; return; }
+    msgEl.style.display = 'none';
+    var { collection, addDoc } = window.fbFns;
+    addDoc(collection(window.fbDb, 'import_requests'), {
+      customerId: currentAccount.fbDocId,
+      customerName: currentAccount.name,
+      phone: phone,
+      itemLink: link,
+      photoUrl: photoLink,
+      quantity: qty,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    }).then(function(){
+      closeOverlayEl(document.getElementById('import-request-modal'));
+      openOverlayEl(document.getElementById('import-success-modal'));
+      // Reuses the exact same admin alert channel (Telegram + FCM) as new
+      // orders — no Worker changes needed, just different field values.
+      notifyNewOrderViaTelegram({
+        customerName: currentAccount.name,
+        itemsSummary: 'Import request (x' + qty + '): ' + link,
+        total: '',
+        refCode: null,
+        source: 'Import Request'
+      });
+    }).catch(function(e){
+      console.error('[import] submit failed:', e);
+      msgEl.textContent = 'Something went wrong. Please check your connection and try again.';
+      msgEl.style.display = 'block';
+    });
+  }
+
   function openTrackModal(orderId) {
     ['track-opt-2','track-footer-btn'].forEach(function(id){var e=document.getElementById(id);if(e)e.classList.remove('visible');});
     // Stop watching whatever order was open before, if any — otherwise switching
@@ -6903,6 +7062,41 @@
       // Plain footer click, no specific order in context — offer a phone lookup.
       if (lookupEl) lookupEl.style.display = 'block';
     }
+  }
+
+  function openTrackPackageFlow() {
+    openTrackModal(); // no orderId → shows the lookup form (code + phone)
+  }
+
+  function lookupOrderByCode() {
+    var codeInput = document.getElementById('track-lookup-code');
+    var statusEl = document.getElementById('track-lookup-status');
+    var code = codeInput ? codeInput.value.trim().toUpperCase() : '';
+    if (!code) { if (statusEl) { statusEl.textContent = 'Please enter your order number.'; statusEl.style.display = 'block'; } return; }
+    if (!window.fbDb || !window.fbFns) return;
+    var { collection, query, where, getDocs } = window.fbFns;
+    if (statusEl) statusEl.style.display = 'none';
+    getDocs(query(collection(window.fbDb, 'orders'), where('refCode', '==', code))).then(function(snap){
+      if (snap.empty) {
+        // refCode is only guaranteed on orders placed since the reference-code
+        // system was introduced — older orders without one won't be found this
+        // way, hence the phone-number fallback sitting right below this field.
+        if (statusEl) { statusEl.textContent = 'No order found with that number — try searching by phone instead.'; statusEl.style.display = 'block'; }
+        return;
+      }
+      var order = Object.assign({ fbDocId: snap.docs[0].id }, snap.docs[0].data());
+      var lookupEl = document.getElementById('track-live-lookup');
+      if (lookupEl) lookupEl.style.display = 'none';
+      if (unsubscribeTrackedOrder) { unsubscribeTrackedOrder(); unsubscribeTrackedOrder = null; }
+      var { doc, onSnapshot } = window.fbFns;
+      unsubscribeTrackedOrder = onSnapshot(doc(window.fbDb, 'orders', order.fbDocId), function(liveSnap){
+        if (!liveSnap.exists()) return;
+        renderLiveTrackedOrder(Object.assign({ fbDocId: liveSnap.id }, liveSnap.data()));
+      }, function(e){ console.error('[track] live listener failed after code lookup:', e); });
+    }).catch(function(e){
+      console.error('[track] code lookup failed:', e);
+      if (statusEl) { statusEl.textContent = 'Something went wrong — please try again or WhatsApp us.'; statusEl.style.display = 'block'; }
+    });
   }
 
   function lookupOrderByPhone() {

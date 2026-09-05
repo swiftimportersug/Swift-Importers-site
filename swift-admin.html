@@ -1092,6 +1092,9 @@
       <div class="nav-item" onclick="showPage('rider-performance')">
         <span class="nav-icon">📊</span> Rider Performance
       </div>
+      <div class="nav-item" onclick="showPage('import-requests')">
+        <span class="nav-icon">📦</span> Import Requests
+      </div>
       <div class="nav-item" onclick="showPage('scanner')">
         <span class="nav-icon">📷</span> QR Scanner
       </div>
@@ -1534,6 +1537,19 @@
 
           <div id="rider-perf-deliveries-list"></div>
         </div>
+      </div>
+
+      <!-- IMPORT REQUESTS PAGE -->
+      <div class="page" id="page-import-requests">
+        <div class="section-hdr"><h2>📦 Import Requests</h2></div>
+        <div class="tab-row" style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+          <button class="period-tab active" data-status="all" onclick="setImportRequestsFilter('all')">All</button>
+          <button class="period-tab" data-status="pending" onclick="setImportRequestsFilter('pending')">⏳ Pending</button>
+          <button class="period-tab" data-status="quoted" onclick="setImportRequestsFilter('quoted')">💰 Quoted</button>
+          <button class="period-tab" data-status="converted" onclick="setImportRequestsFilter('converted')">✅ Converted</button>
+          <button class="period-tab" data-status="rejected" onclick="setImportRequestsFilter('rejected')">✕ Rejected</button>
+        </div>
+        <div id="import-requests-list" style="display:flex; flex-direction:column; gap:14px;"></div>
       </div>
 
       <!-- SCANNER PAGE -->
@@ -3610,6 +3626,7 @@
       fbListenStores();
       fbListenEmployees();
       fbListenBodaRiders();
+      fbListenImportRequests();
       fbListenAdjustmentsLog();
       fbListenCategories();
       fbListenGlobalPromoCodes();
@@ -3742,18 +3759,19 @@
     document.getElementById('page-' + name).classList.add('active');
     document.body.classList.toggle('on-dashboard-page', name === 'dashboard');
     document.querySelectorAll('.nav-item').forEach(n => {
-      const label = name === 'dashboard' ? 'dashboard' : name === 'inventory' ? 'inventory' : name === 'tracking' ? 'product tracking' : name === 'alerts' ? 'alert' : name === 'profits' ? 'profit' : name === 'emp-performance' ? 'employee performance' : name === 'boda-riders' ? 'boda riders' : name === 'rider-performance' ? 'rider performance' : name === 'open-orders' ? 'open orders' : name === 'closed-orders' ? 'closed orders' : name === 'customers' ? 'customers' : name === 'messages' ? 'messages' : 'scanner';
+      const label = name === 'dashboard' ? 'dashboard' : name === 'inventory' ? 'inventory' : name === 'tracking' ? 'product tracking' : name === 'alerts' ? 'alert' : name === 'profits' ? 'profit' : name === 'emp-performance' ? 'employee performance' : name === 'boda-riders' ? 'boda riders' : name === 'rider-performance' ? 'rider performance' : name === 'import-requests' ? 'import requests' : name === 'open-orders' ? 'open orders' : name === 'closed-orders' ? 'closed orders' : name === 'customers' ? 'customers' : name === 'messages' ? 'messages' : 'scanner';
       if (n.textContent.toLowerCase().includes(label)) {
         n.classList.add('active');
       }
     });
-    const titles = { dashboard:'📊 Dashboard', inventory:'📦 Inventory', tracking:'🚚 Product Tracking', alerts:'🔔 Stock Alerts', profits:'💰 Profits', 'open-orders':'📋 Open Orders', 'closed-orders':'✅ Closed Orders', 'emp-performance':'📊 Employee Performance', 'boda-riders':'🏍️ Boda Riders', 'rider-performance':'📊 Rider Performance', customers:'👥 Customers', messages:'💬 Messages', scanner:'📷 QR Scanner' };
+    const titles = { dashboard:'📊 Dashboard', inventory:'📦 Inventory', tracking:'🚚 Product Tracking', alerts:'🔔 Stock Alerts', profits:'💰 Profits', 'open-orders':'📋 Open Orders', 'closed-orders':'✅ Closed Orders', 'emp-performance':'📊 Employee Performance', 'boda-riders':'🏍️ Boda Riders', 'rider-performance':'📊 Rider Performance', 'import-requests':'📦 Import Requests', customers:'👥 Customers', messages:'💬 Messages', scanner:'📷 QR Scanner' };
     document.getElementById('page-title').textContent = titles[name] || name;
     if (name !== 'scanner') stopScanner();
     if (name !== 'tracking' && typeof stopTrackingScanner === 'function') stopTrackingScanner();
     if (name === 'emp-performance') renderEmployeePerformance();
     if (name === 'boda-riders') renderBodaRiders();
     if (name === 'rider-performance') renderRiderPerformanceList();
+    if (name === 'import-requests') renderImportRequestsList();
     if (name === 'customers') { loadTierSettingsIntoForm(); searchCustomers(document.getElementById('customer-search-input') ? document.getElementById('customer-search-input').value : ''); }
     if (name === 'messages' && !opts.keepThread) { document.body.classList.remove('admin-thread-open'); activeThreadCustomerId = null; renderAdminThreadsList(); }
     if (name === 'tracking') { renderTrackingStats(); renderTrackingList(); }
@@ -4250,6 +4268,166 @@
         </div>
       `;
     }).join('');
+  }
+
+  // ── IMPORT REQUESTS ──
+  let importRequests = [];
+  let unsubscribeImportRequests = null;
+  let importRequestsFilter = 'all';
+
+  function fbListenImportRequests() {
+    if (!window.fbDb || !window.fbFns) return;
+    const { collection, onSnapshot } = window.fbFns;
+    if (unsubscribeImportRequests) unsubscribeImportRequests();
+    unsubscribeImportRequests = onSnapshot(collection(window.fbDb, 'import_requests'), (snapshot) => {
+      importRequests = snapshot.docs.map(d => ({ fbDocId: d.id, ...d.data() }));
+      importRequests.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+      renderImportRequestsList();
+    });
+  }
+
+  function setImportRequestsFilter(status) {
+    importRequestsFilter = status;
+    document.querySelectorAll('#page-import-requests .tab-row .period-tab').forEach(t => t.classList.toggle('active', t.dataset.status === status));
+    renderImportRequestsList();
+  }
+
+  function renderImportRequestsList() {
+    const wrap = document.getElementById('import-requests-list');
+    if (!wrap) return;
+    const filtered = importRequestsFilter === 'all' ? importRequests : importRequests.filter(r => r.status === importRequestsFilter);
+    if (filtered.length === 0) {
+      wrap.innerHTML = '<div class="orders-empty">No import requests here yet.</div>';
+      return;
+    }
+    const statusMeta = {
+      pending:   { label: '⏳ Pending Review', color: '#f5a623', bg: 'rgba(245,166,35,0.12)' },
+      quoted:    { label: '💰 Quoted', color: '#4a9eff', bg: 'rgba(74,158,255,0.12)' },
+      converted: { label: '✅ Converted', color: '#2a9d50', bg: 'rgba(42,157,80,0.12)' },
+      rejected:  { label: '✕ Rejected', color: '#d63b2f', bg: 'rgba(214,59,47,0.12)' }
+    };
+    wrap.innerHTML = filtered.map(r => {
+      const meta = statusMeta[r.status] || statusMeta.pending;
+      const when = new Date(r.createdAt).toLocaleDateString('en-UG', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      return `
+        <div class="card" style="padding:16px 18px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;">
+            <div>
+              <div style="font-weight:700; font-size:0.92rem;">${r.customerName}</div>
+              <div style="font-size:0.76rem; color:#888;">${r.phone} &middot; ${when}</div>
+            </div>
+            <span style="background:${meta.bg}; color:${meta.color}; font-size:0.72rem; font-weight:800; padding:4px 10px; border-radius:20px; white-space:nowrap;">${meta.label}</span>
+          </div>
+          <div style="background:var(--light); border-radius:8px; padding:10px 12px; margin-bottom:10px; font-size:0.82rem;">
+            <div style="word-break:break-all; margin-bottom:4px;"><a href="${r.itemLink}" target="_blank" style="color:var(--black); font-weight:600;">🔗 ${r.itemLink}</a></div>
+            <div style="color:#666;">Quantity: <strong>${r.quantity}</strong></div>
+            ${r.photoUrl ? `<div style="margin-top:8px;"><img src="${r.photoUrl}" style="max-width:120px; max-height:120px; border-radius:6px; object-fit:cover;" onerror="this.style.display='none';"/></div>` : ''}
+          </div>
+          ${r.status === 'quoted' || r.status === 'converted' ? `
+            <div style="background:#fff; border:1.5px solid #4a9eff; border-radius:8px; padding:10px 12px; margin-bottom:10px;">
+              <div style="font-weight:800; font-size:0.88rem; color:#1a5c8a;">Quoted: ${fmt(r.quotedPrice)}</div>
+              <div style="font-size:0.78rem; color:#555;">60% deposit needed: ${fmt(Math.ceil(r.quotedPrice * 0.6))}</div>
+              ${r.amountPaid ? `<div style="font-size:0.78rem; color:#555;">Amount received: ${fmt(r.amountPaid)}</div>` : ''}
+            </div>
+          ` : ''}
+          ${r.status === 'converted' && r.convertedOrderId ? `<div style="font-size:0.8rem; color:#2a9d50; font-weight:700;">✅ Converted — see Order in Open/Closed Orders</div>` : ''}
+          ${r.status === 'pending' ? `
+            <div style="display:flex; gap:8px;">
+              <button onclick="quoteImportRequest('${r.fbDocId}')" style="flex:1; background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:8px 10px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer;">💰 Enter Quote</button>
+              <button onclick="rejectImportRequest('${r.fbDocId}')" style="flex:1; background:#fdecea; border:1.5px solid #f5c6c0; color:var(--red); padding:8px 10px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer;">✕ Not Available</button>
+            </div>
+          ` : ''}
+          ${r.status === 'quoted' ? `
+            <button onclick="convertImportRequestToOrder('${r.fbDocId}')" style="width:100%; background:var(--black); color:#fff; border:none; padding:9px 10px; border-radius:7px; font-size:0.8rem; font-weight:700; cursor:pointer;">✅ Confirm Deposit Paid & Convert to Order</button>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function quoteImportRequest(reqId) {
+    const priceStr = prompt('Enter the final price for this item, including delivery to Uganda (UGX):');
+    if (priceStr === null) return;
+    const price = parseInt(priceStr.replace(/[^0-9]/g, ''), 10);
+    if (!price || price <= 0) { showAppAlert('Please enter a valid price.'); return; }
+    if (!window.fbDb || !window.fbFns) return;
+    const { doc, updateDoc } = window.fbFns;
+    try {
+      await updateDoc(doc(window.fbDb, 'import_requests', reqId), {
+        status: 'quoted', quotedPrice: price, quotedAt: new Date().toISOString()
+      });
+      showSuccessToast('💰 Quote sent — now reach out to the customer directly with the price.');
+    } catch(e) {
+      showAppAlert('Error saving quote. Check your connection.');
+      console.error(e);
+    }
+  }
+
+  async function rejectImportRequest(reqId) {
+    showAppConfirm('Mark this item as not available/not importable? The customer will see this in their account.', async function(){
+      if (!window.fbDb || !window.fbFns) return;
+      const { doc, updateDoc } = window.fbFns;
+      try {
+        await updateDoc(doc(window.fbDb, 'import_requests', reqId), { status: 'rejected' });
+        showSuccessToast('Marked as not available.');
+      } catch(e) {
+        showAppAlert('Error updating request. Check your connection.');
+        console.error(e);
+      }
+    }, null, { icon: '✕', confirmText: 'Mark Not Available' });
+  }
+
+  function generateImportRefCode() {
+    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+    let code = '';
+    for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+    return code;
+  }
+
+  async function convertImportRequestToOrder(reqId) {
+    const req = importRequests.find(r => r.fbDocId === reqId);
+    if (!req || !req.quotedPrice) { showAppAlert('This request needs a quote first.'); return; }
+    const minRequired = Math.ceil(req.quotedPrice * 0.6);
+    const paidStr = prompt('How much has the customer actually paid so far (UGX)? At least ' + fmt(minRequired) + ' (60%) is needed to convert.', String(minRequired));
+    if (paidStr === null) return;
+    const amountPaid = parseInt(paidStr.replace(/[^0-9]/g, ''), 10) || 0;
+    if (amountPaid < minRequired) {
+      showAppAlert('At least ' + fmt(minRequired) + ' is needed before converting this to an order.');
+      return;
+    }
+    if (!window.fbDb || !window.fbFns) return;
+    const { collection, addDoc, doc, updateDoc } = window.fbFns;
+    try {
+      const isFullyPaid = amountPaid >= req.quotedPrice;
+      const refCode = generateImportRefCode();
+      const newOrder = {
+        customerName: req.customerName,
+        phone: req.phone,
+        accountId: req.customerId,
+        products: 'Imported item (x' + req.quantity + ') — see link in notes',
+        cartItems: [{ name: 'Imported item (x' + req.quantity + ')', qty: req.quantity }],
+        orderTotal: req.quotedPrice,
+        subtotal: req.quotedPrice,
+        hasShippedItems: true,
+        importStage: 'ordered',
+        status: 'confirmed',
+        paymentMethod: 'Mobile Money',
+        paymentStatus: isFullyPaid ? 'paid' : 'partial',
+        amountPaid: amountPaid,
+        balanceDue: Math.max(0, req.quotedPrice - amountPaid),
+        refCode: refCode,
+        timestamp: new Date().toISOString(),
+        notes: 'Converted from an Import Request. Item link: ' + req.itemLink + (req.photoUrl ? ' | Photo: ' + req.photoUrl : '')
+      };
+      const orderRef = await addDoc(collection(window.fbDb, 'orders'), newOrder);
+      await updateDoc(doc(window.fbDb, 'import_requests', reqId), {
+        status: 'converted', convertedOrderId: orderRef.id, amountPaid: amountPaid
+      });
+      showSuccessToast('✅ Converted to Order #' + refCode + ' — now tracked like any other shipped item.');
+    } catch(e) {
+      showAppAlert('Error converting to order. Check your connection.');
+      console.error(e);
+    }
   }
 
   // ── STAFF NAMES (for sale/adjustment attribution in Employee Panel) ──
