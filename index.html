@@ -4148,6 +4148,12 @@
   }
 
   function selectPaymentMethod(method) {
+    var hiddenProducts = document.getElementById('order-products-hidden') && document.getElementById('order-products-hidden').value.trim();
+    var manualProducts = document.getElementById('order-products-manual') && document.getElementById('order-products-manual').value.trim();
+    if (!hiddenProducts && !manualProducts) {
+      showAppAlert('Please select at least one item to buy first!');
+      return;
+    }
     document.getElementById('order-payment').value = method;
     document.querySelectorAll('.payment-method-btn').forEach(function(btn){
       var isSelected = btn.getAttribute('data-method') === method;
@@ -4235,16 +4241,6 @@
       var exactAmount = await generateUniquePaymentAmount(currentCheckoutAmountDue || 0);
       currentCheckoutPaymentAmount = exactAmount;
 
-      // The order must exist in Firestore BEFORE the customer can possibly
-      // finish paying — Mobile Money payments often land within seconds, and
-      // the payment-matching webhook can only find an order that's already
-      // there. Waiting for a separate "Pay Now" click after the fact was the
-      // actual bug: a fast payment could arrive before that click ever
-      // happened, showing up as "no matching pending order." Submitting here,
-      // before the dialer even opens, closes that gap entirely.
-      var orderSubmitted = submitOrder();
-      if (!orderSubmitted) return; // validation failed — don't open the dialer for an order that was never created
-
       var amountBoxHtml =
         '<div style="background:#fff3d6; border:1.5px solid var(--gold); border-radius:8px; padding:10px 12px; margin-bottom:8px;">' +
           '<div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:#8a6d1f; margin-bottom:3px;">Amount to pay</div>' +
@@ -4254,49 +4250,58 @@
       var fallbackHtml =
         '<div style="font-size:0.74rem; color:#999; margin-top:8px;">If your payment isn\'t confirmed automatically within a few minutes, WhatsApp us your screenshot along with this code: <strong>' + code + '</strong></div>';
 
-      if (val === 'MTN Mobile Money') {
-        // MTN's MERCHANT route (confirmed by real testing) takes the customer
-        // straight to PIN entry — the plain personal-transfer route instead
-        // lands on MTN's main menu, requiring several manual steps most
-        // customers would get wrong. No phone number to copy/paste at all
-        // here — the merchant code is baked directly into the dial string.
-        var mtnUssd = '*165*3*' + MOBILE_MONEY_MERCHANT_CODES.mtn + '*' + exactAmount + '*1%23';
-        if (hint) {
-          hint.style.display = 'block';
-          hint.innerHTML =
-            amountBoxHtml +
-            '<div style="text-align:center; font-weight:700; color:#333; padding:8px 0;">📞 Opening MTN MoMo — just enter your PIN when prompted...</div>' +
-            '<div style="font-size:0.74rem; color:#999; margin-top:4px;">Didn\'t open? <a href="tel:' + mtnUssd + '" style="color:#4a9eff;">Tap here</a>, or dial *165*3*' + MOBILE_MONEY_MERCHANT_CODES.mtn + '*' + exactAmount + '*1# manually.</div>' +
-            fallbackHtml;
+      // The order must exist in Firestore BEFORE the customer can possibly
+      // finish paying — Mobile Money payments often land within seconds, and
+      // the payment-matching webhook can only find an order that's already
+      // there. The dial/QR trigger is passed in as a callback so it fires at
+      // exactly the right moment: right after validation passes, but BEFORE
+      // submitOrder's own form-reset and success-modal steps run — otherwise
+      // the customer would see "Order Received!" for a split second only for
+      // the phone's native dialer to suddenly interrupt it, which reads as
+      // broken rather than intentional.
+      var orderSubmitted = submitOrder(function(){
+        if (val === 'MTN Mobile Money') {
+          // MTN's MERCHANT route (confirmed by real testing) takes the customer
+          // straight to PIN entry — the plain personal-transfer route instead
+          // lands on MTN's main menu, requiring several manual steps most
+          // customers would get wrong. No phone number to copy/paste at all
+          // here — the merchant code is baked directly into the dial string.
+          var mtnUssd = '*165*3*' + MOBILE_MONEY_MERCHANT_CODES.mtn + '*' + exactAmount + '*1%23';
+          if (hint) {
+            hint.style.display = 'block';
+            hint.innerHTML =
+              amountBoxHtml +
+              '<div style="text-align:center; font-weight:700; color:#333; padding:8px 0;">📞 Opening MTN MoMo — just enter your PIN when prompted...</div>' +
+              '<div style="font-size:0.74rem; color:#999; margin-top:4px;">Didn\'t open? <a href="tel:' + mtnUssd + '" style="color:#4a9eff;">Tap here</a>, or dial *165*3*' + MOBILE_MONEY_MERCHANT_CODES.mtn + '*' + exactAmount + '*1# manually.</div>' +
+              fallbackHtml;
+          }
+          dialOrShowQr(mtnUssd);
+        } else if (val === 'Airtel Money') {
+          // Airtel — honest limitation: no confirmed one-tap-to-PIN route exists
+          // yet. *185*9# at least jumps straight to the Merchant ID entry step
+          // instead of starting from Airtel's very top menu, which is a real
+          // (if partial) improvement. Copying the exact amount directly — not
+          // just the phone number — matters a lot here specifically, since this
+          // amount has to be typed manually and a typo would break automatic
+          // matching (though a mismatch still safely falls back to a manual
+          // review alert, rather than silently vanishing).
+          var airtelPartialUssd = '*185*9%23';
+          navigator.clipboard.writeText(String(exactAmount)).then(function(){
+            showToastMessage('📋 UGX ' + exactAmount.toLocaleString('en-UG') + ' copied to clipboard', '#2a9d50');
+          }).catch(function(){});
+          if (hint) {
+            hint.style.display = 'block';
+            hint.innerHTML =
+              amountBoxHtml +
+              '<div style="font-size:0.8rem; margin-bottom:8px;">✓ Amount copied — paste it in when Airtel asks. Merchant ID: <strong>' + MOBILE_MONEY_MERCHANT_CODES.airtel + '</strong></div>' +
+              '<div style="text-align:center; font-weight:700; color:#333; padding:8px 0;">📞 Opening Airtel Money — enter Merchant ID ' + MOBILE_MONEY_MERCHANT_CODES.airtel + ', then paste the amount...</div>' +
+              '<div style="font-size:0.74rem; color:#999; margin-top:4px;">Didn\'t open? <a href="tel:' + airtelPartialUssd + '" style="color:#4a9eff;">Tap here</a> to try again.</div>' +
+              fallbackHtml;
+          }
+          dialOrShowQr(airtelPartialUssd);
         }
-        // Fires immediately, in the same gesture as the button click that got
-        // us here — this is what actually opens the dialer without requiring
-        // a second tap on our own page first.
-        dialOrShowQr(mtnUssd);
-      } else if (val === 'Airtel Money') {
-        // Airtel — honest limitation: no confirmed one-tap-to-PIN route exists
-        // yet. *185*9# at least jumps straight to the Merchant ID entry step
-        // instead of starting from Airtel's very top menu, which is a real
-        // (if partial) improvement. Copying the exact amount directly — not
-        // just the phone number — matters a lot here specifically, since this
-        // amount has to be typed manually and a typo would break automatic
-        // matching (though a mismatch still safely falls back to a manual
-        // review alert, rather than silently vanishing).
-        var airtelPartialUssd = '*185*9%23';
-        navigator.clipboard.writeText(String(exactAmount)).then(function(){
-          showToastMessage('📋 UGX ' + exactAmount.toLocaleString('en-UG') + ' copied to clipboard', '#2a9d50');
-        }).catch(function(){});
-        if (hint) {
-          hint.style.display = 'block';
-          hint.innerHTML =
-            amountBoxHtml +
-            '<div style="font-size:0.8rem; margin-bottom:8px;">✓ Amount copied — paste it in when Airtel asks. Merchant ID: <strong>' + MOBILE_MONEY_MERCHANT_CODES.airtel + '</strong></div>' +
-            '<div style="text-align:center; font-weight:700; color:#333; padding:8px 0;">📞 Opening Airtel Money — enter Merchant ID ' + MOBILE_MONEY_MERCHANT_CODES.airtel + ', then paste the amount...</div>' +
-            '<div style="font-size:0.74rem; color:#999; margin-top:4px;">Didn\'t open? <a href="tel:' + airtelPartialUssd + '" style="color:#4a9eff;">Tap here</a> to try again.</div>' +
-            fallbackHtml;
-        }
-        dialOrShowQr(airtelPartialUssd);
-      }
+      });
+      if (!orderSubmitted) return; // validation failed — nothing was created, nothing to dial for
     } else if (val) {
       // Cash on Delivery / Cash Payment (In Person) — no amount to generate,
       // no dialer to open, so the order just gets confirmed immediately.
@@ -6874,7 +6879,7 @@
   }
 
   // ORDER
-  function submitOrder() {
+  function submitOrder(onValidated) {
     // Reset from any PREVIOUS order's success state before processing this new
     // submission — this must happen here, at the very start, not right after
     // kicking off addDoc() below. Putting it there was a race condition: since
@@ -6958,6 +6963,12 @@
         paymentOffset: (paymentVal === 'MTN Mobile Money' || paymentVal === 'Airtel Money') ? currentCheckoutPaymentOffset : null,
         status: 'pending', timestamp: new Date().toISOString()
       };
+      // Fires whatever the caller needs done (opening the phone dialer, for
+      // instance) BEFORE the form clears and the success modal appears —
+      // otherwise a payment button click would show "Order Received!" for a
+      // split second, then have the phone's native dialer suddenly pop up
+      // over it, which reads as broken rather than intentional.
+      if (typeof onValidated === 'function') onValidated();
       window.fbFns.addDoc(window.fbFns.collection(window.fbDb,'orders'), order).then(function(docRef){
         if (currentAccount) updateAccountAfterOrder(totalsVal.finalTotal);
         notifyNewOrderViaTelegram({
