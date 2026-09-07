@@ -1362,11 +1362,23 @@
 
       <div class="form-group">
         <label>Payment Method *</label>
-        <select id="order-payment" onchange="handlePaymentMethodChange()">
-          <option value="">Choose payment</option>
-          <option>MTN Mobile Money</option><option>Airtel Money</option>
-          <option>Cash on Delivery</option><option>Visa / Mastercard</option>
-        </select>
+        <div id="payment-method-buttons-wrap" style="display:flex; flex-direction:column; gap:8px; border-radius:10px; padding:2px; transition:box-shadow 0.2s;">
+          <button type="button" class="payment-method-btn" data-method="MTN Mobile Money" onclick="selectPaymentMethod('MTN Mobile Money')" style="display:flex; align-items:center; gap:10px; width:100%; padding:13px 16px; border-radius:8px; border:2px solid #FFCC00; background:#FFCC00; color:#000; font-weight:800; font-size:0.9rem; cursor:pointer; text-align:left;">
+            <span style="background:#000; color:#FFCC00; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.7rem; font-weight:900; flex-shrink:0;">MTN</span>
+            Pay Now With MTN MoMo
+          </button>
+          <button type="button" class="payment-method-btn" data-method="Airtel Money" onclick="selectPaymentMethod('Airtel Money')" style="display:flex; align-items:center; gap:10px; width:100%; padding:13px 16px; border-radius:8px; border:2px solid #ED1C24; background:#ED1C24; color:#fff; font-weight:800; font-size:0.9rem; cursor:pointer; text-align:left;">
+            <span style="background:#fff; color:#ED1C24; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:900; flex-shrink:0;">airtel</span>
+            Pay Now With Airtel Money
+          </button>
+          <button type="button" class="payment-method-btn" data-method="Cash on Delivery" onclick="selectPaymentMethod('Cash on Delivery')" style="display:flex; align-items:center; gap:10px; width:100%; padding:13px 16px; border-radius:8px; border:1.5px solid var(--border); background:#fff; color:var(--black); font-weight:700; font-size:0.88rem; cursor:pointer; text-align:left;">
+            <span style="font-size:1.3rem;">💵</span> Cash on Delivery
+          </button>
+          <button type="button" class="payment-method-btn" data-method="Visa / Mastercard" onclick="selectPaymentMethod('Visa / Mastercard')" style="display:flex; align-items:center; gap:10px; width:100%; padding:13px 16px; border-radius:8px; border:1.5px solid var(--border); background:#fff; color:var(--black); font-weight:700; font-size:0.88rem; cursor:pointer; text-align:left;">
+            <span style="font-size:1.3rem;">💳</span> Visa / Mastercard
+          </button>
+        </div>
+        <input type="hidden" id="order-payment"/>
         <div id="payment-copy-hint" style="display:none; font-size:0.76rem; color:#2a9d50; font-weight:700; margin-top:6px;"></div>
       </div>
       <div class="form-group"><label>Notes (optional)</label><input id="order-notes" type="text" placeholder="e.g. specific colour, delivery time preference"/></div>
@@ -4126,6 +4138,29 @@
     }
   }
 
+  function selectPaymentMethod(method) {
+    document.getElementById('order-payment').value = method;
+    document.querySelectorAll('.payment-method-btn').forEach(function(btn){
+      var isSelected = btn.getAttribute('data-method') === method;
+      btn.style.boxShadow = isSelected ? '0 0 0 3px rgba(0,0,0,0.15) inset' : 'none';
+    });
+    validateOrderFieldsVisual();
+    handlePaymentMethodChange();
+  }
+
+  // Programmatically "clicking" a real anchor element is a more reliable way
+  // to trigger a tel: link across browsers than just setting
+  // window.location.href directly — some browsers are stricter about which
+  // of the two they treat as an authentic user-initiated navigation.
+  function triggerTelLink(ussd) {
+    var a = document.createElement('a');
+    a.href = 'tel:' + ussd;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
   async function handlePaymentMethodChange() {
     var sel = document.getElementById('order-payment');
     var hint = document.getElementById('payment-copy-hint');
@@ -4160,11 +4195,15 @@
           hint.style.display = 'block';
           hint.innerHTML =
             amountBoxHtml +
-            '<a href="tel:' + mtnUssd + '" style="display:block; text-align:center; margin-top:6px; background:var(--black); color:#fff; padding:13px; border-radius:8px; font-size:0.9rem; font-weight:800; text-decoration:none;">📞 Tap to Pay — You\'ll Just Enter Your PIN</a>' +
-            '<div style="font-size:0.74rem; color:#999; margin-top:8px;">Button not working? Dial *165*3*' + MOBILE_MONEY_MERCHANT_CODES.mtn + '*' + exactAmount + '*1# manually.</div>' +
+            '<div style="text-align:center; font-weight:700; color:#333; padding:8px 0;">📞 Opening MTN MoMo — just enter your PIN when prompted...</div>' +
+            '<div style="font-size:0.74rem; color:#999; margin-top:4px;">Didn\'t open? <a href="tel:' + mtnUssd + '" style="color:#4a9eff;">Tap here</a>, or dial *165*3*' + MOBILE_MONEY_MERCHANT_CODES.mtn + '*' + exactAmount + '*1# manually.</div>' +
             fallbackHtml;
         }
-      } else {
+        // Fires immediately, in the same gesture as the button click that got
+        // us here — this is what actually opens the dialer without requiring
+        // a second tap on our own page first.
+        triggerTelLink(mtnUssd);
+      } else if (val === 'Airtel Money') {
         // Airtel — honest limitation: no confirmed one-tap-to-PIN route exists
         // yet. *185*9# at least jumps straight to the Merchant ID entry step
         // instead of starting from Airtel's very top menu, which is a real
@@ -4181,11 +4220,12 @@
           hint.style.display = 'block';
           hint.innerHTML =
             amountBoxHtml +
-            '<div style="font-size:0.8rem; margin-bottom:8px;">✓ Amount copied — you\'ll be able to paste it in. Merchant ID: <strong>' + MOBILE_MONEY_MERCHANT_CODES.airtel + '</strong></div>' +
-            '<a href="tel:' + airtelPartialUssd + '" style="display:block; text-align:center; margin-top:6px; background:var(--black); color:#fff; padding:13px; border-radius:8px; font-size:0.9rem; font-weight:800; text-decoration:none;">📞 Tap to Start Payment</a>' +
-            '<div style="font-size:0.74rem; color:#999; margin-top:8px;">This opens Airtel\'s payment menu directly to the Merchant ID step — enter <strong>' + MOBILE_MONEY_MERCHANT_CODES.airtel + '</strong>, then paste the amount when asked.</div>' +
+            '<div style="font-size:0.8rem; margin-bottom:8px;">✓ Amount copied — paste it in when Airtel asks. Merchant ID: <strong>' + MOBILE_MONEY_MERCHANT_CODES.airtel + '</strong></div>' +
+            '<div style="text-align:center; font-weight:700; color:#333; padding:8px 0;">📞 Opening Airtel Money — enter Merchant ID ' + MOBILE_MONEY_MERCHANT_CODES.airtel + ', then paste the amount...</div>' +
+            '<div style="font-size:0.74rem; color:#999; margin-top:4px;">Didn\'t open? <a href="tel:' + airtelPartialUssd + '" style="color:#4a9eff;">Tap here</a> to try again.</div>' +
             fallbackHtml;
         }
+        triggerTelLink(airtelPartialUssd);
       }
     } else if (hint) {
       hint.style.display = 'none';
@@ -6603,8 +6643,17 @@
       } else {
         filled = !!(el.value && el.value.trim() !== '');
       }
-      el.classList.toggle('field-invalid', !filled);
-      el.classList.toggle('field-valid', filled);
+      if (id === 'order-payment') {
+        // This is now a hidden input (payment method is chosen via visible
+        // buttons instead of a dropdown) — styling it directly would be
+        // invisible to the customer, so the red-border indicator goes on the
+        // actual button group they can see instead.
+        var wrap = document.getElementById('payment-method-buttons-wrap');
+        if (wrap) wrap.style.boxShadow = filled ? 'none' : '0 0 0 2px var(--red)';
+      } else {
+        el.classList.toggle('field-invalid', !filled);
+        el.classList.toggle('field-valid', filled);
+      }
     });
     // The manual products field is only required when there's nothing in the cart
     var manualWrap = document.getElementById('order-manual-products-wrap');
