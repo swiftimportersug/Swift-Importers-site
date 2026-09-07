@@ -4041,6 +4041,16 @@
     mtn: '0767853353',
     airtel: '0746811272'
   };
+  // MTN's merchant/MoMoPay route is what actually takes a customer straight to
+  // PIN entry — the plain personal-transfer route (*165*1*1*...) instead lands
+  // on MTN's main menu requiring several manual steps, confirmed by real
+  // hands-on testing. Airtel has no confirmed equivalent one-tap route yet —
+  // *185*9# at least skips straight to the Merchant ID entry step, which is
+  // still a real (if partial) improvement over starting from the very top.
+  var MOBILE_MONEY_MERCHANT_CODES = {
+    mtn: '86596185',
+    airtel: '7198500'
+  };
 
   // Reference code — generated the moment the customer picks a payment method,
   // BEFORE the order even exists in Firestore, since that's when they need it (to
@@ -4130,26 +4140,52 @@
       var exactAmount = await generateUniquePaymentAmount(currentCheckoutAmountDue || 0);
       currentCheckoutPaymentAmount = exactAmount;
 
-      // No reason/reference field needed at all anymore — matching happens by
-      // this exact amount alone, which works identically whether or not the
-      // customer's app even offers a reason field (Airtel Money's doesn't).
-      var ussdCode = (val === 'MTN Mobile Money' ? '*165*1*1*' : '*185*1*1*') + number + '*' + exactAmount + '%23';
+      var amountBoxHtml =
+        '<div style="background:#fff3d6; border:1.5px solid var(--gold); border-radius:8px; padding:10px 12px; margin-bottom:8px;">' +
+          '<div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:#8a6d1f; margin-bottom:3px;">Amount to pay</div>' +
+          '<div style="font-size:1.15rem; font-weight:800; color:#6b4a00;">UGX ' + exactAmount.toLocaleString('en-UG') + '</div>' +
+          '<div style="font-size:0.74rem; color:#8a6d1f; margin-top:3px;">Not a typo — this exact amount (not a rounder number) is what lets us confirm your payment automatically.</div>' +
+        '</div>';
+      var fallbackHtml =
+        '<div style="font-size:0.74rem; color:#999; margin-top:8px;">If your payment isn\'t confirmed automatically within a few minutes, WhatsApp us your screenshot along with this code: <strong>' + code + '</strong></div>';
 
-      navigator.clipboard.writeText(number).then(function(){
-        showToastMessage('📋 ' + number + ' copied to clipboard', '#2a9d50');
-      }).catch(function(){});
-
-      if (hint) {
-        hint.style.display = 'block';
-        hint.innerHTML =
-          '<div style="background:#fff3d6; border:1.5px solid var(--gold); border-radius:8px; padding:10px 12px; margin-bottom:8px;">' +
-            '<div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:#8a6d1f; margin-bottom:3px;">Send exactly this amount</div>' +
-            '<div style="font-size:1.15rem; font-weight:800; color:#6b4a00;">UGX ' + exactAmount.toLocaleString('en-UG') + '</div>' +
-            '<div style="font-size:0.74rem; color:#8a6d1f; margin-top:3px;">Not a typo — sending this exact amount (not a rounder number) lets us confirm your payment automatically, usually within seconds.</div>' +
-          '</div>' +
-          '✓ ' + number + ' copied — paste it into your ' + val + ' app.<br/>' +
-          '<a href="tel:' + ussdCode + '" style="display:inline-block; margin-top:6px; background:var(--black); color:#fff; padding:8px 14px; border-radius:6px; font-size:0.8rem; font-weight:700; text-decoration:none;">📞 Or tap to auto-dial with the amount pre-filled</a>' +
-          '<div style="font-size:0.74rem; color:#999; margin-top:8px;">If for any reason your payment isn\'t confirmed automatically within a few minutes, WhatsApp us your screenshot along with this code: <strong>' + code + '</strong></div>';
+      if (val === 'MTN Mobile Money') {
+        // MTN's MERCHANT route (confirmed by real testing) takes the customer
+        // straight to PIN entry — the plain personal-transfer route instead
+        // lands on MTN's main menu, requiring several manual steps most
+        // customers would get wrong. No phone number to copy/paste at all
+        // here — the merchant code is baked directly into the dial string.
+        var mtnUssd = '*165*3*' + MOBILE_MONEY_MERCHANT_CODES.mtn + '*' + exactAmount + '*1%23';
+        if (hint) {
+          hint.style.display = 'block';
+          hint.innerHTML =
+            amountBoxHtml +
+            '<a href="tel:' + mtnUssd + '" style="display:block; text-align:center; margin-top:6px; background:var(--black); color:#fff; padding:13px; border-radius:8px; font-size:0.9rem; font-weight:800; text-decoration:none;">📞 Tap to Pay — You\'ll Just Enter Your PIN</a>' +
+            '<div style="font-size:0.74rem; color:#999; margin-top:8px;">Button not working? Dial *165*3*' + MOBILE_MONEY_MERCHANT_CODES.mtn + '*' + exactAmount + '*1# manually.</div>' +
+            fallbackHtml;
+        }
+      } else {
+        // Airtel — honest limitation: no confirmed one-tap-to-PIN route exists
+        // yet. *185*9# at least jumps straight to the Merchant ID entry step
+        // instead of starting from Airtel's very top menu, which is a real
+        // (if partial) improvement. Copying the exact amount directly — not
+        // just the phone number — matters a lot here specifically, since this
+        // amount has to be typed manually and a typo would break automatic
+        // matching (though a mismatch still safely falls back to a manual
+        // review alert, rather than silently vanishing).
+        var airtelPartialUssd = '*185*9%23';
+        navigator.clipboard.writeText(String(exactAmount)).then(function(){
+          showToastMessage('📋 UGX ' + exactAmount.toLocaleString('en-UG') + ' copied to clipboard', '#2a9d50');
+        }).catch(function(){});
+        if (hint) {
+          hint.style.display = 'block';
+          hint.innerHTML =
+            amountBoxHtml +
+            '<div style="font-size:0.8rem; margin-bottom:8px;">✓ Amount copied — you\'ll be able to paste it in. Merchant ID: <strong>' + MOBILE_MONEY_MERCHANT_CODES.airtel + '</strong></div>' +
+            '<a href="tel:' + airtelPartialUssd + '" style="display:block; text-align:center; margin-top:6px; background:var(--black); color:#fff; padding:13px; border-radius:8px; font-size:0.9rem; font-weight:800; text-decoration:none;">📞 Tap to Start Payment</a>' +
+            '<div style="font-size:0.74rem; color:#999; margin-top:8px;">This opens Airtel\'s payment menu directly to the Merchant ID step — enter <strong>' + MOBILE_MONEY_MERCHANT_CODES.airtel + '</strong>, then paste the amount when asked.</div>' +
+            fallbackHtml;
+        }
       }
     } else if (hint) {
       hint.style.display = 'none';
