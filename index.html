@@ -1392,7 +1392,6 @@
         </div>
       </div>
       <div class="form-group"><label>Notes (optional)</label><input id="order-notes" type="text" placeholder="e.g. specific colour, delivery time preference"/></div>
-      <button class="submit-btn" onclick="submitOrder()">PAY NOW</button>
     </div>
   </div>
 </section>
@@ -4232,9 +4231,19 @@
                : null;
     if (number) {
       var code = ensureCheckoutRefCode();
-      if (hint) { hint.style.display = 'block'; hint.innerHTML = '⏳ Preparing your payment details...'; }
+      if (hint) { hint.style.display = 'block'; hint.innerHTML = '⏳ Confirming your order...'; }
       var exactAmount = await generateUniquePaymentAmount(currentCheckoutAmountDue || 0);
       currentCheckoutPaymentAmount = exactAmount;
+
+      // The order must exist in Firestore BEFORE the customer can possibly
+      // finish paying — Mobile Money payments often land within seconds, and
+      // the payment-matching webhook can only find an order that's already
+      // there. Waiting for a separate "Pay Now" click after the fact was the
+      // actual bug: a fast payment could arrive before that click ever
+      // happened, showing up as "no matching pending order." Submitting here,
+      // before the dialer even opens, closes that gap entirely.
+      var orderSubmitted = submitOrder();
+      if (!orderSubmitted) return; // validation failed — don't open the dialer for an order that was never created
 
       var amountBoxHtml =
         '<div style="background:#fff3d6; border:1.5px solid var(--gold); border-radius:8px; padding:10px 12px; margin-bottom:8px;">' +
@@ -4288,6 +4297,11 @@
         }
         dialOrShowQr(airtelPartialUssd);
       }
+    } else if (val) {
+      // Cash on Delivery / Cash Payment (In Person) — no amount to generate,
+      // no dialer to open, so the order just gets confirmed immediately.
+      if (hint) { hint.style.display = 'block'; hint.innerHTML = '⏳ Confirming your order...'; }
+      submitOrder();
     } else if (hint) {
       hint.style.display = 'none';
       currentCheckoutPaymentAmount = null;
@@ -6891,12 +6905,12 @@
     if (!nameVal || !phoneVal || !areaVal || !productsVal || !paymentVal) {
       armOrderFieldValidation();
       showAppAlert('Please fill in all required fields.');
-      return;
+      return false;
     }
     if (!isValidUgandaPhone(phoneVal)) {
       armOrderFieldValidation();
       showAppAlert('Please enter a valid Ugandan phone number (e.g. 07XX XXX XXX or +256 7XX XXX XXX).');
-      return;
+      return false;
     }
     var submitBtn = document.querySelector('.order-form .submit-btn');
     if (submitBtn){ submitBtn.textContent='Processing...'; submitBtn.disabled=true; }
@@ -6999,6 +7013,7 @@
     // cost is one harmless extra step if the customer presses Back afterward.
     checkoutGuardArmed = false;
     openOverlayEl(document.getElementById('success-modal'));
+    return true;
   }
 
   async function updateAccountAfterOrder(orderTotal) {
