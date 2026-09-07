@@ -910,6 +910,16 @@
     }
     .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
     .submit-btn{width:100%;background:linear-gradient(160deg,var(--gold-light),var(--gold));color:var(--black);border:none;padding:15px;border-radius:6px;font-weight:700;font-size:0.85rem;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;margin-top:4px;transition:box-shadow 0.25s,transform 0.2s;}
+    /* Tactile 3D payment buttons — a raised face, a real "ledge" shadow beneath,
+       and a genuine press-down on tap, rather than flat rectangles. */
+    .payment-method-btn{transition:transform 0.08s ease, box-shadow 0.08s ease; position:relative;}
+    .payment-method-btn:active{transform:translateY(3px) !important;}
+    .pay-btn-mtn{background:linear-gradient(160deg,#FFE066,#FFCC00) !important;box-shadow:0 4px 0 #B38F00, 0 6px 14px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.6);}
+    .pay-btn-mtn:active{box-shadow:0 1px 0 #B38F00, 0 2px 6px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.6);}
+    .pay-btn-airtel{background:linear-gradient(160deg,#FF4B52,#ED1C24) !important;box-shadow:0 4px 0 #9E0007, 0 6px 14px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.25);}
+    .pay-btn-airtel:active{box-shadow:0 1px 0 #9E0007, 0 2px 6px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.25);}
+    .pay-btn-cod{background:linear-gradient(160deg,#333,#000) !important;box-shadow:0 4px 0 #000, 0 6px 14px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.12);}
+    .pay-btn-cod:active{box-shadow:0 1px 0 #000, 0 2px 6px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.12);}
     .submit-btn:hover{box-shadow:0 8px 24px rgba(199,162,72,0.35);transform:translateY(-1px);}
     .maps-pin-btn{width:100%;margin-top:8px;background:#1a1a1a;color:var(--white);border:1.5px dashed #444;padding:11px 14px;border-radius:6px;font-size:0.88rem;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
     .maps-pin-btn:hover{border-color:var(--gold);color:var(--gold);}
@@ -1080,6 +1090,7 @@
     window.firebaseReady = true;
     window.dispatchEvent(new Event('firebaseReady'));
   </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
 
@@ -1261,11 +1272,6 @@
       <div class="p-name">Cash on Delivery</div>
       <div class="p-desc">Call 0757 675 088 to arrange delivery payment</div>
     </a>
-    <div class="payment-card">
-      <div class="p-icon">&#128179;</div>
-      <div class="p-name">Visa / Mastercard</div>
-      <div class="p-desc">Secure card payment available at checkout</div>
-    </div>
   </div>
 </section>
 
@@ -1362,24 +1368,27 @@
 
       <div class="form-group">
         <label>Payment Method *</label>
-        <div id="payment-method-buttons-wrap" style="display:flex; flex-direction:column; gap:8px; border-radius:10px; padding:2px; transition:box-shadow 0.2s;">
-          <button type="button" class="payment-method-btn" data-method="MTN Mobile Money" onclick="selectPaymentMethod('MTN Mobile Money')" style="display:flex; align-items:center; gap:10px; width:100%; padding:13px 16px; border-radius:8px; border:2px solid #FFCC00; background:#FFCC00; color:#000; font-weight:800; font-size:0.9rem; cursor:pointer; text-align:left;">
+        <div id="payment-method-buttons-wrap" style="display:flex; flex-direction:column; gap:10px; border-radius:10px; padding:2px; transition:box-shadow 0.2s;">
+          <button type="button" class="payment-method-btn pay-btn-mtn" data-method="MTN Mobile Money" onclick="selectPaymentMethod('MTN Mobile Money')" style="display:flex; align-items:center; gap:10px; width:100%; padding:13px 16px; border-radius:8px; border:none; color:#000; font-weight:800; font-size:0.9rem; cursor:pointer; text-align:left;">
             <span style="background:#000; color:#FFCC00; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.7rem; font-weight:900; flex-shrink:0;">MTN</span>
             Pay Now With MTN MoMo
           </button>
-          <button type="button" class="payment-method-btn" data-method="Airtel Money" onclick="selectPaymentMethod('Airtel Money')" style="display:flex; align-items:center; gap:10px; width:100%; padding:13px 16px; border-radius:8px; border:2px solid #ED1C24; background:#ED1C24; color:#fff; font-weight:800; font-size:0.9rem; cursor:pointer; text-align:left;">
+          <button type="button" class="payment-method-btn pay-btn-airtel" data-method="Airtel Money" onclick="selectPaymentMethod('Airtel Money')" style="display:flex; align-items:center; gap:10px; width:100%; padding:13px 16px; border-radius:8px; border:none; color:#fff; font-weight:800; font-size:0.9rem; cursor:pointer; text-align:left;">
             <span style="background:#fff; color:#ED1C24; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:900; flex-shrink:0;">airtel</span>
             Pay Now With Airtel Money
           </button>
-          <button type="button" class="payment-method-btn" data-method="Cash on Delivery" onclick="selectPaymentMethod('Cash on Delivery')" style="display:flex; align-items:center; gap:10px; width:100%; padding:13px 16px; border-radius:8px; border:1.5px solid var(--border); background:#fff; color:var(--black); font-weight:700; font-size:0.88rem; cursor:pointer; text-align:left;">
-            <span style="font-size:1.3rem;">💵</span> Cash on Delivery
-          </button>
-          <button type="button" class="payment-method-btn" data-method="Visa / Mastercard" onclick="selectPaymentMethod('Visa / Mastercard')" style="display:flex; align-items:center; gap:10px; width:100%; padding:13px 16px; border-radius:8px; border:1.5px solid var(--border); background:#fff; color:var(--black); font-weight:700; font-size:0.88rem; cursor:pointer; text-align:left;">
-            <span style="font-size:1.3rem;">💳</span> Visa / Mastercard
+          <button type="button" class="payment-method-btn pay-btn-cod" data-method="Cash on Delivery" onclick="selectPaymentMethod(this.getAttribute('data-method'))" style="display:flex; align-items:center; gap:10px; width:100%; padding:13px 16px; border-radius:8px; border:none; color:#fff; font-weight:800; font-size:0.9rem; cursor:pointer; text-align:left;">
+            <img src="data:image/png;base64,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" style="width:32px; height:32px; border-radius:50%; background:#fff; object-fit:cover; flex-shrink:0;" alt="Cash on Delivery"/>
+            <span class="pay-btn-cod-label">Cash on Delivery</span>
           </button>
         </div>
         <input type="hidden" id="order-payment"/>
         <div id="payment-copy-hint" style="display:none; font-size:0.76rem; color:#2a9d50; font-weight:700; margin-top:6px;"></div>
+        <div id="payment-qr-wrap" style="display:none; text-align:center; margin-top:10px; background:#fff; border:1.5px solid var(--border); border-radius:10px; padding:16px;">
+          <div style="font-weight:800; font-size:0.85rem; margin-bottom:10px;">📱 Scan with your phone to pay instantly</div>
+          <div id="payment-qr-code" style="display:inline-block;"></div>
+          <div style="font-size:0.74rem; color:#888; margin-top:10px;">Open your phone's camera and point it at this code — it'll open your dialer with everything already filled in.</div>
+        </div>
       </div>
       <div class="form-group"><label>Notes (optional)</label><input id="order-notes" type="text" placeholder="e.g. specific colour, delivery time preference"/></div>
       <button class="submit-btn" onclick="submitOrder()">PAY NOW</button>
@@ -4119,20 +4128,20 @@
   function updatePaymentOptionsForCheckout(hasShippedItems) {
     if (lastPaymentOptionsWereShippedMode === hasShippedItems) return;
     lastPaymentOptionsWereShippedMode = hasShippedItems;
+    var codBtn = document.querySelector('.pay-btn-cod');
+    var codLabel = document.querySelector('.pay-btn-cod-label');
+    if (!codBtn || !codLabel) return;
+    var newMethod = hasShippedItems ? 'Cash Payment (In Person)' : 'Cash on Delivery';
+    var oldMethod = codBtn.getAttribute('data-method');
+    codBtn.setAttribute('data-method', newMethod);
+    codLabel.textContent = newMethod;
+    // If the customer had already picked the cash option under its OLD label,
+    // reset the selection so they consciously re-confirm — matches the
+    // original dropdown's same "reset if no longer valid" behavior.
     var sel = document.getElementById('order-payment');
-    if (!sel) return;
-    var currentVal = sel.value;
-    var options = hasShippedItems
-      ? ['MTN Mobile Money', 'Airtel Money', 'Cash Payment (In Person)']
-      : ['MTN Mobile Money', 'Airtel Money', 'Cash on Delivery', 'Visa / Mastercard'];
-    sel.innerHTML = '<option value="">Choose payment</option>' +
-      options.map(function(o){ return '<option>' + o + '</option>'; }).join('');
-    // Keep the previous choice selected if it's still a valid option; otherwise reset
-    // so the customer consciously picks one of the options that's actually available.
-    if (options.indexOf(currentVal) > -1) {
-      sel.value = currentVal;
-    } else {
+    if (sel && sel.value === oldMethod && oldMethod !== newMethod) {
       sel.value = '';
+      document.querySelectorAll('.payment-method-btn').forEach(function(btn){ btn.style.boxShadow = ''; });
       var hint = document.getElementById('payment-copy-hint');
       if (hint) hint.style.display = 'none';
     }
@@ -4159,6 +4168,30 @@
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+  }
+
+  // On a phone, tapping a tel: link genuinely opens the dialer — but on a
+  // desktop/laptop there's no phone dialer to open at all, so that same link
+  // would just do nothing useful. Showing a QR code instead lets a desktop
+  // customer scan it with their phone's camera, which DOES open the dialer —
+  // on the device that can actually make the call.
+  function dialOrShowQr(ussd) {
+    var qrWrap = document.getElementById('payment-qr-wrap');
+    if (getDeviceType() === 'desktop') {
+      if (qrWrap) {
+        qrWrap.style.display = 'block';
+        var qrContainer = document.getElementById('payment-qr-code');
+        if (qrContainer) {
+          qrContainer.innerHTML = '';
+          if (window.QRCode) {
+            new QRCode(qrContainer, { text: 'tel:' + decodeURIComponent(ussd), width: 180, height: 180 });
+          }
+        }
+      }
+    } else {
+      if (qrWrap) qrWrap.style.display = 'none';
+      triggerTelLink(ussd);
+    }
   }
 
   async function handlePaymentMethodChange() {
@@ -4202,7 +4235,7 @@
         // Fires immediately, in the same gesture as the button click that got
         // us here — this is what actually opens the dialer without requiring
         // a second tap on our own page first.
-        triggerTelLink(mtnUssd);
+        dialOrShowQr(mtnUssd);
       } else if (val === 'Airtel Money') {
         // Airtel — honest limitation: no confirmed one-tap-to-PIN route exists
         // yet. *185*9# at least jumps straight to the Merchant ID entry step
@@ -4225,12 +4258,14 @@
             '<div style="font-size:0.74rem; color:#999; margin-top:4px;">Didn\'t open? <a href="tel:' + airtelPartialUssd + '" style="color:#4a9eff;">Tap here</a> to try again.</div>' +
             fallbackHtml;
         }
-        triggerTelLink(airtelPartialUssd);
+        dialOrShowQr(airtelPartialUssd);
       }
     } else if (hint) {
       hint.style.display = 'none';
       currentCheckoutPaymentAmount = null;
       currentCheckoutPaymentOffset = null;
+      var qrWrap = document.getElementById('payment-qr-wrap');
+      if (qrWrap) qrWrap.style.display = 'none';
     }
   }
 
