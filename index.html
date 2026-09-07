@@ -1382,6 +1382,7 @@
             <span class="pay-btn-cod-label">Cash on Delivery</span>
           </button>
         </div>
+        <button type="button" id="change-payment-method-link" onclick="changePaymentMethod()" style="display:none; background:none; border:none; color:#4a9eff; font-size:0.8rem; font-weight:700; cursor:pointer; padding:6px 0; text-decoration:underline;">🔄 Change Payment Method</button>
         <input type="hidden" id="order-payment"/>
         <div id="payment-copy-hint" style="display:none; font-size:0.76rem; color:#2a9d50; font-weight:700; margin-top:6px;"></div>
         <div id="payment-qr-wrap" style="display:none; text-align:center; margin-top:10px; background:#fff; border:1.5px solid var(--border); border-radius:10px; padding:16px;">
@@ -4152,9 +4153,31 @@
     document.querySelectorAll('.payment-method-btn').forEach(function(btn){
       var isSelected = btn.getAttribute('data-method') === method;
       btn.style.boxShadow = isSelected ? '0 0 0 3px rgba(0,0,0,0.15) inset' : 'none';
+      // Fold away every OTHER method once one is picked, so the customer isn't
+      // staring at options that no longer apply — "Change" brings them back.
+      btn.style.display = isSelected ? 'flex' : 'none';
     });
+    var changeLink = document.getElementById('change-payment-method-link');
+    if (changeLink) changeLink.style.display = 'block';
     validateOrderFieldsVisual();
     handlePaymentMethodChange();
+  }
+
+  function changePaymentMethod() {
+    document.getElementById('order-payment').value = '';
+    document.querySelectorAll('.payment-method-btn').forEach(function(btn){
+      btn.style.display = 'flex';
+      btn.style.boxShadow = 'none';
+    });
+    var changeLink = document.getElementById('change-payment-method-link');
+    if (changeLink) changeLink.style.display = 'none';
+    var hint = document.getElementById('payment-copy-hint');
+    if (hint) hint.style.display = 'none';
+    var qrWrap = document.getElementById('payment-qr-wrap');
+    if (qrWrap) qrWrap.style.display = 'none';
+    currentCheckoutPaymentAmount = null;
+    currentCheckoutPaymentOffset = null;
+    validateOrderFieldsVisual();
   }
 
   // Programmatically "clicking" a real anchor element is a more reliable way
@@ -4184,7 +4207,12 @@
         if (qrContainer) {
           qrContainer.innerHTML = '';
           if (window.QRCode) {
-            new QRCode(qrContainer, { text: 'tel:' + decodeURIComponent(ussd), width: 180, height: 180 });
+            // Deliberately keeping %23 encoded rather than a literal # here —
+            // some phones' camera-to-dialer handoff treats a bare # as a URL
+            // "fragment" marker (standard web-address behavior) and strips
+            // everything from that point onward, dropping it from the dial
+            // string entirely. The encoded form removes that ambiguity.
+            new QRCode(qrContainer, { text: 'tel:' + ussd, width: 180, height: 180 });
           }
         }
       }
