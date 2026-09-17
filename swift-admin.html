@@ -5655,6 +5655,9 @@
             }
             return `<button onclick="postToBodaBoard('${o.fbDocId}')" style="width:100%; margin-top:8px; background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:8px 10px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer;">📢 Post to Boda Board</button>`;
           })() : ''}
+          ${!isClosed ? `
+            <button onclick="quickSetTrackingNumber('${o.fbDocId}')" style="width:100%; margin-top:8px; background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:8px 10px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer;">🔖 ${o.refCode ? 'Tracking #: ' + o.refCode + ' (tap to change)' : 'Assign Tracking Number'}</button>
+          ` : ''}
           ${!isClosed && o.status === 'confirmed' ? `
             <div style="width:100%; display:flex; gap:6px; margin-top:8px;">
               <button onclick="quickSetETA('${o.fbDocId}')" style="flex:1; background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:8px 10px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer;">⏱️ ${o.delivery && o.delivery.eta ? 'Update' : 'Set'} ETA</button>
@@ -5940,6 +5943,25 @@
   }
 
   let deliveryUpdateTargetDocId = null;
+
+  async function quickSetTrackingNumber(docId) {
+    const o = orders.find(x => x.fbDocId === docId);
+    if (!o) return;
+    const current = o.refCode || '';
+    const code = prompt('Tracking number for this order (6 characters, letters/numbers, no 0/O/1/I to avoid confusion):', current);
+    if (code === null) return; // cancelled
+    const clean = code.trim().toUpperCase();
+    if (!clean) { showAppAlert('Please enter a tracking number.'); return; }
+    if (!window.fbDb || !window.fbFns) return;
+    try {
+      const { doc, updateDoc } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'orders', docId), { refCode: clean });
+      showSuccessToast('✅ Tracking number set to ' + clean + ' — share this with the customer.');
+    } catch(e) {
+      showAppAlert('Error setting tracking number. Check your connection.');
+      console.error('[order] quickSetTrackingNumber failed:', e);
+    }
+  }
 
   async function quickSetETA(docId) {
     const o = orders.find(x => x.fbDocId === docId);
