@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Track Your Order — Swift Importers</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, collection, doc, getDoc, onSnapshot, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDqOE4NDmp3xJrTf71MzlClTZ201Uhyk0Q",
+      authDomain: "swift-importers.firebaseapp.com",
+      projectId: "swift-importers",
+      storageBucket: "swift-importers.firebasestorage.app",
+      messagingSenderId: "223766904777",
+      appId: "1:223766904777:web:aae5780e08d0800aff7218"
+    };
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    window.fbDb = db;
+    window.fbFns = { collection, doc, getDoc, onSnapshot, query, where, getDocs };
+    window.firebaseReady = true;
+    window.dispatchEvent(new Event('firebaseReady'));
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --black: #0D0D0D; --white: #F7F6F2; --gold: #C7A248; --gold-light:#E8CE8E; --gold-dark: #8F7229;
+      --grey: #888; --light: #F0EFE9; --border: #E2E0D8; --red: #D63B2F; --green: #2a9d50;
+    }
+    html, body { height: 100%; }
+    body { font-family: 'Inter', sans-serif; background: var(--light); color: var(--black); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 24px 16px; }
+    h1, h2 { font-family: 'Syne', sans-serif; }
+    .brand-badge { display: flex; flex-direction: column; align-items: center; border: 2px solid var(--black); border-radius: 8px; padding: 10px 20px 8px; margin-bottom: 22px; position: relative; }
+    .brand-badge::before { content: ''; position: absolute; inset: 3px; border: 1px solid rgba(0,0,0,0.15); border-radius: 5px; }
+    .brand-badge-main { font-weight: 800; font-size: 1.3rem; letter-spacing: 0.05em; }
+    .brand-badge-main .dot { display: inline-block; width: 8px; height: 8px; background: var(--gold); border-radius: 50%; margin: 0 1px; vertical-align: middle; position: relative; top: -2px; }
+    .brand-badge-sub { font-size: 0.5rem; font-weight: 600; color: var(--gold-dark); letter-spacing: 0.28em; text-transform: uppercase; margin-top: 3px; }
+
+    .card { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 26px; max-width: 460px; width: 100%; box-shadow: 0 20px 50px rgba(20,18,10,0.08); }
+    .lookup-box input { width: 100%; padding: 13px 14px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 1rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; font-family: 'Inter', sans-serif; }
+    .lookup-box button { width: 100%; background: linear-gradient(160deg, var(--gold-light), var(--gold)); color: var(--black); border: none; padding: 13px; border-radius: 8px; font-weight: 800; font-size: 0.9rem; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; }
+    .status-msg { font-size: 0.85rem; color: var(--red); margin-top: 10px; display: none; text-align: center; }
+    .loading { text-align: center; color: var(--grey); padding: 30px 0; display: none; }
+
+    #order-result { display: none; }
+    .order-badge { text-align: center; font-weight: 800; font-size: 0.9rem; padding: 10px 14px; border-radius: 10px; margin-bottom: 16px; }
+    .steps-wrap { background: linear-gradient(135deg,#1a1a1a,#2c2c2c); border-radius: 12px; padding: 18px 16px; margin-bottom: 16px; }
+    .info-box { background: var(--light); border-radius: 10px; padding: 12px 14px; font-size: 0.85rem; line-height: 1.7; margin-bottom: 14px; }
+    .items-box { background: var(--light); border-radius: 10px; padding: 12px 14px; font-size: 0.85rem; margin-bottom: 14px; }
+    .track-again { display: block; text-align: center; margin-top: 16px; font-size: 0.82rem; color: #4a9eff; cursor: pointer; }
+
+    @keyframes orderStagePulse { 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.12); } }
+  </style>
+</head>
+<body>
+  <div class="brand-badge">
+    <div class="brand-badge-main">SWIFT IMP<span class="dot"></span>RTERS</div>
+    <div class="brand-badge-sub">Delivering Quality</div>
+  </div>
+
+  <div class="card">
+    <div id="lookup-section" class="lookup-box">
+      <h2 style="text-align:center; margin-bottom:6px; font-size:1.1rem;">📦 Track Your Order</h2>
+      <p style="text-align:center; color:var(--grey); font-size:0.85rem; margin-bottom:18px;">Enter your tracking number below to see live progress.</p>
+      <input type="text" id="track-code-input" placeholder="e.g. GDRHHX" maxlength="6" oninput="this.value=this.value.toUpperCase();"/>
+      <button onclick="lookupOrder()">Track Order</button>
+      <div class="status-msg" id="status-msg"></div>
+    </div>
+    <div class="loading" id="loading-msg">⏳ Looking up your order...</div>
+
+    <div id="order-result">
+      <div id="order-badge" class="order-badge"></div>
+      <div id="steps-wrap" class="steps-wrap"></div>
+      <div id="info-box" class="info-box" style="display:none;"></div>
+      <div id="items-box" class="items-box"></div>
+      <div id="rider-call-box" style="display:none; margin-bottom:12px;"></div>
+      <span class="track-again" onclick="resetLookup()">🔍 Track a different order</span>
+    </div>
+  </div>
+
+  <script>
+    var unsubscribe = null;
+
+    // Same stage system already used on the main site — kept identical so an
+    // order looks and behaves the same way here as it will once the full
+    // site is ready and this page is retired in favor of it.
+    var localStageOrderStandard = ['pending', 'handed', 'on_the_way', 'delivered'];
+    var localStageOrderTaxiBus = ['pending', 'handed', 'at_station', 'on_the_way', 'delivered'];
+    var importStageOrder = ['ordered', 'shipped', 'customs', 'warehouse'];
+    var orderStageMeta = {
+      pending:     { icon:'📥', short:'Received',    color:'#f5a623', bg:'rgba(245,166,35,0.16)' },
+      ordered:     { icon:'🧾', short:'Ordered',     color:'#f5a623', bg:'rgba(245,166,35,0.16)' },
+      shipped:     { icon:'📦', short:'Shipped',     color:'#4a9eff', bg:'rgba(74,158,255,0.16)' },
+      customs:     { icon:'🛃', short:'At Customs',  color:'#e2a336', bg:'rgba(226,163,54,0.16)' },
+      warehouse:   { icon:'🏭', short:'Warehouse',   color:'#b46dff', bg:'rgba(180,109,255,0.16)' },
+      handed:      { icon:'📦', short:'Sent Out',    color:'#4a9eff', bg:'rgba(74,158,255,0.16)' },
+      at_station:  { icon:'🚏', short:'At Station',  color:'#e2a336', bg:'rgba(226,163,54,0.16)' },
+      on_the_way:  { icon:'🚚', short:'On the Way',  color:'#b46dff', bg:'rgba(180,109,255,0.16)' },
+      delivered:   { icon:'🎉', short:'Delivered',   color:'#4ade80', bg:'rgba(74,222,128,0.16)' }
+    };
+    function localStageOrderFor(o) {
+      var type = o && o.delivery && o.delivery.type;
+      return (type === 'taxi' || type === 'bus') ? localStageOrderTaxiBus : localStageOrderStandard;
+    }
+    function orderStageList(o) {
+      var localOrder = localStageOrderFor(o);
+      return (o && o.hasShippedItems) ? importStageOrder.concat(localOrder.slice(1)) : localOrder;
+    }
+    function orderCurrentStageKey(o) {
+      if (!o) return 'pending';
+      var localOrder = localStageOrderFor(o);
+      if (o.hasShippedItems) {
+        if (o.status === 'confirmed' && localOrder.slice(1).indexOf(o.deliveryStage) > -1) return o.deliveryStage;
+        if (o.importStage && importStageOrder.indexOf(o.importStage) > -1) return o.importStage;
+        return 'ordered';
+      }
+      var stageKey = 'pending';
+      if (o.status === 'confirmed' && localOrder.indexOf(o.deliveryStage) > -1) stageKey = o.deliveryStage;
+      return stageKey;
+    }
+    function buildOrderStageBadgeHtml(o) {
+      if (o.delivery && o.delivery.type === 'selfpick') {
+        return { style: 'background:rgba(74,222,128,0.16); color:#4ade80; border:1.5px solid #4ade80;', html: '🏪 Ready for Pickup — Munyonyo Store' };
+      }
+      if (o.status === 'cancelled') return { style: 'background:rgba(214,59,47,0.14); color:var(--red); border:1.5px solid var(--red);', html: '❌ Cancelled' };
+      if (o.status === 'pending') return { style: 'background:rgba(245,166,35,0.16); color:#f5a623; border:1.5px solid #f5a623;', html: '⏳ Order Received — Being Prepared' };
+      var stageKey = orderCurrentStageKey(o);
+      var meta = orderStageMeta[stageKey];
+      var labels = {
+        ordered: 'Order Placed — Awaiting Shipment', shipped: 'Shipped — In Transit to Uganda',
+        customs: 'Clearing Customs (Entebbe)', warehouse: 'Arrived at Our Warehouse',
+        handed: 'Handed to Boda Rider', at_station: 'Dropped at the Bus/Taxi Station',
+        on_the_way: 'On the Way', delivered: 'Delivered'
+      };
+      return { style: 'background:' + meta.bg + '; color:' + meta.color + '; border:1.5px solid ' + meta.color + ';', html: meta.icon + ' ' + (labels[stageKey] || 'Confirmed') };
+    }
+    function buildOrderStepsHtml(o) {
+      if (o.delivery && o.delivery.type === 'selfpick') return null;
+      if (o.status !== 'confirmed' && o.status !== 'pending') return null;
+      var stageOrderList = orderStageList(o);
+      var stageKey = orderCurrentStageKey(o);
+      var currentIndex = stageOrderList.indexOf(stageKey);
+      var lblFontSize = stageOrderList.length > 4 ? '0.5rem' : '0.56rem';
+      var dotsRow = stageOrderList.map(function(key, i){
+        var m = orderStageMeta[key];
+        var done = i < currentIndex, active = i === currentIndex;
+        var dotColor = done ? '#4ade80' : (active ? m.color : 'rgba(255,255,255,0.22)');
+        var dotSize = active ? '15px' : '10px';
+        var dotHtml = '<div style="width:' + dotSize + '; height:' + dotSize + '; border-radius:50%; background:' + dotColor + '; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:0.6rem;' +
+          (active ? ' box-shadow:0 0 0 5px ' + m.bg + '; animation:orderStagePulse 1.6s ease-in-out infinite;' : '') + '">' + (done ? '<span style="color:#0a2e18; font-size:0.6rem; font-weight:900;">✓</span>' : '') + '</div>';
+        var lineHtml = i < stageOrderList.length - 1 ? '<div style="flex:1; height:2px; background:' + (i < currentIndex ? '#4ade80' : 'rgba(255,255,255,0.15)') + ';"></div>' : '';
+        return dotHtml + lineHtml;
+      }).join('');
+      var labelsRow = stageOrderList.map(function(key, i){
+        var active = i === currentIndex;
+        return '<span style="font-size:' + lblFontSize + '; flex:1; text-align:' + (i===0?'left':(i===stageOrderList.length-1?'right':'center')) + '; color:' + (active ? '#fff' : 'rgba(255,255,255,0.42)') + '; font-weight:' + (active ? '800' : '600') + ';">' + orderStageMeta[key].short + '</span>';
+      }).join('');
+      return '<div style="display:flex; align-items:center;">' + dotsRow + '</div><div style="display:flex; margin-top:5px;">' + labelsRow + '</div>';
+    }
+
+    function lookupOrder() {
+      var code = document.getElementById('track-code-input').value.trim().toUpperCase();
+      var statusEl = document.getElementById('status-msg');
+      if (!code) { statusEl.textContent = 'Please enter your tracking number.'; statusEl.style.display = 'block'; return; }
+      if (!window.fbDb || !window.fbFns) { statusEl.textContent = 'Not connected — please refresh and try again.'; statusEl.style.display = 'block'; return; }
+      statusEl.style.display = 'none';
+      document.getElementById('loading-msg').style.display = 'block';
+      document.getElementById('lookup-section').style.display = 'none';
+
+      var { collection, query, where, getDocs, doc, onSnapshot } = window.fbFns;
+      getDocs(query(collection(window.fbDb, 'orders'), where('refCode', '==', code))).then(function(snap){
+        document.getElementById('loading-msg').style.display = 'none';
+        if (snap.empty) {
+          document.getElementById('lookup-section').style.display = 'block';
+          statusEl.textContent = 'No order found with that tracking number. Please check and try again.';
+          statusEl.style.display = 'block';
+          return;
+        }
+        var orderId = snap.docs[0].id;
+        if (unsubscribe) unsubscribe();
+        unsubscribe = onSnapshot(doc(window.fbDb, 'orders', orderId), function(liveSnap){
+          if (!liveSnap.exists()) return;
+          renderOrder(Object.assign({ fbDocId: liveSnap.id }, liveSnap.data()));
+        }, function(e){ console.error('[track] listener failed:', e); });
+      }).catch(function(e){
+        console.error('[track] lookup failed:', e);
+        document.getElementById('loading-msg').style.display = 'none';
+        document.getElementById('lookup-section').style.display = 'block';
+        statusEl.textContent = 'Something went wrong — please try again.';
+        statusEl.style.display = 'block';
+      });
+    }
+
+    function renderOrder(o) {
+      document.getElementById('order-result').style.display = 'block';
+      var badge = buildOrderStageBadgeHtml(o);
+      var badgeEl = document.getElementById('order-badge');
+      badgeEl.style.cssText += badge.style;
+      badgeEl.innerHTML = badge.html;
+
+      var stepsHtml = buildOrderStepsHtml(o);
+      var stepsEl = document.getElementById('steps-wrap');
+      if (stepsHtml) { stepsEl.innerHTML = stepsHtml; stepsEl.style.display = 'block'; }
+      else stepsEl.style.display = 'none';
+
+      var infoEl = document.getElementById('info-box');
+      if (o.delivery && (o.delivery.bodaName || o.delivery.eta)) {
+        var lines = [];
+        if (o.delivery.bodaName) lines.push('<span style="color:#888;">Rider/Driver:</span> <strong>' + o.delivery.bodaName + '</strong>');
+        if (o.delivery.plateNumber) lines.push('<span style="color:#888;">Plate:</span> <strong>' + o.delivery.plateNumber + '</strong>');
+        if (o.delivery.eta) lines.push('<span style="color:#888;">Expected In:</span> <strong>' + o.delivery.eta + '</strong>');
+        infoEl.innerHTML = lines.join('<br/>');
+        infoEl.style.display = 'block';
+      } else {
+        infoEl.style.display = 'none';
+      }
+
+      document.getElementById('items-box').textContent = o.products || (o.cartItems ? o.cartItems.map(function(i){ return i.name + ' x' + i.qty; }).join(', ') : 'Item details unavailable');
+
+      var callBox = document.getElementById('rider-call-box');
+      if (o.delivery && o.delivery.bodaPhone) {
+        callBox.style.display = 'block';
+        callBox.innerHTML = '<a href="tel:' + o.delivery.bodaPhone + '" style="display:block; text-align:center; background:rgba(74,222,128,0.14); border:1.5px solid rgba(74,222,128,0.45); color:#2a9d50; padding:9px; border-radius:8px; font-size:0.82rem; font-weight:700; text-decoration:none;">📞 Call Rider' + (o.delivery.bodaName ? ' (' + o.delivery.bodaName + ')' : '') + '</a>';
+      } else {
+        callBox.style.display = 'none';
+      }
+    }
+
+    function resetLookup() {
+      if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+      document.getElementById('order-result').style.display = 'none';
+      document.getElementById('lookup-section').style.display = 'block';
+      document.getElementById('track-code-input').value = '';
+      document.getElementById('status-msg').style.display = 'none';
+    }
+
+    // Deep-link support: track.html?code=GDRHHX opens straight to that order.
+    window.addEventListener('DOMContentLoaded', function(){
+      var params = new URLSearchParams(window.location.search);
+      var code = params.get('code');
+      if (code) {
+        document.getElementById('track-code-input').value = code.toUpperCase();
+        if (window.firebaseReady) lookupOrder();
+        else window.addEventListener('firebaseReady', lookupOrder, { once: true });
+      }
+    });
+  </script>
+</body>
+</html>
