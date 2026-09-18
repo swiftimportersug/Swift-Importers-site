@@ -2950,10 +2950,20 @@
   // Replaces the old registerServiceWorker()/sw-swift.js pair, which was dead
   // Netlify-era leftover code that had been silently registering a SECOND,
   // conflicting service worker at the same scope as sw.js and never actually
-  // did anything useful. Everything now goes through the single sw.js already
-  // registered elsewhere in this file. Same VAPID key as swift-admin.html —
-  // keep both in sync.
+  // did anything useful. Everything now goes through the single sw.js
+  // registered just below. Same VAPID key as swift-admin.html — keep both in sync.
   var FCM_VAPID_KEY = 'BNPy5lLDqD2KDLMBO_sj6gxGmw4d6ExBWvYXRMoyQq2AHm18B3gpJZjrUCl3YamhAjet2texjlepisPifUhg6ww';
+
+  // Registers directly rather than assuming some other page (admin, the
+  // storefront) already did it first — an employee could easily open this
+  // panel on a device that's never loaded any other page on the site, and
+  // relying on someone else's registration would leave notifications quietly
+  // broken with nothing to attach to. Absolute path (/sw.js) so this resolves
+  // correctly regardless of which folder this file lives in.
+  var swRegistrationEmployee = null;
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').then(function(reg){ swRegistrationEmployee = reg; }).catch(function(){ /* sw.js missing or blocked — notifications just won't show */ });
+  }
 
   function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
