@@ -5228,7 +5228,7 @@
   // browser fully closed, which needs Firebase Cloud Messaging + a server-side trigger).
   var swRegistration = null;
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').then(function(reg){ swRegistration = reg; }).catch(function(){ /* sw.js missing or blocked — notifications just won't show */ });
+    navigator.serviceWorker.register('/sw.js').then(function(reg){ swRegistration = reg; }).catch(function(){ /* sw.js missing or blocked — notifications just won't show */ });
   }
 
   function requestNotificationPermission() {

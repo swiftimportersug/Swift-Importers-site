@@ -522,7 +522,7 @@
 
     function registerBodaServiceWorker() {
       if (!('serviceWorker' in navigator)) return;
-      navigator.serviceWorker.register('sw.js').catch(function(e){ console.log('[boda] SW registration failed:', e); });
+      navigator.serviceWorker.register('/sw.js').catch(function(e){ console.log('[boda] SW registration failed:', e); });
     }
 
     function updateBodaNotifyBannerVisibility() {
