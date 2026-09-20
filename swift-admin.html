@@ -1895,6 +1895,7 @@
           <label>🏷️ Item Condition</label>
           <select id="f-condition" onchange="document.getElementById('f-condition-shipped-note').style.display = this.value === 'To Be Shipped' ? 'block' : 'none';">
             <option value="Brand New">Brand New</option>
+            <option value="Pre-order">🕓 Pre-order</option>
             <option value="Refurbished">Refurbished</option>
             <option value="Used">Used</option>
             <option value="UK Used">UK Used</option>
@@ -2009,9 +2010,13 @@
           </div>
         </div>
         <div style="background:#fff8e6; border:1px solid #e0c060; border-radius:6px; padding:8px 12px; margin-bottom:8px; font-size:0.7rem; color:#7a5c10; line-height:1.6;">
-          ✨ <strong>You can format your text:</strong> start a line with <code># </code> for a big heading, <code>## </code> for a subheading, and wrap words in <code>**double asterisks**</code> to make them <strong>bold</strong>. Use the "🖼️ Insert Image" button below to drop in a picture anywhere — write some text, add an image, write more, add another, as many times as you like.
+          ✨ <strong>You can format your text:</strong> start a line with <code># </code> for a big heading, <code>## </code> for a subheading, and wrap words in <code>**double asterisks**</code> to make them <strong>bold</strong>. Use the "🖼️ Insert Image" button to drop in a picture anywhere, "🎨 Color Text" to color a word or sentence, and "📊 Insert Table" to add a specifications table like AliExpress listings have — write some text, add an image or table, write more, as many times as you like.
         </div>
-        <button type="button" onclick="insertDescriptionImage('f-description')" style="background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:7px 14px; border-radius:7px; font-size:0.76rem; font-weight:700; cursor:pointer; margin-bottom:8px;">🖼️ Insert Image Here</button>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+          <button type="button" onclick="insertDescriptionImage('f-description')" style="background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:7px 14px; border-radius:7px; font-size:0.76rem; font-weight:700; cursor:pointer;">🖼️ Insert Image</button>
+          <button type="button" onclick="insertDescriptionColor('f-description')" style="background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:7px 14px; border-radius:7px; font-size:0.76rem; font-weight:700; cursor:pointer;">🎨 Color Text</button>
+          <button type="button" onclick="insertDescriptionTable('f-description')" style="background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:7px 14px; border-radius:7px; font-size:0.76rem; font-weight:700; cursor:pointer;">📊 Insert Table</button>
+        </div>
         <textarea id="f-description" rows="6"
           placeholder="e.g. The KZ Castor Pro is a premium in-ear monitor featuring dual dynamic drivers and 4 tuning switches. Comes with a detachable 2-pin silver-plated cable, 3 pairs of ear tips (S/M/L), and a storage pouch. Compatible with all devices via 3.5mm jack. Ideal for audiophiles and stage monitoring..."
           style="width:100%; padding:12px 14px; border:2px solid #e0c060; border-radius:8px; font-size:0.88rem; font-family:'Inter',sans-serif; outline:none; background:#fff; color:#000; resize:vertical; line-height:1.7; box-sizing:border-box;"
@@ -3736,6 +3741,58 @@
     var insertion = '\n![](' + url.trim() + ')\n';
     textarea.value = before + insertion + after;
     var newCursorPos = (before + insertion).length;
+    textarea.focus();
+    textarea.setSelectionRange(newCursorPos, newCursorPos);
+    updateDescWordCount(textarea);
+  }
+
+  function insertDescriptionColor(textareaId) {
+    var textarea = document.getElementById(textareaId);
+    if (!textarea) return;
+    var start = textarea.selectionStart;
+    var end = textarea.selectionEnd;
+    var selectedText = textarea.value.substring(start, end);
+    if (!selectedText) {
+      showAppAlert('Please select (highlight) the text you want to color first, then tap this button.');
+      return;
+    }
+    // A real native color picker beats asking admin to type/remember hex codes.
+    var picker = document.createElement('input');
+    picker.type = 'color';
+    picker.value = '#C7A248';
+    picker.style.position = 'fixed';
+    picker.style.top = '-100px';
+    picker.style.opacity = '0';
+    document.body.appendChild(picker);
+    picker.addEventListener('change', function(){
+      var color = picker.value;
+      var before = textarea.value.substring(0, start);
+      var after = textarea.value.substring(end);
+      var wrapped = '[color:' + color + ']' + selectedText + '[/color]';
+      textarea.value = before + wrapped + after;
+      var newCursorPos = (before + wrapped).length;
+      textarea.focus();
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+      updateDescWordCount(textarea);
+      document.body.removeChild(picker);
+    });
+    picker.addEventListener('cancel', function(){ document.body.removeChild(picker); });
+    picker.click();
+  }
+
+  function insertDescriptionTable(textareaId) {
+    var textarea = document.getElementById(textareaId);
+    if (!textarea) return;
+    var start = textarea.selectionStart;
+    var end = textarea.selectionEnd;
+    var before = textarea.value.substring(0, start);
+    var after = textarea.value.substring(end);
+    // A filled-in example rather than an empty shell — showing the "!" highlight
+    // convention in place is clearer than explaining it separately, and admin
+    // can just edit the rows directly to match their own product's specs.
+    var template = '\n[table]\nMaterial | Metal\n!Battery Life | 30 Hours (start a row with ! to highlight it)\nWarranty | 1 Year\n[/table]\n';
+    textarea.value = before + template + after;
+    var newCursorPos = (before + template).length;
     textarea.focus();
     textarea.setSelectionRange(newCursorPos, newCursorPos);
     updateDescWordCount(textarea);

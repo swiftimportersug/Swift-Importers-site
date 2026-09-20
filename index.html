@@ -2438,13 +2438,42 @@
   //   **bold text**         -> bold inline text
   // Escapes any raw HTML first so this stays safe to render with innerHTML.
   function formatDescriptionInline(line) {
-    return line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // [color:red]text[/color] — color name or hex code, e.g. [color:#C7A248]Gold[/color]
+    var withColor = line.replace(/\[color:([a-zA-Z0-9#]+)\]([\s\S]*?)\[\/color\]/g, function(m, color, inner){
+      return '<span style="color:' + color.replace(/[^a-zA-Z0-9#]/g, '') + ';">' + inner + '</span>';
+    });
+    return withColor.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   }
   function formatDescriptionHtml(text) {
     if (!text) return '';
-    var lines = text.split('\n');
+    // Table blocks span multiple lines, so they're extracted and rendered as a
+    // unit FIRST, before the rest of the text gets processed line-by-line —
+    // same "spec table" look as AliExpress: alternating row shading, with a
+    // "!" prefix on any row letting the highlight color call out a key spec.
+    //   [table]
+    //   Material | Metal
+    //   !Battery Life | 30 Hours (highlighted row)
+    //   [/table]
+    var withTables = text.replace(/\[table\]([\s\S]*?)\[\/table\]/g, function(match, tableBody){
+      var rows = tableBody.split('\n').map(function(r){ return r.trim(); }).filter(function(r){ return r !== ''; });
+      var rowsHtml = rows.map(function(row, i){
+        var highlighted = row.charAt(0) === '!';
+        if (highlighted) row = row.substring(1);
+        var cells = row.split('|').map(function(c){ return c.trim(); });
+        var bg = highlighted ? '#fff3d6' : (i % 2 === 0 ? '#f7f6f2' : '#ffffff');
+        return '<tr style="background:' + bg + ';">' + cells.map(function(c, ci){
+          var escapedCell = c.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          return '<td style="padding:9px 12px; border:1px solid #e2e0d8; font-size:0.85rem; vertical-align:top;' + (ci === 0 ? ' font-weight:700; color:#555; width:38%;' : ' color:#111;') + '">' + formatDescriptionInline(escapedCell) + '</td>';
+        }).join('') + '</tr>';
+      }).join('');
+      return '\n<table style="width:100%; border-collapse:collapse; margin:12px 0; border:1px solid #e2e0d8; border-radius:8px; overflow:hidden;">' + rowsHtml + '</table>\n';
+    });
+    var lines = withTables.split('\n');
     return lines.map(function(rawLine){
       var trimmedRaw = rawLine.trim();
+      // A rendered table block passes through untouched — it's already
+      // real HTML at this point, not something to re-escape/re-wrap.
+      if (trimmedRaw.indexOf('<table') === 0) return trimmedRaw;
       // Image syntax on its own line: ![alt text](https://image-url)
       var imgMatch = trimmedRaw.match(/^!\[([^\]]*)\]\((\S+)\)$/);
       if (imgMatch) {
