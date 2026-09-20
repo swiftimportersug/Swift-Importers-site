@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Swift Importers — Boda Riders</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, collection, doc, setDoc, getDocs, onSnapshot, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
+
+    // Same project as the rest of the site. This shared login is only a first
+    // gate — like the employee panel, real identification happens via each
+    // rider's own 4-digit code, checked against the boda_riders collection.
+    const BODA_EMAIL = "swiftimportersboda@gmail.com";
+    const BODA_PASSWORD = "amonaN2-boda.$$77";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDqOE4NDmp3xJrTf71MzlClTZ201Uhyk0Q",
+      authDomain: "swift-importers.firebaseapp.com",
+      projectId: "swift-importers",
+      storageBucket: "swift-importers.firebasestorage.app",
+      messagingSenderId: "223766904777",
+      appId: "1:223766904777:web:aae5780e08d0800aff7218"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    const messaging = getMessaging(app);
+
+    window.fbDb = db;
+    window.fbFns = { collection, doc, setDoc, getDocs, onSnapshot, updateDoc, query, where };
+    window.fbAuthFns = { signInWithEmailAndPassword, signOut, onAuthStateChanged };
+    window.fbMessaging = messaging;
+    window.fbMessagingFns = { getToken };
+    window.BODA_EMAIL = BODA_EMAIL;
+    window.BODA_PASSWORD = BODA_PASSWORD;
+    window.firebaseReady = true;
+    window.dispatchEvent(new Event('firebaseReady'));
+
+    onAuthStateChanged(auth, function(user) {
+      window.dispatchEvent(new CustomEvent('bodaAuthState', { detail: { user } }));
+    });
+
+    window.bodaSignIn = function() {
+      return signInWithEmailAndPassword(auth, BODA_EMAIL, BODA_PASSWORD);
+    };
+    window.bodaSignOut = function() {
+      return signOut(auth);
+    };
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      /* "Rider's Dashboard" palette — a motorbike instrument cluster at dusk:
+         dark bezel housing, backlit amber gauge glow, LED accent lights. */
+      --bezel: #100E0C;
+      --panel: #1C1815;
+      --panel-raised: #221D19;
+      --chrome: #3A342C;
+      --amber: #F0A93B;
+      --amber-dim: #C98A28;
+      --amber-glow: rgba(240,169,59,0.35);
+      --led-green: #3ddc84;
+      --led-red: #ff5c5c;
+      --blue-gauge: #5aa6ff;
+      --ink: #F7F1E6;
+      --ink-dim: #A69C8C;
+    }
+    html, body { height: 100%; overflow-x: hidden; }
+    body { font-family: 'Inter', sans-serif; background: var(--bezel); color: var(--ink); font-size: 15px; }
+    h1, h2, h3 { font-family: 'Syne', sans-serif; }
+    button { font-family: 'Inter', sans-serif; cursor: pointer; }
+    input { font-family: 'Inter', sans-serif; }
+
+    .screen { display: none; min-height: 100vh; }
+    /* The main app screen specifically gets a fixed-height, non-scrolling shell —
+       topbar/banner/tabs stay physically outside the scrolling area entirely,
+       which is a more robust way to keep them always visible than
+       position:sticky (which has known inconsistencies when its element is a
+       direct flex child, exactly the setup here). Login/PIN screens keep the
+       simpler min-height behavior above since they don't need this. */
+    #screen-app.active { height: 100vh; overflow: hidden; }
+    .screen.active { display: flex; flex-direction: column; }
+
+    /* ── WORDMARK — same badge used on the admin/employee login screens ── */
+    .brand-badge {
+      display: flex; flex-direction: column; align-items: center;
+      border: 2px solid var(--ink); border-radius: 8px; padding: 10px 16px 8px;
+      margin-bottom: 22px; position: relative; width: 100%; box-sizing: border-box;
+    }
+    .brand-badge::before {
+      content: ''; position: absolute; inset: 3px;
+      border: 1px solid rgba(247,241,230,0.25); border-radius: 5px;
+    }
+    .brand-badge-main {
+      font-family: 'Inter', sans-serif; font-size: clamp(0.95rem, 4vw, 1.4rem);
+      font-weight: 800; color: var(--ink); letter-spacing: 0.05em; white-space: nowrap;
+      width: 100%; text-align: center;
+    }
+    .brand-badge-main .dot {
+      display: inline-block; width: 8px; height: 8px; background: var(--amber);
+      border-radius: 50%; margin: 0 1px; vertical-align: middle; position: relative; top: -2px;
+      box-shadow: 0 0 6px var(--amber-glow);
+    }
+    .brand-badge-sub {
+      font-size: clamp(0.36rem, 1.2vw, 0.48rem); font-weight: 600; color: var(--amber-dim);
+      letter-spacing: 0.28em; text-transform: uppercase; margin-top: 3px; width: 100%; text-align: center;
+    }
+    .hero-bike { font-size: 4.4rem; line-height: 1; margin-bottom: 8px; filter: drop-shadow(0 8px 16px rgba(240,169,59,0.4)); }
+
+    /* ── LOGIN / PIN SCREENS ── */
+    .center-screen { align-items: center; justify-content: center; padding: 24px; }
+    .auth-box {
+      background: var(--panel); border: 1px solid var(--chrome); border-radius: 18px;
+      padding: 30px 24px; max-width: 360px; width: 100%; text-align: center;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+    .auth-box h1 { font-size: 1.15rem; margin-bottom: 4px; color: var(--ink); }
+    .auth-box p { color: var(--ink-dim); font-size: 0.83rem; margin-bottom: 22px; }
+    .auth-box input {
+      width: 100%; padding: 13px 14px; border: 1.5px solid var(--chrome); border-radius: 10px;
+      font-size: 1rem; margin-bottom: 14px; background: var(--bezel); color: var(--ink);
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.4);
+    }
+    .auth-box input:focus { outline: none; border-color: var(--amber); }
+    .auth-box input#pin-input { text-align: center; letter-spacing: 0.5em; font-size: 1.4rem; font-weight: 700; color: var(--amber); }
+    .auth-error { color: var(--led-red); font-size: 0.8rem; margin-top: 12px; min-height: 1em; }
+
+    .rider-pick { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; text-align: left; max-height: 240px; overflow-y: auto; }
+    .rider-pick button {
+      background: var(--panel-raised); border: 1.5px solid var(--chrome); border-radius: 10px;
+      padding: 12px 14px; font-size: 0.9rem; font-weight: 700; text-align: left; color: var(--ink);
+      box-shadow: 0 2px 0 rgba(0,0,0,0.4);
+    }
+    .rider-pick button.selected { border-color: var(--amber); background: linear-gradient(180deg, #2a2118, #201911); color: var(--amber); }
+
+    /* ── TACTILE 3D BUTTONS — the signature element: real dashboard switches,
+       not flat web buttons. Gradient face, a hard "contact shadow" ledge below,
+       and a genuine press-down on :active so tapping feels physical. ── */
+    .btn-primary, .claim-btn, .action-btn {
+      width: 100%; border: none; font-weight: 800; letter-spacing: 0.01em;
+      position: relative; transition: transform 0.08s ease, box-shadow 0.08s ease;
+    }
+    .btn-primary, .claim-btn {
+      background: linear-gradient(180deg, #ffcf6e 0%, var(--amber) 45%, var(--amber-dim) 100%);
+      color: #1a1206; padding: 14px; border-radius: 11px; font-size: 0.92rem;
+      box-shadow: 0 5px 0 #8f6112, 0 8px 18px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.5);
+      margin-top: 8px;
+    }
+    .btn-primary:active, .claim-btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #8f6112, 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.5); }
+    .btn-primary:disabled { opacity: 0.5; }
+    .action-btn {
+      flex: 1; background: linear-gradient(180deg, #3a3530, var(--panel-raised) 60%, #151210);
+      color: var(--ink); padding: 13px 8px; border-radius: 11px; font-size: 0.82rem;
+      box-shadow: 0 5px 0 #0a0908, 0 8px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+    .action-btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #0a0908, 0 2px 6px rgba(0,0,0,0.3); }
+    .action-btn.done {
+      background: linear-gradient(180deg, #57e9a0, var(--led-green) 60%, #1c8452);
+      color: #052b17; box-shadow: 0 5px 0 #1c8452, 0 8px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.4);
+    }
+    .action-btn.done:active { box-shadow: 0 1px 0 #1c8452, 0 2px 6px rgba(0,0,0,0.3); }
+
+    /* ── MAIN APP ── */
+    .topbar {
+      background: linear-gradient(180deg, var(--panel-raised), var(--bezel));
+      border-bottom: 1px solid var(--chrome);
+      color: var(--ink); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between;
+      flex-shrink: 0; z-index: 50;
+    }
+    .topbar .brand { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.02rem; letter-spacing: 0.02em; }
+    .topbar .brand .dot { color: var(--amber); }
+    .topbar .rider-name { font-size: 0.76rem; color: var(--amber); font-weight: 700; }
+    .topbar button {
+      background: var(--panel-raised); border: 1px solid var(--chrome); color: var(--ink-dim);
+      padding: 7px 13px; border-radius: 8px; font-size: 0.74rem; font-weight: 700;
+      box-shadow: 0 2px 0 rgba(0,0,0,0.4);
+    }
+    .topbar button:active { transform: translateY(2px); box-shadow: none; }
+
+    #boda-notify-banner { background: linear-gradient(180deg, #2a2118, #1c150e) !important; border-bottom: 1px solid var(--chrome) !important; flex-shrink: 0; }
+    #boda-notify-banner div { color: var(--amber-dim) !important; }
+    #boda-notify-banner button { background: linear-gradient(180deg, #ffcf6e, var(--amber)); color: #1a1206; border: none; box-shadow: 0 3px 0 #8f6112; }
+
+    .tabs { display: flex; background: var(--panel); border-bottom: 1px solid var(--chrome); flex-shrink: 0; z-index: 40; }
+    .tabs button { flex: 1; background: none; border: none; padding: 14px 6px; font-size: 0.8rem; font-weight: 800; color: var(--ink-dim); border-bottom: 3px solid transparent; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .tabs button.active { color: var(--amber); border-bottom-color: var(--amber); text-shadow: 0 0 12px var(--amber-glow); }
+    .tab-badge { background: var(--led-red); color: #fff; font-size: 0.64rem; font-weight: 800; padding: 1px 7px; border-radius: 20px; box-shadow: 0 0 8px rgba(255,92,92,0.6); }
+
+    .content { flex: 1; overflow-y: auto; padding: 16px; max-width: 640px; margin: 0 auto; width: 100%; -webkit-overflow-scrolling: touch; }
+    .empty-state { text-align: center; color: var(--ink-dim); padding: 60px 20px; font-size: 0.9rem; }
+
+    /* Job cards read like a dash LCD readout: dark panel, faint amber inset glow */
+    .job-card {
+      background: var(--panel); border: 1px solid var(--chrome); border-radius: 14px;
+      padding: 16px; margin-bottom: 14px;
+      box-shadow: inset 0 0 0 1px rgba(240,169,59,0.06), 0 6px 16px rgba(0,0,0,0.35);
+    }
+    .job-card .ref { font-size: 0.68rem; color: var(--ink-dim); font-weight: 700; margin-bottom: 4px; letter-spacing: 0.04em; }
+    .job-card .items { background: var(--bezel); border: 1px solid var(--chrome); border-radius: 8px; padding: 10px 12px; font-size: 0.83rem; margin: 8px 0; white-space: pre-wrap; color: var(--ink); }
+    .job-card .loc { display: flex; align-items: flex-start; gap: 8px; font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; color: var(--ink); }
+    .job-card .customer { font-size: 0.82rem; color: var(--ink-dim); margin-bottom: 4px; }
+    .job-card .notes { background: rgba(240,169,59,0.1); border: 1.5px solid var(--amber-dim); border-radius: 8px; padding: 8px 10px; font-size: 0.78rem; color: var(--amber); margin: 8px 0; }
+    .job-card .mode-badge { display: inline-block; font-size: 0.7rem; font-weight: 800; padding: 3px 10px; border-radius: 20px; margin-bottom: 8px; }
+    .mode-boda { background: rgba(240,169,59,0.16); color: var(--amber); }
+    .mode-taxibus { background: rgba(90,166,255,0.16); color: var(--blue-gauge); }
+
+    .claim-btn:disabled { opacity: 0.5; }
+    .action-row { display: flex; gap: 8px; margin-top: 10px; }
+    .stage-pill {
+      display: inline-block; font-size: 0.72rem; font-weight: 800; padding: 4px 12px; border-radius: 20px;
+      background: rgba(61,220,132,0.14); color: var(--led-green); margin-bottom: 8px;
+      box-shadow: 0 0 10px rgba(61,220,132,0.25);
+    }
+
+    .toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: var(--panel-raised); border: 1px solid var(--chrome); color: var(--ink);
+      padding: 12px 20px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; z-index: 999;
+      display: none; box-shadow: 0 8px 24px rgba(0,0,0,0.5); max-width: 90%; text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- LOGIN SCREEN -->
+  <div class="screen center-screen active" id="screen-login">
+    <div class="auth-box">
+      <div class="hero-bike">🏍️</div>
+      <div class="brand-badge">
+        <div class="brand-badge-main">SWIFT IMP<span class="dot"></span>RTERS</div>
+        <div class="brand-badge-sub">Delivering Quality</div>
+      </div>
+      <h1>Boda Rider Claim Board</h1>
+      <p>Sign in to see available deliveries</p>
+      <button class="btn-primary" id="login-btn" onclick="doBodaLogin()">Sign In</button>
+      <div class="auth-error" id="login-error"></div>
+    </div>
+  </div>
+
+  <!-- PIN / IDENTIFY SCREEN -->
+  <div class="screen center-screen" id="screen-pin">
+    <div class="auth-box">
+      <div class="hero-bike">🏍️</div>
+      <div class="brand-badge">
+        <div class="brand-badge-main">SWIFT IMP<span class="dot"></span>RTERS</div>
+        <div class="brand-badge-sub">Delivering Quality</div>
+      </div>
+      <h1>Who Are You?</h1>
+      <p>Select your name, then enter your personal code</p>
+      <button id="biometric-login-btn" onclick="tryBodaBiometricLogin()" style="display:none; width:100%; background:var(--panel-raised); border:1.5px solid var(--amber-dim); color:var(--amber); padding:12px; border-radius:10px; font-weight:800; font-size:0.88rem; margin-bottom:16px; box-shadow:0 3px 0 #0a0908;">🔐 Sign in with Face/Touch ID</button>
+      <div class="rider-pick" id="rider-pick-list"></div>
+      <input type="text" id="pin-input" maxlength="4" inputmode="numeric" placeholder="••••" style="display:none;"
+        oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4);"/>
+      <button class="btn-primary" id="pin-confirm-btn" onclick="confirmRiderPin()" style="display:none;">Confirm</button>
+      <div class="auth-error" id="pin-error"></div>
+    </div>
+  </div>
+
+  <!-- MAIN APP -->
+  <div class="screen" id="screen-app">
+    <div class="topbar">
+      <div>
+        <div class="brand"><span style="font-size:1.6rem; vertical-align:middle; margin-right:4px;">🏍️</span> Swift Boda</div>
+        <div class="rider-name" id="topbar-rider-name"></div>
+      </div>
+      <button onclick="doBodaLogout()" style="display:flex; align-items:center; gap:8px;">
+        <img id="topbar-rider-avatar" style="display:none; width:22px; height:22px; border-radius:50%; object-fit:cover;"/>
+        Switch Rider
+      </button>
+    </div>
+    <div id="boda-notify-banner" style="display:none; background:#fff3d6; border-bottom:1.5px solid var(--gold); padding:12px 16px; align-items:center; gap:10px; justify-content:space-between; flex-wrap:wrap;">
+      <div style="font-size:0.8rem; color:#6b5410; font-weight:700; flex:1; min-width:180px;">🔔 Get alerted the moment a new job is posted — even with the app closed.</div>
+      <button onclick="enableBodaNotifications()" style="background:var(--gold); color:var(--black); border:none; padding:9px 16px; border-radius:8px; font-weight:800; font-size:0.8rem; white-space:nowrap;">Turn On Alerts</button>
+    </div>
+    <div class="tabs">
+      <button class="active" id="tab-btn-available" onclick="switchBodaTab('available')">
+        📦 Available <span class="tab-badge" id="available-count-badge" style="display:none;"></span>
+      </button>
+      <button id="tab-btn-mine" onclick="switchBodaTab('mine')">
+        🚴 My Jobs <span class="tab-badge" id="mine-count-badge" style="display:none;"></span>
+      </button>
+      <button id="tab-btn-completed" onclick="switchBodaTab('completed')">
+        ✅ Completed
+      </button>
+    </div>
+    <div class="content">
+      <div id="tab-available"></div>
+      <div id="tab-mine" style="display:none;"></div>
+      <div id="tab-completed" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ── STATE ──
+    var currentRider = null; // { fbDocId, name, phone }
+    var allBodaRiders = [];
+    var boardOrders = []; // live snapshot of everything postedToBodaBoard === true
+    var activeBodaTab = 'available';
+    var unsubscribeBoard = null;
+
+    function showToast(text) {
+      var t = document.getElementById('toast');
+      t.textContent = text;
+      t.style.display = 'block';
+      clearTimeout(showToast._timer);
+      showToast._timer = setTimeout(function(){ t.style.display = 'none'; }, 3200);
+    }
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+      document.getElementById(id).classList.add('active');
+      if (id === 'screen-pin') {
+        var bioBtn = document.getElementById('biometric-login-btn');
+        if (bioBtn) bioBtn.style.display = isWebAuthnSupported() ? 'block' : 'none';
+      }
+    }
+
+    // ── AUTH FLOW ──
+    function doBodaLogin() {
+      var btn = document.getElementById('login-btn');
+      var errEl = document.getElementById('login-error');
+      btn.disabled = true;
+      errEl.textContent = '';
+      window.bodaSignIn().catch(function(e){
+        console.error('[boda] sign-in failed:', e);
+        errEl.textContent = 'Could not sign in. Check your internet connection.';
+        btn.disabled = false;
+      });
+    }
+
+    function doBodaLogout() {
+      currentRider = null;
+      if (unsubscribeBoard) { unsubscribeBoard(); unsubscribeBoard = null; }
+      window.bodaSignOut().catch(function(e){ console.error(e); });
+      showScreen('screen-pin');
+      renderRiderPickList();
+    }
+
+    window.addEventListener('bodaAuthState', function(e){
+      if (e.detail.user) {
+        loadBodaRidersForPicker();
+        if (!currentRider) showScreen('screen-pin');
+      } else {
+        showScreen('screen-login');
+        document.getElementById('login-btn').disabled = false;
+      }
+    });
+
+    // ── RIDER IDENTIFICATION (shared login + personal 4-digit code) ──
+    var selectedRiderForPin = null;
+
+    function loadBodaRidersForPicker() {
+      if (!window.fbDb || !window.fbFns) return;
+      var { collection, getDocs } = window.fbFns;
+      getDocs(collection(window.fbDb, 'boda_riders')).then(function(snap){
+        allBodaRiders = snap.docs.map(function(d){ return Object.assign({ fbDocId: d.id }, d.data()); });
+        allBodaRiders.sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+        renderRiderPickList();
+      }).catch(function(e){ console.error('[boda] loading riders failed:', e); });
+    }
+
+    function renderRiderPickList() {
+      var wrap = document.getElementById('rider-pick-list');
+      if (!wrap) return;
+      if (allBodaRiders.length === 0) {
+        wrap.innerHTML = '<div style="font-size:0.82rem; color:var(--grey); text-align:center;">No riders set up yet — ask the shop to add you.</div>';
+        return;
+      }
+      wrap.innerHTML = allBodaRiders.map(function(r){
+        var avatar = r.photoUrl
+          ? '<img src="' + r.photoUrl + '" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.outerHTML=\'<span style=&quot;font-size:1.3rem;&quot;>🏍️</span>\'"/>'
+          : '<span style="font-size:1.3rem; flex-shrink:0;">🏍️</span>';
+        return '<button data-id="' + r.fbDocId + '" onclick="selectRiderForPin(\'' + r.fbDocId + '\')" style="display:flex; align-items:center; gap:10px;">' + avatar + '<span>' + r.name + '</span></button>';
+      }).join('');
+    }
+
+    // ── BIOMETRIC (WEBAUTHN) LOGIN ──
+    // Same technique as the customer-facing biometric sign-in on the storefront:
+    // uses the device's own fingerprint/Face ID sensor to unlock a credential
+    // registered earlier. This is a device-level convenience layer, not
+    // cryptographic proof of identity to a server — same honest limitation as
+    // the PIN system it sits alongside. Requires HTTPS and a platform
+    // authenticator (won't appear on devices/browsers without one).
+    function isWebAuthnSupported() {
+      return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create && window.isSecureContext);
+    }
+    function randomChallenge() {
+      var arr = new Uint8Array(32);
+      (window.crypto || window.msCrypto).getRandomValues(arr);
+      return arr;
+    }
+    function bufferToBase64Url(buf) {
+      var bytes = new Uint8Array(buf);
+      var str = '';
+      for (var i = 0; i < bytes.byteLength; i++) str += String.fromCharCode(bytes[i]);
+      return btoa(str).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    }
+
+    async function enableBodaBiometricLogin(rider) {
+      if (!isWebAuthnSupported() || !window.fbDb || !window.fbFns) return;
+      try {
+        var challenge = randomChallenge();
+        var userId = new TextEncoder().encode(rider.fbDocId);
+        var credential = await navigator.credentials.create({
+          publicKey: {
+            challenge: challenge,
+            rp: { name: 'Swift Importers Boda' },
+            user: { id: userId, name: rider.phone || rider.name, displayName: rider.name },
+            pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
+            authenticatorSelection: { authenticatorAttachment: 'platform', residentKey: 'preferred', requireResidentKey: false, userVerification: 'required' },
+            timeout: 60000
+          }
+        });
+        var credentialId = bufferToBase64Url(credential.rawId);
+        var { doc, updateDoc } = window.fbFns;
+        await updateDoc(doc(window.fbDb, 'boda_riders', rider.fbDocId), { webauthnCredentialId: credentialId });
+        showToast('✅ Face/Touch ID enabled for next time!');
+      } catch(e) {
+        console.error('[boda] enable biometric failed:', e);
+        // Cancelling the prompt isn't an error worth interrupting the rider over.
+      }
+    }
+
+    async function tryBodaBiometricLogin() {
+      if (!isWebAuthnSupported() || !window.fbDb || !window.fbFns) return;
+      var errEl = document.getElementById('pin-error');
+      try {
+        var challenge = randomChallenge();
+        var assertion = await navigator.credentials.get({
+          publicKey: { challenge: challenge, userVerification: 'required', timeout: 60000 }
+          // No allowCredentials list — lets the device offer any discoverable
+          // credential it holds for this site, same as the customer flow.
+        });
+        if (!assertion) return;
+        var credentialId = bufferToBase64Url(assertion.rawId);
+        var { collection, query, where, getDocs } = window.fbFns;
+        var snap = await getDocs(query(collection(window.fbDb, 'boda_riders'), where('webauthnCredentialId', '==', credentialId)));
+        if (snap.empty) {
+          if (errEl) errEl.textContent = 'That fingerprint/Face ID isn\'t linked to a rider yet — enter your code instead.';
+          return;
+        }
+        var docSnap = snap.docs[0];
+        currentRider = Object.assign({ fbDocId: docSnap.id }, docSnap.data());
+        document.getElementById('topbar-rider-name').textContent = currentRider.name;
+        var avatarEl = document.getElementById('topbar-rider-avatar');
+        if (avatarEl) {
+          if (currentRider.photoUrl) { avatarEl.src = currentRider.photoUrl; avatarEl.style.display = 'inline-block'; }
+          else avatarEl.style.display = 'none';
+        }
+        showScreen('screen-app');
+        history.pushState({ bodaTab: 'available' }, '');
+        startBoardListener();
+        registerBodaServiceWorker();
+        updateBodaNotifyBannerVisibility();
+      } catch(e) {
+        console.error('[boda] biometric login failed:', e);
+        if (errEl && e && e.name !== 'NotAllowedError') errEl.textContent = 'Could not sign in with Face/Touch ID — try your code instead.';
+      }
+    }
+
+    function selectRiderForPin(riderId) {
+      selectedRiderForPin = allBodaRiders.find(function(r){ return r.fbDocId === riderId; });
+      document.querySelectorAll('.rider-pick button').forEach(function(b){
+        b.classList.toggle('selected', b.getAttribute('data-id') === riderId);
+      });
+      document.getElementById('pin-input').style.display = 'block';
+      document.getElementById('pin-confirm-btn').style.display = 'block';
+      document.getElementById('pin-input').value = '';
+      document.getElementById('pin-input').focus();
+      document.getElementById('pin-error').textContent = '';
+    }
+
+    function confirmRiderPin() {
+      var code = document.getElementById('pin-input').value.trim();
+      var errEl = document.getElementById('pin-error');
+      if (!selectedRiderForPin) { errEl.textContent = 'Select your name first.'; return; }
+      if (code !== (selectedRiderForPin.code || '')) {
+        errEl.textContent = 'Incorrect code — try again.';
+        return;
+      }
+      currentRider = selectedRiderForPin;
+      document.getElementById('topbar-rider-name').textContent = currentRider.name;
+      var avatarEl = document.getElementById('topbar-rider-avatar');
+      if (avatarEl) {
+        if (currentRider.photoUrl) { avatarEl.src = currentRider.photoUrl; avatarEl.style.display = 'inline-block'; }
+        else avatarEl.style.display = 'none';
+      }
+      showScreen('screen-app');
+      // Base state for the tab history system in switchBodaTab — 'available' is
+      // already the default active tab in the static markup, so this just gives
+      // the back button somewhere real to land after stepping back through tabs.
+      history.pushState({ bodaTab: 'available' }, '');
+      startBoardListener();
+      registerBodaServiceWorker();
+      updateBodaNotifyBannerVisibility();
+
+      // One-time offer, right after a successful manual code entry — the
+      // natural moment to suggest a faster way in next time.
+      if (isWebAuthnSupported() && !currentRider.webauthnCredentialId) {
+        setTimeout(function(){
+          if (confirm('Enable Face/Touch ID sign-in on this device for next time?')) {
+            enableBodaBiometricLogin(currentRider);
+          }
+        }, 400);
+      }
+    }
+
+    // ── PUSH NOTIFICATIONS — real background alerts even with the app closed.
+    // Same VAPID key, same service worker (sw.js), same underlying FCM
+    // pipeline already proven working elsewhere on the site.
+    var BODA_FCM_VAPID_KEY = 'BNPy5lLDqD2KDLMBO_sj6gxGmw4d6ExBWvYXRMoyQq2AHm18B3gpJZjrUCl3YamhAjet2texjlepisPifUhg6ww';
+
+    function registerBodaServiceWorker() {
+      if (!('serviceWorker' in navigator)) return;
+      navigator.serviceWorker.register('/sw.js').catch(function(e){ console.log('[boda] SW registration failed:', e); });
+    }
+
+    function updateBodaNotifyBannerVisibility() {
+      var banner = document.getElementById('boda-notify-banner');
+      if (!banner) return;
+      var alreadyGranted = ('Notification' in window) && Notification.permission === 'granted';
+      banner.style.display = alreadyGranted ? 'none' : 'flex';
+      if (alreadyGranted) {
+        // IMPORTANT: notification permission is granted per WEBSITE, not per
+        // page — if this rider's phone ever granted it on any other page of
+        // swiftimporters.com, Chrome already reports "granted" here even
+        // though THIS app never actually finished registering a token. Since
+        // permission already exists, completing registration silently is safe
+        // (no browser popup appears either way) — the bug being fixed here was
+        // treating "permission granted" and "token actually saved" as the same
+        // thing, when they're genuinely two separate steps.
+        registerBodaFcmToken(false);
+      }
+    }
+
+    // Does the actual getToken + Firestore save. showToastOnSuccess controls
+    // whether this reports back to the rider (true for the manual button,
+    // false for the silent auto-completion path above).
+    function registerBodaFcmToken(showToastOnSuccess) {
+      if (!('serviceWorker' in navigator) || !currentRider || !window.fbDb || !window.fbFns) return;
+      navigator.serviceWorker.ready.then(function(registration){
+        window.fbMessagingFns.getToken(window.fbMessaging, {
+          vapidKey: BODA_FCM_VAPID_KEY,
+          serviceWorkerRegistration: registration
+        }).then(function(token){
+          if (!token) return;
+          var { doc, setDoc } = window.fbFns;
+          setDoc(doc(window.fbDb, 'boda_fcm_tokens', token), {
+            riderId: currentRider.fbDocId,
+            name: currentRider.name,
+            phone: currentRider.phone,
+            updatedAt: new Date().toISOString()
+          }).then(function(){
+            if (showToastOnSuccess) { showToast('✅ Job alerts turned on!'); updateBodaNotifyBannerVisibility(); }
+          }).catch(function(e){
+            console.error('[boda] saving token failed:', e);
+            if (showToastOnSuccess) showToast('Could not save — check your connection.');
+          });
+        }).catch(function(e){
+          console.error('[boda] getToken failed:', e);
+          if (showToastOnSuccess) showToast('Could not enable notifications right now.');
+        });
+      });
+    }
+
+    function enableBodaNotifications() {
+      if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+        showToast('Notifications aren\'t supported on this device.');
+        return;
+      }
+      // The ONLY place this ever prompts — tied to this exact button click, never
+      // shown automatically on page load. An unrequested prompt is a documented
+      // pattern Chrome's Safe Browsing flags as "abusive," which can get real
+      // notifications quarantined behind a spam warning instead of shown normally.
+      Notification.requestPermission().then(function(permission){
+        if (permission !== 'granted') {
+          showToast('Notifications not enabled.');
+          return;
+        }
+        registerBodaFcmToken(true);
+      });
+    }
+
+    // ── AUDIBLE ALERT — reliable as long as the app is open (foreground or a
+    // background tab), unlike OS-level push sound, which no website can control
+    // (browsers never implemented custom notification sounds, and it was
+    // formally removed from the web standard in 2018). This plays a real chime
+    // directly via Web Audio, same proven technique already used in the admin
+    // and employee panels — this one WILL make sound, guaranteed, whenever the
+    // app is open, since it doesn't go through the Notifications API at all.
+    var bodaSoundTimeout = null;
+    function playBodaAlertSound() {
+      if (bodaSoundTimeout) { clearTimeout(bodaSoundTimeout); bodaSoundTimeout = null; }
+      try {
+        var ctx = new (window.AudioContext || window.webkitAudioContext)();
+        var notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
+        var chimeDuration = 0.4;
+        var chimeSpacing = 0.18;
+        var totalChimeLength = notes.length * chimeSpacing + chimeDuration;
+        var repeatInterval = totalChimeLength + 0.3;
+        var totalDuration = 22; // rings for 22 seconds — a job up for grabs is time-sensitive
+
+        function playChime(startOffset) {
+          notes.forEach(function(freq, i){
+            var osc = ctx.createOscillator();
+            var gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            var start = ctx.currentTime + startOffset + i * chimeSpacing;
+            gain.gain.setValueAtTime(0, start);
+            gain.gain.linearRampToValueAtTime(0.5, start + 0.05);
+            gain.gain.linearRampToValueAtTime(0, start + chimeDuration);
+            osc.start(start);
+            osc.stop(start + chimeDuration + 0.05);
+          });
+        }
+
+        var offset = 0;
+        while (offset < totalDuration) {
+          playChime(offset);
+          offset += repeatInterval;
+        }
+
+        bodaSoundTimeout = setTimeout(function(){
+          try { ctx.close(); } catch(e) {}
+          bodaSoundTimeout = null;
+        }, 23000);
+      } catch(e) { console.log('[boda] Audio not available:', e); }
+    }
+    function stopBodaAlertSound() {
+      if (bodaSoundTimeout) { clearTimeout(bodaSoundTimeout); bodaSoundTimeout = null; }
+    }
+
+    // Tracks which job IDs were already visible, so the chime only fires for
+    // GENUINELY NEW jobs — not on first load (which would otherwise ring for
+    // every pre-existing job the instant a rider logs in).
+    var knownAvailableJobIds = null;
+    function checkForNewAvailableJobs() {
+      var availableIds = boardOrders.filter(function(o){ return !o.bodaClaimedBy; }).map(function(o){ return o.fbDocId; });
+      if (knownAvailableJobIds === null) {
+        knownAvailableJobIds = {};
+        availableIds.forEach(function(id){ knownAvailableJobIds[id] = true; });
+        return;
+      }
+      var hasNew = availableIds.some(function(id){ return !knownAvailableJobIds[id]; });
+      if (hasNew) playBodaAlertSound();
+      knownAvailableJobIds = {};
+      availableIds.forEach(function(id){ knownAvailableJobIds[id] = true; });
+    }
+
+    // ── LIVE BOARD LISTENER ──
+    function startBoardListener() {
+      if (!window.fbDb || !window.fbFns) return;
+      var { collection, onSnapshot, query, where } = window.fbFns;
+      if (unsubscribeBoard) unsubscribeBoard();
+      var q = query(collection(window.fbDb, 'orders'), where('postedToBodaBoard', '==', true));
+      unsubscribeBoard = onSnapshot(q, function(snapshot){
+        boardOrders = snapshot.docs.map(function(d){ return Object.assign({ fbDocId: d.id }, d.data()); });
+        checkForNewAvailableJobs();
+        renderBodaTabs();
+      }, function(e){ console.error('[boda] board listener failed:', e); });
+    }
+
+    function switchBodaTab(tab, fromHistory) {
+      stopBodaAlertSound();
+      activeBodaTab = tab;
+      document.getElementById('tab-btn-available').classList.toggle('active', tab === 'available');
+      document.getElementById('tab-btn-mine').classList.toggle('active', tab === 'mine');
+      document.getElementById('tab-btn-completed').classList.toggle('active', tab === 'completed');
+      document.getElementById('tab-available').style.display = tab === 'available' ? 'block' : 'none';
+      document.getElementById('tab-mine').style.display = tab === 'mine' ? 'block' : 'none';
+      document.getElementById('tab-completed').style.display = tab === 'completed' ? 'block' : 'none';
+      if (tab === 'completed') renderBodaTabs(); // completed list doesn't need a live badge, just refresh on open
+      // Push a real history entry for every tab switch a rider makes themselves,
+      // so the phone's back button steps back through tabs one at a time instead
+      // of immediately exiting the whole app on the very first press. When this
+      // call is itself the RESULT of a back-press (fromHistory), don't push again —
+      // that would just re-add the entry we're trying to leave.
+      if (!fromHistory) history.pushState({ bodaTab: tab }, '');
+    }
+
+    window.addEventListener('popstate', function(e){
+      if (e.state && e.state.bodaTab) {
+        switchBodaTab(e.state.bodaTab, true);
+      }
+      // If there's no bodaTab state left, this is the very first screen the
+      // rider landed on — let the browser's default back behavior proceed
+      // rather than trapping them here permanently.
+    });
+
+    function itemsSummaryFor(o) {
+      if (o.products) return o.products;
+      if (o.cartItems && o.cartItems.length) return o.cartItems.map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
+      return 'Item details unavailable';
+    }
+
+    function refCodeFor(o) {
+      return o.refCode || (o.fbDocId ? o.fbDocId.slice(-6).toUpperCase() : 'N/A');
+    }
+
+    // A boda's own part in the delivery is "done" once they've confirmed final
+    // delivery (boda-only orders) or dropped off at the station (taxi/bus orders,
+    // where admin/employee may have since progressed it further themselves).
+    function isBodaPartDone(o) {
+      var isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
+      if (isTaxiBus) return o.deliveryStage === 'at_station' || o.deliveryStage === 'on_the_way' || o.deliveryStage === 'delivered';
+      return o.deliveryStage === 'delivered';
+    }
+
+    function renderBodaTabs() {
+      var available = boardOrders.filter(function(o){ return !o.bodaClaimedBy; });
+      var claimedByMe = boardOrders.filter(function(o){
+        return o.bodaClaimedBy && o.bodaClaimedBy.riderId === (currentRider && currentRider.fbDocId);
+      });
+      var mine = claimedByMe.filter(function(o){ return !isBodaPartDone(o); });
+      var completed = claimedByMe.filter(isBodaPartDone);
+      completed.sort(function(a,b){
+        var at = (a.bodaClaimedBy && a.bodaClaimedBy.claimedAt) || '';
+        var bt = (b.bodaClaimedBy && b.bodaClaimedBy.claimedAt) || '';
+        return new Date(bt) - new Date(at);
+      });
+
+      var availBadge = document.getElementById('available-count-badge');
+      if (available.length > 0) { availBadge.textContent = available.length; availBadge.style.display = 'inline-block'; }
+      else availBadge.style.display = 'none';
+
+      var mineBadge = document.getElementById('mine-count-badge');
+      if (mine.length > 0) { mineBadge.textContent = mine.length; mineBadge.style.display = 'inline-block'; }
+      else mineBadge.style.display = 'none';
+
+      var availEl = document.getElementById('tab-available');
+      if (available.length === 0) {
+        availEl.innerHTML = '<div class="empty-state">🎉 No jobs waiting right now.<br/>Check back soon!</div>';
+      } else {
+        availEl.innerHTML = available.map(renderAvailableJobCard).join('');
+      }
+
+      var mineEl = document.getElementById('tab-mine');
+      if (mine.length === 0) {
+        mineEl.innerHTML = '<div class="empty-state">You don\'t have any active jobs.<br/>Claim one from the Available tab.</div>';
+      } else {
+        mineEl.innerHTML = mine.map(renderMyJobCard).join('');
+      }
+
+      var completedEl = document.getElementById('tab-completed');
+      if (completedEl) {
+        if (completed.length === 0) {
+          completedEl.innerHTML = '<div class="empty-state">No completed deliveries yet.<br/>They\'ll show up here once you finish a job.</div>';
+        } else {
+          completedEl.innerHTML = completed.map(renderCompletedJobCard).join('');
+        }
+      }
+    }
+
+    function renderCompletedJobCard(o) {
+      var isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
+      var locationText = [o.deliveryArea, o.exactLocation].filter(Boolean).join(' — ') || 'Location not specified';
+      var when = (o.bodaClaimedBy && o.bodaClaimedBy.claimedAt) ? new Date(o.bodaClaimedBy.claimedAt).toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+      return '<div class="job-card" style="opacity:0.85;">' +
+        '<div class="ref">Order #' + refCodeFor(o) + (when ? ' &middot; ' + when : '') + '</div>' +
+        (isTaxiBus ? '<span class="mode-badge mode-taxibus">🚏 Delivered to ' + (o.delivery.type === 'bus' ? 'Bus' : 'Taxi') + ' Station</span>' : '<span class="mode-badge mode-boda">🏍️ Direct Delivery</span>') +
+        '<div class="items">' + itemsSummaryFor(o) + '</div>' +
+        '<div class="loc">📍 ' + locationText + '</div>' +
+        '<span class="stage-pill">✅ Completed</span>' +
+      '</div>';
+    }
+
+    // The customer's "Drop a Google Maps Pin" feature appends raw coordinates as
+    // text into exactLocation (e.g. "GPS: 0.347596, 32.582520") rather than a
+    // separate structured field — extract that if present for a precise
+    // turn-by-turn link; otherwise fall back to a text search on whatever
+    // address was typed, which still gets the rider most of the way there.
+    function buildMapsLink(o) {
+      var gpsMatch = o.exactLocation && o.exactLocation.match(/GPS:\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+      if (gpsMatch) {
+        return 'https://www.google.com/maps/dir/?api=1&destination=' + gpsMatch[1] + ',' + gpsMatch[2];
+      }
+      var locationText = [o.deliveryArea, o.exactLocation].filter(Boolean).join(', ');
+      if (locationText) return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(locationText);
+      return null;
+    }
+
+    function renderAvailableJobCard(o) {
+      var isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
+      var locationText = [o.deliveryArea, o.exactLocation].filter(Boolean).join(' — ') || 'Location not specified';
+      var mapsLink = buildMapsLink(o);
+      return '<div class="job-card">' +
+        '<div class="ref">Order #' + refCodeFor(o) + '</div>' +
+        (isTaxiBus ? '<span class="mode-badge mode-taxibus">🚏 Pickup for ' + (o.delivery.type === 'bus' ? 'Bus' : 'Taxi') + ' Station</span>' : '<span class="mode-badge mode-boda">🏍️ Direct Delivery</span>') +
+        '<div class="items">' + itemsSummaryFor(o) + '</div>' +
+        '<div class="loc">📍 ' + locationText + '</div>' +
+        (mapsLink ? '<a href="' + mapsLink + '" target="_blank" style="display:block; text-align:center; background:var(--panel-raised); border:1.5px solid var(--chrome); color:var(--blue-gauge); padding:9px; border-radius:8px; font-size:0.78rem; font-weight:700; text-decoration:none; margin:8px 0;">🗺️ Open in Google Maps</a>' : '') +
+        '<div class="customer">👤 ' + (o.customerName || 'Customer') + ' &middot; ' + (o.phone || '') + '</div>' +
+        (o.notes && o.notes.trim() ? '<div class="notes">💬 ' + o.notes.trim() + '</div>' : '') +
+        '<button class="claim-btn" onclick="claimJob(\'' + o.fbDocId + '\')">✅ I\'ll Take This</button>' +
+      '</div>';
+    }
+
+    function renderMyJobCard(o) {
+      var isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
+      var locationText = [o.deliveryArea, o.exactLocation].filter(Boolean).join(' — ') || 'Location not specified';
+      var mapsLink = buildMapsLink(o);
+      var stage = o.deliveryStage || null;
+
+      var actionsHtml;
+      if (!stage) {
+        actionsHtml = '<button class="action-btn" onclick="markBodaStage(\'' + o.fbDocId + '\',\'handed\')">✅ I\'ve Picked It Up</button>';
+      } else if (isTaxiBus && stage === 'handed') {
+        actionsHtml = '<span class="stage-pill">✅ Picked Up</span><br/><button class="action-btn" onclick="markBodaStage(\'' + o.fbDocId + '\',\'at_station\')">📍 Dropped at the Station</button>';
+      } else if (isTaxiBus && stage === 'at_station') {
+        actionsHtml = '<span class="stage-pill">📍 Dropped at Station</span><div class="empty-state" style="padding:8px 0; font-size:0.78rem;">Your part is done — the bus/taxi takes it from here.</div>';
+      } else if (isTaxiBus) {
+        // Admin/employee progressed it further themselves (on_the_way/delivered) —
+        // the boda's own leg genuinely ends at the station, nothing left to confirm.
+        actionsHtml = '<span class="stage-pill">✅ Your Part is Done</span>';
+      } else {
+        // Boda-only delivery: no matter what the current stage is — "handed", or
+        // "on_the_way" if admin/employee set that manually in between — the boda
+        // must ALWAYS still be able to confirm final delivery. Losing this button
+        // once admin touched the order was the actual bug being fixed here.
+        var stageLabel = stage === 'on_the_way' ? '🚚 On the Way' : '✅ Picked Up';
+        actionsHtml = '<span class="stage-pill">' + stageLabel + '</span><br/><button class="action-btn done" onclick="markBodaStage(\'' + o.fbDocId + '\',\'delivered\')">🎉 I\'ve Delivered It</button>';
+      }
+
+      return '<div class="job-card">' +
+        '<div class="ref">Order #' + refCodeFor(o) + '</div>' +
+        (isTaxiBus ? '<span class="mode-badge mode-taxibus">🚏 Pickup for ' + (o.delivery.type === 'bus' ? 'Bus' : 'Taxi') + ' Station</span>' : '<span class="mode-badge mode-boda">🏍️ Direct Delivery</span>') +
+        '<div class="items">' + itemsSummaryFor(o) + '</div>' +
+        '<div class="loc">📍 ' + locationText + '</div>' +
+        (mapsLink ? '<a href="' + mapsLink + '" target="_blank" style="display:block; text-align:center; background:var(--panel-raised); border:1.5px solid var(--chrome); color:var(--blue-gauge); padding:9px; border-radius:8px; font-size:0.78rem; font-weight:700; text-decoration:none; margin:8px 0;">🗺️ Open in Google Maps</a>' : '') +
+        '<div class="customer">👤 ' + (o.customerName || 'Customer') + ' &middot; ' + (o.phone || '') + '</div>' +
+        (o.notes && o.notes.trim() ? '<div class="notes">💬 ' + o.notes.trim() + '</div>' : '') +
+        '<div class="action-row" style="flex-direction:column;">' + actionsHtml + '</div>' +
+      '</div>';
+    }
+
+    // ── CLAIMING — first tap wins, enforced by Firestore rules themselves ──
+    function claimJob(docId) {
+      stopBodaAlertSound();
+      if (!currentRider || !window.fbDb || !window.fbFns) return;
+      var { doc, updateDoc } = window.fbFns;
+      var o = boardOrders.find(function(x){ return x.fbDocId === docId; });
+      updateDoc(doc(window.fbDb, 'orders', docId), {
+        bodaClaimedBy: { riderId: currentRider.fbDocId, name: currentRider.name, phone: currentRider.phone, claimedAt: new Date().toISOString() },
+        // NOTE: deliberately NOT touching postedToBodaBoard here. The live
+        // listener below is filtered by postedToBodaBoard == true — flipping it
+        // to false at claim time would make the order fall out of THIS query's
+        // results entirely, vanishing from both tabs (including "My Jobs")
+        // instead of just moving between them. "Available" vs "claimed" is
+        // worked out client-side from bodaClaimedBy alone; postedToBodaBoard
+        // only ever needs to mean "this order belongs on the board at all."
+        delivery: {
+          type: (o && o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus')) ? o.delivery.type : 'boda',
+          bodaName: currentRider.name,
+          bodaPhone: currentRider.phone,
+          plateNumber: (o && o.delivery && o.delivery.plateNumber) || '',
+          eta: (o && o.delivery && o.delivery.eta) || '',
+          location: (o && o.delivery && o.delivery.location) || '',
+          bodaFee: (o && o.delivery && o.delivery.bodaFee) || 0
+        }
+      }).then(function(){
+        showToast('✅ Job claimed! Check "My Jobs" to get started.');
+        switchBodaTab('mine');
+      }).catch(function(e){
+        // Most likely reason: someone else claimed it a moment earlier, and the
+        // rule's "still unclaimed" check now correctly rejects this attempt.
+        console.error('[boda] claimJob failed:', e);
+        showToast('Someone else already claimed this job.');
+      });
+    }
+
+    // ── PROGRESS UPDATES ──
+    // Same Worker used everywhere else on the site, so customers still get their
+    // push notification regardless of whether admin, an employee, or a boda rider
+    // is the one making the update.
+    var CUSTOMER_NOTIFY_WORKER_URL = 'https://swift-order-alert.swiftimportersug.workers.dev';
+    var CUSTOMER_NOTIFY_SHARED_KEY = 'swiftorders2026alertkey93x7';
+    function notifyCustomerOrderUpdate(order, title, body) {
+      if (!order || !order.customerFcmToken) return;
+      fetch(CUSTOMER_NOTIFY_WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Notify-Key': CUSTOMER_NOTIFY_SHARED_KEY },
+        body: JSON.stringify({ targetToken: order.customerFcmToken, title: title, body: body, url: '/index.html?trackOrder=' + order.fbDocId })
+      }).catch(function(e){ console.error('[boda] customer push failed:', e); });
+    }
+
+    function markBodaStage(docId, stage) {
+      if (!window.fbDb || !window.fbFns) return;
+      var { doc, updateDoc } = window.fbFns;
+      var o = boardOrders.find(function(x){ return x.fbDocId === docId; });
+      updateDoc(doc(window.fbDb, 'orders', docId), { deliveryStage: stage }).then(function(){
+        showToast('✅ Updated!');
+        if (o) {
+          var isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
+          var messages = {
+            handed: { title: '📦 Picked Up', body: isTaxiBus ? 'Your order has been picked up and is on its way to the bus/taxi station.' : 'Your order has been handed to the boda rider for delivery.' },
+            at_station: { title: '🚏 At the Station', body: 'Your order has arrived at the bus/taxi station and will depart shortly.' },
+            delivered: { title: '🎉 Delivered!', body: 'Your order has been delivered. Thank you for shopping with Swift Importers!' }
+          };
+          var msg = messages[stage];
+          if (msg) notifyCustomerOrderUpdate(o, msg.title, msg.body);
+        }
+      }).catch(function(e){
+        console.error('[boda] markBodaStage failed:', e);
+        showToast('Could not update — check your connection and try again.');
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', function(){
+      renderRiderPickList();
+    });
+  </script>
+</body>
+</html>
