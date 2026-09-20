@@ -1850,6 +1850,18 @@
         <div id="track-lookup-status" style="font-size:0.82rem; color:var(--red); margin-bottom:10px; display:none;"></div>
       </div>
 
+      <div id="track-phone-results" style="display:none;">
+        <div class="hto-header"><div class="hto-icon">&#128225;</div><h2>Your Orders</h2><p>Tap any order below to see its live status.</p></div>
+        <div id="track-phone-active-list"></div>
+        <div id="track-phone-closed-toggle-wrap" style="display:none; text-align:center; margin-top:14px;">
+          <button onclick="togglePhoneClosedOrders()" id="track-phone-closed-toggle-btn" style="background:none; border:1.5px solid var(--border); color:#555; padding:9px 16px; border-radius:20px; font-size:0.8rem; font-weight:700; cursor:pointer;"></button>
+        </div>
+        <div id="track-phone-closed-list" style="display:none; margin-top:12px;"></div>
+        <div style="text-align:center; margin-top:16px;">
+          <span onclick="backToPhoneLookup()" style="color:#4a9eff; font-size:0.82rem; cursor:pointer;">🔍 Search a different number</span>
+        </div>
+      </div>
+
       <div class="hto-option" id="track-opt-2"><div class="hto-num">&#128222;</div><div class="hto-content"><div class="hto-title">Prefer to Ask Us Directly?</div><p>You can always <strong>call or WhatsApp us</strong> and our team will give you a real-time update.</p></div></div>
       <div class="hto-footer-btn" id="track-footer-btn">
         <a href="tel:+256757675088" class="btn-primary" style="display:block;text-align:center;margin-top:8px;text-decoration:none;margin-bottom:10px;">Call Us Now</a>
@@ -7338,7 +7350,8 @@
     var foundEl = document.getElementById('track-live-found');
     var notFoundEl = document.getElementById('track-live-notfound');
     var lookupEl = document.getElementById('track-live-lookup');
-    [loadingEl, foundEl, notFoundEl, lookupEl].forEach(function(e){ if (e) e.style.display = 'none'; });
+    var phoneResultsEl = document.getElementById('track-phone-results');
+    [loadingEl, foundEl, notFoundEl, lookupEl, phoneResultsEl].forEach(function(e){ if (e) e.style.display = 'none'; });
 
     if (orderId) {
       // Came from a notification click / direct link — watch this order live, so
@@ -7398,6 +7411,9 @@
     });
   }
 
+  var phoneLookupActiveOrders = [];
+  var phoneLookupClosedOrders = [];
+
   function lookupOrderByPhone() {
     var phoneInput = document.getElementById('track-lookup-phone');
     var statusEl = document.getElementById('track-lookup-status');
@@ -7413,20 +7429,96 @@
       }
       var ords = snap.docs.map(function(d){ return Object.assign({ fbDocId: d.id }, d.data()); });
       ords.sort(function(a,b){ return new Date(b.timestamp) - new Date(a.timestamp); });
+      // Same active/closed split already used in the account-based My Orders
+      // view — a guest looking up by phone deserves the same complete picture,
+      // not just whatever their single most recent order happens to be.
+      phoneLookupActiveOrders = ords.filter(function(o){ return o.status === 'pending' || o.status === 'confirmed'; });
+      phoneLookupClosedOrders = ords.filter(function(o){ return o.status === 'closed' || o.status === 'cancelled'; });
+
       var lookupEl = document.getElementById('track-live-lookup');
       if (lookupEl) lookupEl.style.display = 'none';
-      // Switch into the same live-tracking mode as a notification-click lookup,
-      // so this order's card also updates in real time from here on.
-      if (unsubscribeTrackedOrder) { unsubscribeTrackedOrder(); unsubscribeTrackedOrder = null; }
-      var { doc, onSnapshot } = window.fbFns;
-      unsubscribeTrackedOrder = onSnapshot(doc(window.fbDb, 'orders', ords[0].fbDocId), function(liveSnap){
-        if (!liveSnap.exists()) return;
-        renderLiveTrackedOrder(Object.assign({ fbDocId: liveSnap.id }, liveSnap.data()));
-      }, function(e){ console.error('[track] live listener failed after phone lookup:', e); });
+      renderPhoneLookupResults();
     }).catch(function(e){
       console.error('[track] phone lookup failed:', e);
       if (statusEl) { statusEl.textContent = 'Something went wrong — please try again or WhatsApp us.'; statusEl.style.display = 'block'; }
     });
+  }
+
+  function renderPhoneLookupResults() {
+    var resultsEl = document.getElementById('track-phone-results');
+    var activeListEl = document.getElementById('track-phone-active-list');
+    var closedToggleWrap = document.getElementById('track-phone-closed-toggle-wrap');
+    var closedToggleBtn = document.getElementById('track-phone-closed-toggle-btn');
+    if (!resultsEl || !activeListEl) return;
+    resultsEl.style.display = 'block';
+
+    if (phoneLookupActiveOrders.length === 0) {
+      activeListEl.innerHTML = '<div style="text-align:center; color:#888; font-size:0.85rem; padding:16px 0;">No active orders right now.</div>';
+    } else {
+      // Same rich card treatment (stage badge + step tracker + delivery info +
+      // tracking number) as every other order view on the site — reused
+      // wholesale so this doesn't look like a lesser, second-class view.
+      activeListEl.innerHTML = phoneLookupActiveOrders.map(function(o){
+        var items = (o.cartItems || []).map(function(c){ return c.name + ' x' + c.qty; }).join(', ');
+        var badgeData = buildOrderStageBadgeHtml(o);
+        var stepsHtml = buildOrderStepsHtml(o);
+        var deliveryHtml = buildOrderDeliveryInfoHtml(o);
+        return '<div style="background:linear-gradient(135deg,#1a1a1a,#2c2c2c); border-radius:14px; padding:16px 18px; margin-bottom:12px; color:#fff;">' +
+          '<div style="font-size:0.86rem; font-weight:700; margin-bottom:12px;">' + (items || o.products || 'Your order') + '</div>' +
+          '<div style="display:flex; align-items:center; gap:8px; padding:9px 14px; border-radius:9px; margin-bottom:12px; font-size:0.88rem; font-weight:800; ' + badgeData.style + '">' + badgeData.html + '</div>' +
+          (stepsHtml ? '<div style="margin-bottom:14px;">' + stepsHtml + '</div>' : '') +
+          (deliveryHtml ? '<div style="background:rgba(255,255,255,0.08); border-radius:10px; padding:10px 12px; font-size:0.78rem; line-height:1.7;">' + deliveryHtml + '</div>' : '') +
+          buildOrderReferenceAndCancelHtml(o) +
+          '<div style="font-size:0.72rem; color:rgba(255,255,255,0.5); margin-top:10px;">Ordered ' + fmtMessageTime(o.timestamp) + ' &middot; ' + fmtPrice(o.orderTotal || o.subtotal || 0) + '</div>' +
+          '<button onclick="openTrackModal(\'' + o.fbDocId + '\')" style="width:100%; margin-top:10px; background:rgba(74,158,255,0.14); border:1.5px solid rgba(74,158,255,0.4); color:#8fc4ff; padding:8px; border-radius:7px; font-size:0.76rem; font-weight:700; cursor:pointer;">🔴 View Live Updates</button>' +
+        '</div>';
+      }).join('');
+    }
+
+    if (phoneLookupClosedOrders.length > 0 && closedToggleWrap && closedToggleBtn) {
+      closedToggleWrap.style.display = 'block';
+      closedToggleBtn.textContent = '📋 View Closed Orders (' + phoneLookupClosedOrders.length + ')';
+    } else if (closedToggleWrap) {
+      closedToggleWrap.style.display = 'none';
+    }
+  }
+
+  function togglePhoneClosedOrders() {
+    var closedListEl = document.getElementById('track-phone-closed-list');
+    var closedToggleBtn = document.getElementById('track-phone-closed-toggle-btn');
+    if (!closedListEl) return;
+    var showing = closedListEl.style.display === 'block';
+    if (showing) {
+      closedListEl.style.display = 'none';
+      closedToggleBtn.textContent = '📋 View Closed Orders (' + phoneLookupClosedOrders.length + ')';
+      return;
+    }
+    closedListEl.innerHTML = phoneLookupClosedOrders.map(function(o){
+      var items = (o.cartItems || []).map(function(c){ return c.name + ' x' + c.qty; }).join(', ');
+      var code = o.refCode || (o.fbDocId ? o.fbDocId.slice(-6).toUpperCase() : '');
+      return '<div style="border-bottom:1px solid var(--border); padding:10px 0;">' +
+        '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">' +
+          '<span style="font-size:0.8rem; font-weight:700;">' + fmtMessageTime(o.timestamp) + '</span>' +
+          '<span style="font-size:0.72rem; font-weight:800; color:' + (o.status === 'cancelled' ? 'var(--red)' : '#2a9d50') + ';">' + computeOrderStatusDisplay(o) + '</span>' +
+        '</div>' +
+        '<div style="font-size:0.8rem; color:#555; margin-top:3px;">' + (items || o.products || '') + '</div>' +
+        '<div style="font-size:0.78rem; color:#888; margin-top:3px;">Tracking Number: <strong style="letter-spacing:0.5px; color:var(--black);">' + code + '</strong></div>' +
+        '<div style="font-size:0.82rem; font-weight:800; margin-top:3px;">' + fmtPrice(o.orderTotal || o.subtotal || 0) + '</div>' +
+      '</div>';
+    }).join('');
+    closedListEl.style.display = 'block';
+    closedToggleBtn.textContent = '▲ Hide Closed Orders';
+  }
+
+  function backToPhoneLookup() {
+    var resultsEl = document.getElementById('track-phone-results');
+    var lookupEl = document.getElementById('track-live-lookup');
+    var closedListEl = document.getElementById('track-phone-closed-list');
+    if (resultsEl) resultsEl.style.display = 'none';
+    if (lookupEl) lookupEl.style.display = 'block';
+    if (closedListEl) closedListEl.style.display = 'none';
+    phoneLookupActiveOrders = [];
+    phoneLookupClosedOrders = [];
   }
 
   // Renders the exact same tracker system used in My Orders / the Active Order
