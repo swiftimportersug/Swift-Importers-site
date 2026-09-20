@@ -28,31 +28,62 @@
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /* Same "Rider's Dashboard" palette as the boda app — dark bezel housing,
+       backlit amber gauge glow, LED accent lights. Kept byte-for-byte
+       identical so the two feel like the same product. */
     :root {
-      --black: #0D0D0D; --white: #F7F6F2; --gold: #C7A248; --gold-light:#E8CE8E; --gold-dark: #8F7229;
-      --grey: #888; --light: #F0EFE9; --border: #E2E0D8; --red: #D63B2F; --green: #2a9d50;
+      --bezel: #100E0C;
+      --panel: #1C1815;
+      --panel-raised: #221D19;
+      --chrome: #3A342C;
+      --amber: #F0A93B;
+      --amber-dim: #C98A28;
+      --amber-glow: rgba(240,169,59,0.35);
+      --led-green: #3ddc84;
+      --led-red: #ff5c5c;
+      --blue-gauge: #5aa6ff;
+      --ink: #F7F1E6;
+      --ink-dim: #A69C8C;
     }
     html, body { height: 100%; }
-    body { font-family: 'Inter', sans-serif; background: var(--light); color: var(--black); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 24px 16px; }
+    body { font-family: 'Inter', sans-serif; background: var(--bezel); color: var(--ink); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 24px 16px; }
     h1, h2 { font-family: 'Syne', sans-serif; }
-    .brand-badge { display: flex; flex-direction: column; align-items: center; border: 2px solid var(--black); border-radius: 8px; padding: 10px 20px 8px; margin-bottom: 22px; position: relative; }
-    .brand-badge::before { content: ''; position: absolute; inset: 3px; border: 1px solid rgba(0,0,0,0.15); border-radius: 5px; }
-    .brand-badge-main { font-weight: 800; font-size: 1.3rem; letter-spacing: 0.05em; }
-    .brand-badge-main .dot { display: inline-block; width: 8px; height: 8px; background: var(--gold); border-radius: 50%; margin: 0 1px; vertical-align: middle; position: relative; top: -2px; }
-    .brand-badge-sub { font-size: 0.5rem; font-weight: 600; color: var(--gold-dark); letter-spacing: 0.28em; text-transform: uppercase; margin-top: 3px; }
 
-    .card { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 26px; max-width: 460px; width: 100%; box-shadow: 0 20px 50px rgba(20,18,10,0.08); }
-    .lookup-box input { width: 100%; padding: 13px 14px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 1rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; font-family: 'Inter', sans-serif; }
-    .lookup-box button { width: 100%; background: linear-gradient(160deg, var(--gold-light), var(--gold)); color: var(--black); border: none; padding: 13px; border-radius: 8px; font-weight: 800; font-size: 0.9rem; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; }
-    .status-msg { font-size: 0.85rem; color: var(--red); margin-top: 10px; display: none; text-align: center; }
-    .loading { text-align: center; color: var(--grey); padding: 30px 0; display: none; }
+    .brand-badge { display: flex; flex-direction: column; align-items: center; border: 2px solid var(--ink); border-radius: 8px; padding: 10px 20px 8px; margin-bottom: 22px; position: relative; }
+    .brand-badge::before { content: ''; position: absolute; inset: 3px; border: 1px solid rgba(247,241,230,0.25); border-radius: 5px; }
+    .brand-badge-main { font-weight: 800; font-size: 1.3rem; letter-spacing: 0.05em; color: var(--ink); }
+    .brand-badge-main .dot { display: inline-block; width: 8px; height: 8px; background: var(--amber); border-radius: 50%; margin: 0 1px; vertical-align: middle; position: relative; top: -2px; box-shadow: 0 0 6px var(--amber-glow); }
+    .brand-badge-sub { font-size: 0.5rem; font-weight: 600; color: var(--amber-dim); letter-spacing: 0.28em; text-transform: uppercase; margin-top: 3px; }
+
+    .card { background: var(--panel); border: 1px solid var(--chrome); border-radius: 18px; padding: 26px; max-width: 460px; width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04); }
+    .lookup-box input {
+      width: 100%; padding: 13px 14px; border: 1.5px solid var(--chrome); border-radius: 10px;
+      font-size: 1rem; text-transform: uppercase; letter-spacing: 0.3em; text-align: center; margin-bottom: 14px;
+      font-family: 'Inter', sans-serif; background: var(--bezel); color: var(--amber); font-weight: 700;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.4);
+    }
+    .lookup-box input:focus { outline: none; border-color: var(--amber); }
+    .lookup-box input::placeholder { color: var(--ink-dim); letter-spacing: 0.1em; }
+    /* Same tactile 3D button as the boda app — gradient face, a hard "contact
+       shadow" ledge below, and a genuine press-down on tap. */
+    .lookup-box button {
+      width: 100%; border: none; font-weight: 800; letter-spacing: 0.01em; position: relative;
+      transition: transform 0.08s ease, box-shadow 0.08s ease;
+      background: linear-gradient(180deg, #ffcf6e 0%, var(--amber) 45%, var(--amber-dim) 100%);
+      color: #1a1206; padding: 14px; border-radius: 11px; font-size: 0.92rem;
+      box-shadow: 0 5px 0 #8f6112, 0 8px 18px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.5);
+      text-transform: uppercase;
+    }
+    .lookup-box button:active { transform: translateY(4px); box-shadow: 0 1px 0 #8f6112, 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.5); }
+    .status-msg { font-size: 0.85rem; color: var(--led-red); margin-top: 12px; display: none; text-align: center; }
+    .loading { text-align: center; color: var(--ink-dim); padding: 30px 0; display: none; }
 
     #order-result { display: none; }
     .order-badge { text-align: center; font-weight: 800; font-size: 0.9rem; padding: 10px 14px; border-radius: 10px; margin-bottom: 16px; }
-    .steps-wrap { background: linear-gradient(135deg,#1a1a1a,#2c2c2c); border-radius: 12px; padding: 18px 16px; margin-bottom: 16px; }
-    .info-box { background: var(--light); border-radius: 10px; padding: 12px 14px; font-size: 0.85rem; line-height: 1.7; margin-bottom: 14px; }
-    .items-box { background: var(--light); border-radius: 10px; padding: 12px 14px; font-size: 0.85rem; margin-bottom: 14px; }
-    .track-again { display: block; text-align: center; margin-top: 16px; font-size: 0.82rem; color: #4a9eff; cursor: pointer; }
+    .steps-wrap { background: var(--bezel); border: 1px solid var(--chrome); border-radius: 12px; padding: 18px 16px; margin-bottom: 16px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.4); }
+    .info-box { background: var(--panel-raised); border: 1px solid var(--chrome); border-radius: 10px; padding: 12px 14px; font-size: 0.85rem; line-height: 1.7; margin-bottom: 14px; color: var(--ink); }
+    .items-box { background: var(--panel-raised); border: 1px solid var(--chrome); border-radius: 10px; padding: 12px 14px; font-size: 0.85rem; margin-bottom: 14px; color: var(--ink-dim); }
+    .track-again { display: block; text-align: center; margin-top: 16px; font-size: 0.82rem; color: var(--blue-gauge); cursor: pointer; }
 
     @keyframes orderStagePulse { 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.12); } }
   </style>
@@ -65,8 +96,8 @@
 
   <div class="card">
     <div id="lookup-section" class="lookup-box">
-      <h2 style="text-align:center; margin-bottom:6px; font-size:1.1rem;">📦 Track Your Order</h2>
-      <p style="text-align:center; color:var(--grey); font-size:0.85rem; margin-bottom:18px;">Enter your tracking number below to see live progress.</p>
+      <h2 style="text-align:center; margin-bottom:6px; font-size:1.1rem; color:var(--ink);">📦 Track Your Order</h2>
+      <p style="text-align:center; color:var(--ink-dim); font-size:0.85rem; margin-bottom:18px;">Enter your tracking number below to see live progress.</p>
       <input type="text" id="track-code-input" placeholder="e.g. GDRHHX" maxlength="6" oninput="this.value=this.value.toUpperCase();"/>
       <button onclick="lookupOrder()">Track Order</button>
       <div class="status-msg" id="status-msg"></div>
@@ -211,9 +242,9 @@
       var infoEl = document.getElementById('info-box');
       if (o.delivery && (o.delivery.bodaName || o.delivery.eta)) {
         var lines = [];
-        if (o.delivery.bodaName) lines.push('<span style="color:#888;">Rider/Driver:</span> <strong>' + o.delivery.bodaName + '</strong>');
-        if (o.delivery.plateNumber) lines.push('<span style="color:#888;">Plate:</span> <strong>' + o.delivery.plateNumber + '</strong>');
-        if (o.delivery.eta) lines.push('<span style="color:#888;">Expected In:</span> <strong>' + o.delivery.eta + '</strong>');
+        if (o.delivery.bodaName) lines.push('<span style="color:var(--ink-dim);">Rider/Driver:</span> <strong>' + o.delivery.bodaName + '</strong>');
+        if (o.delivery.plateNumber) lines.push('<span style="color:var(--ink-dim);">Plate:</span> <strong>' + o.delivery.plateNumber + '</strong>');
+        if (o.delivery.eta) lines.push('<span style="color:var(--ink-dim);">Expected In:</span> <strong>' + o.delivery.eta + '</strong>');
         infoEl.innerHTML = lines.join('<br/>');
         infoEl.style.display = 'block';
       } else {
