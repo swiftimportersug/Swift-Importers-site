@@ -5519,9 +5519,9 @@
     var code = o.refCode || (o.fbDocId ? o.fbDocId.slice(-6).toUpperCase() : null);
     var html = '';
     if (code && requiresPaymentGateCustomer(o) && o.status === 'pending') {
-      html += '<div style="background:rgba(255,255,255,0.08); border-radius:8px; padding:8px 10px; font-size:0.76rem; color:rgba(255,255,255,0.85); margin-top:8px; line-height:1.5;">' +
+      html += '<div style="background:#fff3d6; border:1.5px solid var(--gold); border-radius:8px; padding:8px 10px; font-size:0.76rem; color:#6b4a00; margin-top:8px; line-height:1.5;">' +
         '💳 Reference Code: <strong style="letter-spacing:0.5px;">' + code + '</strong><br/>' +
-        '<span style="color:rgba(255,255,255,0.55);">Include this when sending Mobile Money, or share it with us on WhatsApp along with your payment screenshot.</span>' +
+        '<span style="color:#8a6d1f;">Include this when sending Mobile Money, or share it with us on WhatsApp along with your payment screenshot.</span>' +
       '</div>';
     }
     // Once confirmed, that same code doubles as the order tracking number —
@@ -5529,9 +5529,9 @@
     // only framed as a payment-reference detail, not something to hold onto
     // for tracking later.
     if (code && o.status === 'confirmed') {
-      html += '<div style="background:rgba(74,222,128,0.12); border:1.5px solid rgba(74,222,128,0.4); border-radius:8px; padding:8px 10px; font-size:0.76rem; color:#c8f7d8; margin-top:8px; line-height:1.5;">' +
+      html += '<div style="background:rgba(74,222,128,0.16); border:1.5px solid #4ade80; border-radius:8px; padding:8px 10px; font-size:0.76rem; color:#1a5c2e; margin-top:8px; line-height:1.5;">' +
         '✅ Your Order Tracking Number is: <strong style="letter-spacing:0.5px;">' + code + '</strong><br/>' +
-        '<span style="color:rgba(200,247,216,0.75);">Same code as your payment reference — use it under "Track Package" on the homepage anytime to check your order\'s status.</span>' +
+        '<span style="color:#2a7a45;">Same code as your payment reference — use it under "Track Package" on the homepage anytime to check your order\'s status.</span>' +
       '</div>';
     }
     // Once a rider has claimed the delivery, their name/phone is already on the
