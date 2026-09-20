@@ -2010,7 +2010,7 @@
           </div>
         </div>
         <div style="background:#fff8e6; border:1px solid #e0c060; border-radius:6px; padding:8px 12px; margin-bottom:8px; font-size:0.7rem; color:#7a5c10; line-height:1.6;">
-          ✨ <strong>You can format your text:</strong> start a line with <code># </code> for a big heading, <code>## </code> for a subheading, and wrap words in <code>**double asterisks**</code> to make them <strong>bold</strong>. Use the "🖼️ Insert Image" button to drop in a picture anywhere, "🎨 Color Text" to color a word or sentence, and "📊 Insert Table" to add a specifications table like AliExpress listings have — write some text, add an image or table, write more, as many times as you like.
+          ✨ <strong>You can format your text:</strong> start a line with <code># </code> for a big heading, <code>## </code> for a subheading, and wrap words in <code>**double asterisks**</code> to make them <strong>bold</strong>. Use the "🖼️ Insert Image" button to drop in a picture anywhere, "🎨 Color Text" to color a word or sentence, and "📊 Insert Table" to add a specifications table like AliExpress listings have — write some text, add an image or table, write more, as many times as you like. Inside a table cell, pressing Enter starts a new row, but typing <code>&lt;br&gt;</code> starts a new line within that same cell instead.
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
           <button type="button" onclick="insertDescriptionImage('f-description')" style="background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:7px 14px; border-radius:7px; font-size:0.76rem; font-weight:700; cursor:pointer;">🖼️ Insert Image</button>
@@ -3790,7 +3790,7 @@
     // A filled-in example rather than an empty shell — showing the "!" highlight
     // convention in place is clearer than explaining it separately, and admin
     // can just edit the rows directly to match their own product's specs.
-    var template = '\n[table]\nMaterial | Metal\n!Battery Life | 30 Hours (start a row with ! to highlight it)\nWarranty | 1 Year\n[/table]\n';
+    var template = '\n[table]\nMaterial | Metal\n!Battery Life | 30 Hours (start a row with ! to highlight it)\nIn the Box | 1x Earphones<br>1x Charging Cable<br>3x Ear Tips (use <br> for a new line within a cell)\nWarranty | 1 Year\n[/table]\n';
     textarea.value = before + template + after;
     var newCursorPos = (before + template).length;
     textarea.focus();
