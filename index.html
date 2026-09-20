@@ -2462,7 +2462,13 @@
         var cells = row.split('|').map(function(c){ return c.trim(); });
         var bg = highlighted ? '#fff3d6' : (i % 2 === 0 ? '#f7f6f2' : '#ffffff');
         return '<tr style="background:' + bg + ';">' + cells.map(function(c, ci){
-          var escapedCell = c.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          // Typing <br> inside a cell's text creates a line break WITHIN that
+          // cell (the cell just grows taller) — a real Enter/newline still
+          // always starts a brand new row, exactly as before. This has to run
+          // AFTER escaping (which would otherwise turn a literal <br> into
+          // inert text), targeting only that one specific recognized token
+          // rather than un-escaping everything.
+          var escapedCell = c.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/&lt;br\s*\/?&gt;/gi, '<br>');
           return '<td style="padding:9px 12px; border:1px solid #e2e0d8; font-size:0.85rem; vertical-align:top;' + (ci === 0 ? ' font-weight:700; color:#555; width:38%;' : ' color:#111;') + '">' + formatDescriptionInline(escapedCell) + '</td>';
         }).join('') + '</tr>';
       }).join('');
@@ -2479,7 +2485,12 @@
       if (imgMatch) {
         var alt = imgMatch[1].replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
         var url = imgMatch[2].replace(/"/g, '%22');
-        return '<img src="' + url + '" alt="' + alt + '" style="width:100%;border-radius:10px;margin:10px 0;display:block;" onerror="this.style.display=\'none\'"/>';
+        // A soft feathered fade at the edges (rather than a hard rectangular
+        // cutoff) is what actually makes an image "blend into" whatever
+        // background surrounds it — works regardless of what that background
+        // color happens to be, since the fade reveals it naturally rather
+        // than trying to match it.
+        return '<img src="' + url + '" alt="' + alt + '" style="width:100%;margin:14px 0;display:block;-webkit-mask-image:radial-gradient(ellipse at center, black 55%, transparent 100%);mask-image:radial-gradient(ellipse at center, black 55%, transparent 100%);" onerror="this.style.display=\'none\'"/>';
       }
       var escaped = rawLine.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       var trimmed = escaped.trim();
