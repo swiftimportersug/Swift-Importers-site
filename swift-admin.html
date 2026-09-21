@@ -804,11 +804,15 @@
       <div class="form-group"><label>Preview Image URL (optional)</label><input type="url" id="mo-image" placeholder="Paste a photo link of the item, if you have one"/></div>
       <div class="form-group">
         <label>Payment Status</label>
-        <select id="mo-payment-status">
+        <select id="mo-payment-status" onchange="document.getElementById('mo-partial-amount-wrap').style.display = this.value === 'partial' ? 'block' : 'none';">
           <option value="paid">Already Paid in Full</option>
           <option value="partial">Partially Paid (Deposit)</option>
           <option value="unpaid">Not Yet Paid</option>
         </select>
+      </div>
+      <div class="form-group" id="mo-partial-amount-wrap" style="display:none;">
+        <label>Amount Paid So Far (UGX) *</label>
+        <input type="number" id="mo-amount-paid" min="0" placeholder="e.g. 50000"/>
       </div>
       <div id="mo-msg" style="display:none; color:var(--red); font-size:0.8rem; margin-bottom:10px;"></div>
       <div style="display:flex; gap:10px;">
@@ -4525,9 +4529,10 @@
   }
 
   function openManualOrderModal() {
-    ['mo-name','mo-phone','mo-item','mo-price','mo-image'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ['mo-name','mo-phone','mo-item','mo-price','mo-image','mo-amount-paid'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     document.getElementById('mo-qty').value = '1';
     document.getElementById('mo-payment-status').value = 'paid';
+    document.getElementById('mo-partial-amount-wrap').style.display = 'none';
     document.getElementById('mo-msg').style.display = 'none';
     document.getElementById('manual-order-modal').classList.add('open');
   }
@@ -4545,10 +4550,27 @@
     const price = parseInt(document.getElementById('mo-price').value, 10);
     const image = document.getElementById('mo-image').value.trim();
     const paymentChoice = document.getElementById('mo-payment-status').value;
+    const partialAmountRaw = document.getElementById('mo-amount-paid').value;
     if (!name || !phone || !item || !price) {
       msgEl.textContent = 'Please fill in customer name, phone, item, and price.';
       msgEl.style.display = 'block';
       return;
+    }
+    let amountPaid = 0;
+    if (paymentChoice === 'paid') {
+      amountPaid = price;
+    } else if (paymentChoice === 'partial') {
+      amountPaid = parseInt(partialAmountRaw, 10);
+      if (!amountPaid || amountPaid <= 0) {
+        msgEl.textContent = 'Please enter how much the customer has paid so far.';
+        msgEl.style.display = 'block';
+        return;
+      }
+      if (amountPaid >= price) {
+        msgEl.textContent = 'Amount paid should be less than the total price — use "Already Paid in Full" if the full amount has been received.';
+        msgEl.style.display = 'block';
+        return;
+      }
     }
     if (!window.fbDb || !window.fbFns) return;
     msgEl.style.display = 'none';
@@ -4568,7 +4590,8 @@
         status: paymentChoice === 'unpaid' ? 'pending' : 'confirmed',
         paymentMethod: 'Manual/Off-catalog',
         paymentStatus: paymentStatus,
-        amountPaid: paymentChoice === 'unpaid' ? 0 : price,
+        amountPaid: amountPaid,
+        balanceDue: Math.max(0, price - amountPaid),
         refCode: refCode,
         timestamp: new Date().toISOString(),
         notes: 'Manually created order — bought on customer\'s behalf from a link they sent, not through the normal catalog checkout.'
