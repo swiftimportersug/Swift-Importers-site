@@ -112,7 +112,7 @@
       <div id="steps-wrap" class="steps-wrap"></div>
       <div id="info-box" class="info-box" style="display:none;"></div>
       <div id="items-box" class="items-box"></div>
-      <div id="rider-call-box" style="display:none; margin-bottom:12px;"></div>
+      <div id="payment-balance-box" style="display:none; background:#fff3d6; border:1px solid #e0c060; border-radius:10px; padding:12px 14px; font-size:0.85rem; margin-bottom:14px;"></div>
       <span class="track-again" onclick="resetLookup()">🔍 Track a different order</span>
     </div>
   </div>
@@ -256,7 +256,12 @@
       var infoEl = document.getElementById('info-box');
       if (o.delivery && (o.delivery.bodaName || o.delivery.eta)) {
         var lines = [];
-        if (o.delivery.bodaName) lines.push('<span style="color:var(--ink-dim);">Rider/Driver:</span> <strong>' + o.delivery.bodaName + '</strong>');
+        if (o.delivery.bodaName) {
+          lines.push('<span style="color:var(--ink-dim);">Rider/Driver:</span> <strong>' + o.delivery.bodaName + '</strong>');
+          if (o.delivery.bodaPhone) {
+            lines.push('<a href="tel:' + o.delivery.bodaPhone + '" style="display:block; text-align:center; background:rgba(74,222,128,0.14); border:1.5px solid rgba(74,222,128,0.45); color:#3ddc84; padding:8px; border-radius:8px; font-size:0.8rem; font-weight:700; text-decoration:none; margin:6px 0;">📞 Call Rider</a>');
+          }
+        }
         if (o.delivery.plateNumber) lines.push('<span style="color:var(--ink-dim);">Plate:</span> <strong>' + o.delivery.plateNumber + '</strong>');
         if (o.delivery.eta) lines.push('<span style="color:var(--ink-dim);">Expected In:</span> <strong>' + o.delivery.eta + '</strong>');
         infoEl.innerHTML = lines.join('<br/>');
@@ -267,12 +272,18 @@
 
       document.getElementById('items-box').textContent = o.products || (o.cartItems ? o.cartItems.map(function(i){ return i.name + ' x' + i.qty; }).join(', ') : 'Item details unavailable');
 
-      var callBox = document.getElementById('rider-call-box');
-      if (o.delivery && o.delivery.bodaPhone) {
-        callBox.style.display = 'block';
-        callBox.innerHTML = '<a href="tel:' + o.delivery.bodaPhone + '" style="display:block; text-align:center; background:rgba(74,222,128,0.14); border:1.5px solid rgba(74,222,128,0.45); color:#2a9d50; padding:9px; border-radius:8px; font-size:0.82rem; font-weight:700; text-decoration:none;">📞 Call Rider' + (o.delivery.bodaName ? ' (' + o.delivery.bodaName + ')' : '') + '</a>';
+      var balanceBox = document.getElementById('payment-balance-box');
+      if (o.paymentStatus === 'partial') {
+        var total = o.orderTotal || o.subtotal || 0;
+        var paid = o.amountPaid || 0;
+        var balance = (typeof o.balanceDue === 'number') ? o.balanceDue : Math.max(0, total - paid);
+        balanceBox.style.display = 'block';
+        balanceBox.innerHTML =
+          '<div style="font-weight:800; color:#6b4a00; margin-bottom:4px;">💰 Partial Payment</div>' +
+          '<div style="color:#6b4a00;">Amount Paid: <strong>UGX ' + paid.toLocaleString('en-UG') + '</strong></div>' +
+          '<div style="color:#a83232; margin-top:2px;">Balance Remaining: <strong>UGX ' + balance.toLocaleString('en-UG') + '</strong></div>';
       } else {
-        callBox.style.display = 'none';
+        balanceBox.style.display = 'none';
       }
     }
 

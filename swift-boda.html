@@ -898,8 +898,39 @@
 
     function markBodaStage(docId, stage) {
       if (!window.fbDb || !window.fbFns) return;
-      var { doc, updateDoc } = window.fbFns;
       var o = boardOrders.find(function(x){ return x.fbDocId === docId; });
+      // Cash on Delivery means the rider is the one physically collecting the
+      // money — the same moment admin would normally ask "has payment been
+      // received?" when closing an order out. Gating it here, right as the
+      // rider marks the item delivered, catches it at the one point someone
+      // is actually standing there with the customer to confirm it.
+      if (stage === 'delivered' && o && o.paymentMethod === 'Cash on Delivery' && o.paymentStatus !== 'paid') {
+        var confirmed = confirm('Do You Confirm Payment Has Been Fully Received?');
+        if (!confirmed) return; // don't mark delivered until payment is actually in hand
+        completeBodaDeliveryWithPayment(docId, o);
+        return;
+      }
+      completeBodaStageUpdate(docId, stage, o);
+    }
+
+    function completeBodaDeliveryWithPayment(docId, o) {
+      if (!window.fbDb || !window.fbFns) return;
+      var { doc, updateDoc } = window.fbFns;
+      var total = (o && (o.orderTotal || o.subtotal)) || 0;
+      updateDoc(doc(window.fbDb, 'orders', docId), {
+        deliveryStage: 'delivered', paymentStatus: 'paid', amountPaid: total
+      }).then(function(){
+        showToast('✅ Delivered & payment confirmed!');
+        if (o) notifyCustomerOrderUpdate(o, '🎉 Delivered!', 'Your order has been delivered. Thank you for shopping with Swift Importers!');
+      }).catch(function(e){
+        console.error('[boda] completeBodaDeliveryWithPayment failed:', e);
+        showToast('Could not update — check your connection and try again.');
+      });
+    }
+
+    function completeBodaStageUpdate(docId, stage, o) {
+      if (!window.fbDb || !window.fbFns) return;
+      var { doc, updateDoc } = window.fbFns;
       updateDoc(doc(window.fbDb, 'orders', docId), { deliveryStage: stage }).then(function(){
         showToast('✅ Updated!');
         if (o) {
