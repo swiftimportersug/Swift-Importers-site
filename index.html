@@ -470,9 +470,9 @@
     /* PRODUCT DETAIL — FULL PAGE (not a popup) */
     /* ── PRODUCT DETAIL FULL PAGE ── */
 
-    .pd-overlay{display:none;position:fixed;inset:0;background:var(--white);z-index:300;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+    .pd-overlay{display:none;position:fixed;inset:0;background:#ffffff;z-index:300;overflow-y:auto;-webkit-overflow-scrolling:touch;}
     .pd-overlay.open{display:block;}
-    .pd-modal{background:var(--white);width:100%;min-height:100%;animation:pdPageFadeIn 0.22s ease;}
+    .pd-modal{background:#ffffff;width:100%;min-height:100%;animation:pdPageFadeIn 0.22s ease;}
     .pd-modal-left { width:100%; }
     .pd-content { display:flex; flex-direction:column; }
 
@@ -511,13 +511,13 @@
       }
       .pd-body{ flex:1; padding:24px; }
       .pd-related{
-        max-width:1380px; margin:16px auto; padding:20px 24px;
-        border:1px solid rgba(228,223,208,0.85);
-        border-radius:16px;
-        background:linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(248,247,243,0.85) 100%);
-        backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%);
-        box-shadow:0 8px 18px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.55);
+        margin:16px 16px 20px; padding:16px;
+        border:1px solid rgba(255,255,255,0.1);
+        border-radius:12px;
+        background:rgba(255,255,255,0.04);
       }
+      .pd-related-title{ color:#fff; }
+      .pd-related-card{ min-width:120px; width:120px; }
       .pd-name{ font-size:1.4rem !important; }
       .pd-price{ font-size:1.6rem !important; }
       /* Desktop: the mobile-style full-width fixed bar looks out of place in a two-column
@@ -552,7 +552,7 @@
     .pd-gallery-slide{min-width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:5rem;flex-shrink:0;overflow:hidden;padding:14px;box-sizing:border-box;}
     .pd-gallery-slide img{max-width:100%;max-height:100%;width:auto;height:auto;display:block;cursor:zoom-in;margin:auto;object-fit:contain;}
     .pd-dots{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:6px;}
-    .pd-thumbs{display:none; gap:8px; padding:10px 14px; overflow-x:auto; -webkit-overflow-scrolling:touch; background:var(--white);}
+    .pd-thumbs{display:none; gap:8px; padding:10px 14px; overflow-x:auto; -webkit-overflow-scrolling:touch; background:#ffffff;}
     .pd-thumbs.show{display:flex;}
     .pd-thumb{
       width:56px; height:56px; flex-shrink:0; border-radius:8px; overflow:hidden;
@@ -819,7 +819,7 @@
       margin-bottom:16px;
     }
     .pd-variant-label.pd-attention-text{color:var(--red);}
-    .pd-variant-select{width:100%;padding:10px 13px;border:2px solid var(--border);border-radius:8px;font-size:0.85rem;font-family:'Inter',sans-serif;font-weight:600;background:var(--white);color:var(--black);outline:none;cursor:pointer;transition:border-color 0.2s;}
+    .pd-variant-select{width:100%;padding:10px 13px;border:2px solid var(--border);border-radius:8px;font-size:0.85rem;font-family:'Inter',sans-serif;font-weight:600;background:#ffffff;color:var(--black);outline:none;cursor:pointer;transition:border-color 0.2s;}
     .pd-variant-select:focus{border-color:var(--gold);}
     /* Variant image buttons */
     .pd-variant-btns{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
@@ -831,7 +831,7 @@
     .pd-variant-btn-img img{width:100%;height:100%;object-fit:cover;border-radius:6px;}
     .pd-variant-btn-name{font-size:0.62rem;font-weight:700;color:#333;text-align:center;line-height:1.2;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     .pd-variant-btn-price{font-size:0.6rem;font-weight:700;color:var(--gold-dark);text-align:center;}
-    .pd-actions{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--white);border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:8px;box-shadow:0 -6px 18px rgba(0,0,0,0.08);}
+    .pd-actions{position:fixed;left:0;right:0;bottom:0;z-index:50;background:#ffffff;border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:8px;box-shadow:0 -6px 18px rgba(0,0,0,0.08);}
     .pd-actions-spacer{height:74px;}
     .pd-btn-cart{flex:1;background:var(--black);color:#fff;border:none;padding:12px;border-radius:8px;font-size:0.82rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:background 0.2s,opacity 0.2s;}
     .pd-btn-cart:hover{background:#333;}
@@ -1583,6 +1583,10 @@
         <button class="pd-arrow pd-arrow-right" id="pd-arrow-right" onclick="pdSlide(1)" style="display:none;">&#8250;</button>
       </div>
       <div class="pd-thumbs" id="pd-thumbs"></div>
+      <!-- On desktop, "You might also like" moves here — filling the space that
+           would otherwise sit empty below a shorter gallery once a long
+           description makes the right column taller than this sticky column. -->
+      <div id="pd-related-desktop-anchor"></div>
     </div>
 
     <!-- RIGHT COLUMN: Product details (scrollable) -->
@@ -1709,11 +1713,8 @@
 
   </div>
 
-  <!-- YOU MIGHT ALSO LIKE — desktop home: a full-width strip below the whole two-column
-       layout, deliberately outside the grid so it can never be covered by the sticky
-       picture column. JS moves the actual #pd-related node to the mobile anchor above
-       instead when the viewport is narrow. -->
-  <div id="pd-related-desktop-anchor"></div>
+  <!-- On mobile, JS moves the actual #pd-related node to the mobile anchor
+       above instead when the viewport is narrow. -->
   <div class="pd-related" id="pd-related" style="display:none;">
     <div class="pd-related-title">You might also like</div>
     <div class="pd-related-scroll" id="pd-related-scroll"></div>
@@ -3670,9 +3671,11 @@
   });
 
   // "You might also like" needs to sit in a genuinely different spot on mobile
-  // (right after the description) vs desktop (a full-width strip below the whole
-  // two-column layout). Rather than fight CSS grid placement for this, we just move
-  // the one real DOM node to the correct anchor point for the current breakpoint.
+  // (right after the description) vs desktop (inside the sticky left column,
+  // below the gallery — filling the space that would otherwise sit empty once
+  // a long description makes the right column taller than the photo column).
+  // Rather than fight CSS grid placement for this, we just move the one real
+  // DOM node to the correct anchor point for the current breakpoint.
   function positionRelatedSection() {
     var related = document.getElementById('pd-related');
     if (!related) return;
