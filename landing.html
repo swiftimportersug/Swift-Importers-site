@@ -766,7 +766,7 @@
       products: landingProduct.name + (v.name ? ' (' + v.name + (v.color?' - '+v.color:'') + ')' : '') + ' x' + landingQty,
       paymentMethod: document.getElementById('order-payment').value,
       notes: document.getElementById('order-notes').value.trim(),
-      cartItems: [{ id: landingProduct.id, name: landingProduct.name + (v.name ? ' ('+v.name+(v.color?' - '+v.color:'')+')' : ''), qty: landingQty, price: unitPrice, cost: v.cost||0, variantIdx: landingSelectedVariantIdx }],
+      cartItems: [{ id: landingProduct.id, name: landingProduct.name + (v.name ? ' ('+v.name+(v.color?' - '+v.color:'')+')' : ''), qty: landingQty, price: unitPrice, cost: v.cost||0, variantIdx: landingSelectedVariantIdx, img: (landingProduct.images && landingProduct.images[0]) || landingProduct.image || null }],
       appliedPromoCode: landingPromoDiscount > 0 ? landingPromoCode : null,
       promoDiscount: landingPromoDiscount > 0 ? (landingPromoDiscount * landingQty) : 0,
       memberTier: null,

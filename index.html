@@ -6999,7 +6999,7 @@
         customerName: nameVal, phone: phoneVal, deliveryArea: areaVal,
         exactLocation: (document.getElementById('exact-location') && document.getElementById('exact-location').value) || '',
         products: productsVal, paymentMethod: paymentVal, notes: notesVal,
-        cartItems: checkoutItems.map(function(c){ return {id:c.id, name:c.name, qty:c.qty, price:c.price, cost:c.cost||0, variantIdx:c.variantIdx}; }),
+        cartItems: checkoutItems.map(function(c){ return {id:c.id, name:c.name, qty:c.qty, price:c.price, cost:c.cost||0, variantIdx:c.variantIdx, img:c.img||null}; }),
         appliedPromoCode: totalsVal.usedDiscountType === 'promo' ? (checkoutAppliedPromoCode || null) : null,
         promoDiscount: totalsVal.usedDiscountType === 'promo' ? totalsVal.finalDiscount : 0,
         memberTier: currentAccount ? (currentAccount.tier || 'standard') : null,

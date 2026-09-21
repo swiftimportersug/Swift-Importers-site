@@ -791,6 +791,33 @@
   <div class="success-toast" id="success-toast">✅ Successful!</div>
 
   <!-- GENERIC APP DIALOG (replaces native alert()/confirm() popups) -->
+  <!-- MANUAL ORDER MODAL (for off-catalog purchases made on a customer's behalf) -->
+  <div class="modal-overlay" id="manual-order-modal" onclick="if(event.target===this) closeManualOrderModal();">
+    <div class="modal-box" style="max-width:440px; max-height:85vh; overflow-y:auto; padding:26px;">
+      <h2 style="font-size:1.15rem; margin-bottom:6px;">➕ Create Manual Order</h2>
+      <p style="font-size:0.8rem; color:#777; margin-bottom:16px;">For items bought on a customer's behalf that never went through the normal checkout — e.g. a link they sent you directly. This creates a real, trackable order with its own tracking number.</p>
+      <div class="form-group"><label>Customer Name *</label><input type="text" id="mo-name"/></div>
+      <div class="form-group"><label>Phone *</label><input type="tel" id="mo-phone" placeholder="+256 7XX XXX XXX"/></div>
+      <div class="form-group"><label>Item Description *</label><input type="text" id="mo-item" placeholder="e.g. Blue Bluetooth Speaker, JBL Flip 6"/></div>
+      <div class="form-group"><label>Quantity</label><input type="number" id="mo-qty" min="1" value="1"/></div>
+      <div class="form-group"><label>Total Price Charged (UGX) *</label><input type="number" id="mo-price" min="0"/></div>
+      <div class="form-group"><label>Preview Image URL (optional)</label><input type="url" id="mo-image" placeholder="Paste a photo link of the item, if you have one"/></div>
+      <div class="form-group">
+        <label>Payment Status</label>
+        <select id="mo-payment-status">
+          <option value="paid">Already Paid in Full</option>
+          <option value="partial">Partially Paid (Deposit)</option>
+          <option value="unpaid">Not Yet Paid</option>
+        </select>
+      </div>
+      <div id="mo-msg" style="display:none; color:var(--red); font-size:0.8rem; margin-bottom:10px;"></div>
+      <div style="display:flex; gap:10px;">
+        <button onclick="closeManualOrderModal()" style="flex:1; background:#fff; border:1.5px solid var(--border); padding:11px; border-radius:8px; font-weight:700; cursor:pointer;">Cancel</button>
+        <button onclick="submitManualOrder()" class="btn-gold" style="flex:1; padding:11px; border-radius:8px; font-weight:700;">Create Order</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="app-dialog-overlay">
     <div class="modal-box" style="max-width:380px; text-align:center; padding:26px 24px;">
       <div id="app-dialog-icon" style="font-size:2.1rem; margin-bottom:10px;">⚠️</div>
@@ -1593,6 +1620,7 @@
           <h2>📋 Open Orders</h2>
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
             <span id="open-orders-count" style="font-size:0.8rem;color:var(--grey);"></span>
+            <button class="btn-gold" onclick="openManualOrderModal()">➕ Create Manual Order</button>
             <button class="btn-gold" onclick="refreshOrders()">🔄 Refresh</button>
           </div>
         </div>
@@ -4494,6 +4522,64 @@
     let code = '';
     for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
     return code;
+  }
+
+  function openManualOrderModal() {
+    ['mo-name','mo-phone','mo-item','mo-price','mo-image'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    document.getElementById('mo-qty').value = '1';
+    document.getElementById('mo-payment-status').value = 'paid';
+    document.getElementById('mo-msg').style.display = 'none';
+    document.getElementById('manual-order-modal').classList.add('open');
+  }
+
+  function closeManualOrderModal() {
+    document.getElementById('manual-order-modal').classList.remove('open');
+  }
+
+  async function submitManualOrder() {
+    const msgEl = document.getElementById('mo-msg');
+    const name = document.getElementById('mo-name').value.trim();
+    const phone = document.getElementById('mo-phone').value.trim();
+    const item = document.getElementById('mo-item').value.trim();
+    const qty = parseInt(document.getElementById('mo-qty').value, 10) || 1;
+    const price = parseInt(document.getElementById('mo-price').value, 10);
+    const image = document.getElementById('mo-image').value.trim();
+    const paymentChoice = document.getElementById('mo-payment-status').value;
+    if (!name || !phone || !item || !price) {
+      msgEl.textContent = 'Please fill in customer name, phone, item, and price.';
+      msgEl.style.display = 'block';
+      return;
+    }
+    if (!window.fbDb || !window.fbFns) return;
+    msgEl.style.display = 'none';
+    try {
+      const { collection, addDoc } = window.fbFns;
+      const refCode = generateImportRefCode();
+      const paymentStatus = paymentChoice === 'unpaid' ? null : paymentChoice;
+      const newOrder = {
+        customerName: name,
+        phone: phone,
+        products: item + (qty > 1 ? ' (x' + qty + ')' : ''),
+        cartItems: [{ name: item, qty: qty, price: price, img: image || null }],
+        orderTotal: price,
+        subtotal: price,
+        hasShippedItems: true,
+        importStage: 'ordered',
+        status: paymentChoice === 'unpaid' ? 'pending' : 'confirmed',
+        paymentMethod: 'Manual/Off-catalog',
+        paymentStatus: paymentStatus,
+        amountPaid: paymentChoice === 'unpaid' ? 0 : price,
+        refCode: refCode,
+        timestamp: new Date().toISOString(),
+        notes: 'Manually created order — bought on customer\'s behalf from a link they sent, not through the normal catalog checkout.'
+      };
+      await addDoc(collection(window.fbDb, 'orders'), newOrder);
+      closeManualOrderModal();
+      showSuccessToast('✅ Order created — Tracking Number: ' + refCode + '. Share this with the customer, or send them: https://swiftimporters.com/track?code=' + refCode);
+    } catch(e) {
+      showAppAlert('Error creating order. Check your connection.');
+      console.error('[order] submitManualOrder failed:', e);
+    }
   }
 
   async function convertImportRequestToOrder(reqId) {
