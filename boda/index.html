@@ -156,6 +156,37 @@
     }
     .btn-primary:active, .claim-btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #8f6112, 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.5); }
     .btn-primary:disabled { opacity: 0.5; }
+
+    /* ── Custom confirm dialog — replaces the native browser confirm(), which
+       shows as ugly unstyled text with the site's URL prefixed to it. Same
+       dark-bezel, amber-glow language as the rest of the app. ── */
+    .boda-dialog-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+      z-index: 999; align-items: center; justify-content: center; padding: 20px;
+    }
+    .boda-dialog-overlay.open { display: flex; }
+    .boda-dialog-box {
+      background: var(--panel); border: 1px solid var(--chrome); border-radius: 16px;
+      padding: 26px 22px; max-width: 340px; width: 100%; text-align: center;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+    .boda-dialog-icon { font-size: 2.2rem; margin-bottom: 10px; filter: drop-shadow(0 4px 10px var(--amber-glow)); }
+    .boda-dialog-message { font-size: 0.95rem; color: var(--ink); line-height: 1.5; margin-bottom: 20px; font-weight: 600; }
+    .boda-dialog-buttons { display: flex; gap: 10px; }
+    .boda-dialog-buttons button {
+      flex: 1; border: none; font-weight: 800; padding: 12px; border-radius: 10px;
+      font-size: 0.88rem; position: relative; transition: transform 0.08s ease, box-shadow 0.08s ease;
+    }
+    .boda-dialog-btn-yes {
+      background: linear-gradient(180deg, #ffcf6e 0%, var(--amber) 45%, var(--amber-dim) 100%);
+      color: #1a1206; box-shadow: 0 4px 0 #8f6112, 0 6px 14px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.5);
+    }
+    .boda-dialog-btn-yes:active { transform: translateY(3px); box-shadow: 0 1px 0 #8f6112, 0 2px 6px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.5); }
+    .boda-dialog-btn-no {
+      background: var(--panel-raised); color: var(--ink-dim); border: 1.5px solid var(--chrome);
+      box-shadow: 0 4px 0 rgba(0,0,0,0.4), 0 6px 14px rgba(0,0,0,0.3);
+    }
+    .boda-dialog-btn-no:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.2); }
     .action-btn {
       flex: 1; background: linear-gradient(180deg, #3a3530, var(--panel-raised) 60%, #151210);
       color: var(--ink); padding: 13px 8px; border-radius: 11px; font-size: 0.82rem;
@@ -905,12 +936,29 @@
       // rider marks the item delivered, catches it at the one point someone
       // is actually standing there with the customer to confirm it.
       if (stage === 'delivered' && o && o.paymentMethod === 'Cash on Delivery' && o.paymentStatus !== 'paid') {
-        var confirmed = confirm('Do You Confirm Payment Has Been Fully Received?');
-        if (!confirmed) return; // don't mark delivered until payment is actually in hand
-        completeBodaDeliveryWithPayment(docId, o);
+        showBodaConfirm('Do You Confirm Payment Has Been Fully Received?', function(){
+          completeBodaDeliveryWithPayment(docId, o);
+        });
         return;
       }
       completeBodaStageUpdate(docId, stage, o);
+    }
+
+    // Custom confirm dialog — replaces the native browser confirm(), which
+    // renders as plain unstyled text with the site's URL awkwardly prefixed
+    // to it ("swiftimporters.com says..."). Same tactile, dark-bezel look as
+    // the rest of the app instead.
+    var bodaDialogCallback = null;
+    function showBodaConfirm(message, onConfirm) {
+      document.getElementById('boda-dialog-message').textContent = message;
+      bodaDialogCallback = onConfirm;
+      document.getElementById('boda-dialog-overlay').classList.add('open');
+    }
+    function bodaDialogRespond(confirmed) {
+      document.getElementById('boda-dialog-overlay').classList.remove('open');
+      var cb = bodaDialogCallback;
+      bodaDialogCallback = null;
+      if (confirmed && typeof cb === 'function') cb();
     }
 
     function completeBodaDeliveryWithPayment(docId, o) {
@@ -952,6 +1000,16 @@
     document.addEventListener('DOMContentLoaded', function(){
       renderRiderPickList();
     });
-  </script>
+  </script>  <div class="boda-dialog-overlay" id="boda-dialog-overlay">
+    <div class="boda-dialog-box">
+      <div class="boda-dialog-icon">💰</div>
+      <div class="boda-dialog-message" id="boda-dialog-message"></div>
+      <div class="boda-dialog-buttons">
+        <button class="boda-dialog-btn-no" onclick="bodaDialogRespond(false)">No</button>
+        <button class="boda-dialog-btn-yes" onclick="bodaDialogRespond(true)">Yes</button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
