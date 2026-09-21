@@ -105,6 +105,9 @@
     <div class="loading" id="loading-msg">⏳ Looking up your order...</div>
 
     <div id="order-result">
+      <div id="order-preview-image-wrap" style="display:none; text-align:center; margin-bottom:14px;">
+        <img id="order-preview-image" style="width:120px; height:120px; object-fit:cover; border-radius:12px; border:2px solid var(--chrome);" alt="Item" onerror="this.parentElement.style.display='none';"/>
+      </div>
       <div id="order-badge" class="order-badge"></div>
       <div id="steps-wrap" class="steps-wrap"></div>
       <div id="info-box" class="info-box" style="display:none;"></div>
@@ -229,6 +232,17 @@
 
     function renderOrder(o) {
       document.getElementById('order-result').style.display = 'block';
+
+      var previewWrap = document.getElementById('order-preview-image-wrap');
+      var previewImg = document.getElementById('order-preview-image');
+      var itemImage = (o.cartItems && o.cartItems[0] && o.cartItems[0].img) ? o.cartItems[0].img : null;
+      if (itemImage && previewWrap && previewImg) {
+        previewImg.src = itemImage;
+        previewWrap.style.display = 'block';
+      } else if (previewWrap) {
+        previewWrap.style.display = 'none';
+      }
+
       var badge = buildOrderStageBadgeHtml(o);
       var badgeEl = document.getElementById('order-badge');
       badgeEl.style.cssText += badge.style;
