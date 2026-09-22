@@ -511,13 +511,13 @@
       }
       .pd-body{ flex:1; padding:24px; }
       .pd-related{
-        margin:16px 16px 20px; padding:16px;
-        border:1px solid rgba(255,255,255,0.1);
-        border-radius:12px;
-        background:rgba(255,255,255,0.04);
+        max-width:1380px; margin:16px auto; padding:20px 24px;
+        border:1px solid rgba(228,223,208,0.85);
+        border-radius:16px;
+        background:linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(248,247,243,0.85) 100%);
+        backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%);
+        box-shadow:0 8px 18px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.55);
       }
-      .pd-related-title{ color:#fff; }
-      .pd-related-card{ min-width:120px; width:120px; }
       .pd-name{ font-size:1.4rem !important; }
       .pd-price{ font-size:1.6rem !important; }
       /* Desktop: the mobile-style full-width fixed bar looks out of place in a two-column
@@ -1583,10 +1583,6 @@
         <button class="pd-arrow pd-arrow-right" id="pd-arrow-right" onclick="pdSlide(1)" style="display:none;">&#8250;</button>
       </div>
       <div class="pd-thumbs" id="pd-thumbs"></div>
-      <!-- On desktop, "You might also like" moves here — filling the space that
-           would otherwise sit empty below a shorter gallery once a long
-           description makes the right column taller than this sticky column. -->
-      <div id="pd-related-desktop-anchor"></div>
     </div>
 
     <!-- RIGHT COLUMN: Product details (scrollable) -->
@@ -1713,8 +1709,11 @@
 
   </div>
 
-  <!-- On mobile, JS moves the actual #pd-related node to the mobile anchor
-       above instead when the viewport is narrow. -->
+  <!-- YOU MIGHT ALSO LIKE — desktop home: a full-width strip below the whole two-column
+       layout, deliberately outside the grid so it can never be covered by the sticky
+       picture column. JS moves the actual #pd-related node to the mobile anchor above
+       instead when the viewport is narrow. -->
+  <div id="pd-related-desktop-anchor"></div>
   <div class="pd-related" id="pd-related" style="display:none;">
     <div class="pd-related-title">You might also like</div>
     <div class="pd-related-scroll" id="pd-related-scroll"></div>
@@ -3671,11 +3670,9 @@
   });
 
   // "You might also like" needs to sit in a genuinely different spot on mobile
-  // (right after the description) vs desktop (inside the sticky left column,
-  // below the gallery — filling the space that would otherwise sit empty once
-  // a long description makes the right column taller than the photo column).
-  // Rather than fight CSS grid placement for this, we just move the one real
-  // DOM node to the correct anchor point for the current breakpoint.
+  // (right after the description) vs desktop (a full-width strip below the whole
+  // two-column layout). Rather than fight CSS grid placement for this, we just move
+  // the one real DOM node to the correct anchor point for the current breakpoint.
   function positionRelatedSection() {
     var related = document.getElementById('pd-related');
     if (!related) return;
