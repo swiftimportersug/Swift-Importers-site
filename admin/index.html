@@ -6249,7 +6249,7 @@
     const o = orders.find(x => x.fbDocId === docId);
     if (!o) return;
     showAppConfirm(
-      'Permanently delete this closed order? If it deducted stock when it was closed, that stock will be restored automatically. This can\'t be undone.',
+      'Permanently delete this closed order? If it deducted stock when it was confirmed, that stock will be restored automatically. This can\'t be undone.',
       async () => {
         try {
           if (o.stockDeducted) {
@@ -6331,14 +6331,21 @@
       const updates = { status: newStatus };
 
       if (order) {
-        if (newStatus === 'closed' && !order.stockDeducted) {
+        // Deduct the moment an order becomes confirmed — not when it closes.
+        // Waiting until closing left a real window where an item already sold
+        // and out for delivery still showed as available, letting a second
+        // customer buy the same last unit expecting it to be delivered too.
+        if (newStatus === 'confirmed' && !order.stockDeducted) {
           const { skipped, correctedCartItems } = await adjustStockForOrder(order, -1, 'Admin');
           updates.stockDeducted = true;
           if (correctedCartItems) updates.cartItems = correctedCartItems;
           if (skipped.length) {
-            showAppAlert('Order closed. Stock/cost could not be auto-adjusted for: ' + skipped.join(', ') + '. Please check these items manually in Inventory.');
+            showAppAlert('Order confirmed. Stock/cost could not be auto-adjusted for: ' + skipped.join(', ') + '. Please check these items manually in Inventory.');
           }
-        } else if (newStatus !== 'closed' && order.stockDeducted) {
+        } else if ((newStatus === 'pending' || newStatus === 'cancelled') && order.stockDeducted) {
+          // Reversing a confirmation (correcting a mistake, or the order falls
+          // through) restores stock. Moving on to 'closed' from here needs no
+          // change at all — stock was already accounted for at confirmation.
           await adjustStockForOrder(order, 1, 'Admin');
           updates.stockDeducted = false;
         }
@@ -6539,8 +6546,8 @@
   }
 
   // ── CANCEL ORDER — admin can cancel for any reason (customer mistake, out of
-  // stock, etc). Stock is only ever deducted at close time, so there's nothing to
-  // restore unless this order was somehow closed-then-cancelled (defensive check).
+  // stock, etc). Stock is deducted at confirmation time, so cancelling a confirmed
+  // order needs to restore it here; a still-pending order was never deducted at all.
   async function cancelOrder(docId) {
     const o = orders.find(x => x.fbDocId === docId);
     if (!o) return;
