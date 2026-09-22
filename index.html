@@ -3196,7 +3196,7 @@
         var slide = document.createElement('div');
         slide.className = 'pd-gallery-slide' + (isClone ? ' pd-gallery-slide-clone' : '');
         var im = document.createElement('img');
-        im.src = imgSrc; im.alt = 'Photo ' + (clickIdx + 1);
+        im.src = imgSrc; im.alt = p.name + (pdImages.length > 1 ? ' - Photo ' + (clickIdx + 1) : '');
         im.style.cssText = 'max-width:100%;max-height:100%;width:auto;height:auto;margin:auto;display:block;cursor:zoom-in;';
         im.onclick = function(){ openFullscreen(clickIdx); };
         slide.appendChild(im);
