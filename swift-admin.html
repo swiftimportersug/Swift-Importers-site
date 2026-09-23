@@ -800,6 +800,19 @@
 
   <!-- GENERIC APP DIALOG (replaces native alert()/confirm() popups) -->
   <!-- MANUAL ORDER MODAL (for off-catalog purchases made on a customer's behalf) -->
+  <!-- SITEMAP GENERATOR MODAL -->
+  <div class="modal-overlay" id="sitemap-modal" onclick="if(event.target===this) closeSitemapGeneratorModal();">
+    <div class="modal-box" style="max-width:600px; max-height:85vh; overflow-y:auto; padding:26px;">
+      <h2 style="font-size:1.15rem; margin-bottom:6px;">🗺️ Generated Sitemap</h2>
+      <p style="font-size:0.8rem; color:#777; margin-bottom:14px;">Copy everything below and paste it into your sitemap.xml file on GitHub, replacing what's there now. Do this again whenever you add or remove products, so search engines always see your current catalog.</p>
+      <textarea id="sitemap-output" readonly style="width:100%; height:320px; font-family:monospace; font-size:0.76rem; padding:12px; border:1.5px solid var(--border); border-radius:8px; background:var(--light); color:#333;"></textarea>
+      <div style="display:flex; gap:10px; margin-top:14px;">
+        <button onclick="closeSitemapGeneratorModal()" style="flex:1; background:#fff; border:1.5px solid var(--border); padding:11px; border-radius:8px; font-weight:700; cursor:pointer;">Close</button>
+        <button onclick="copySitemapOutput()" class="btn-gold" style="flex:1; padding:11px; border-radius:8px; font-weight:700;">📋 Copy to Clipboard</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="manual-order-modal" onclick="if(event.target===this) closeManualOrderModal();">
     <div class="modal-box" style="max-width:440px; max-height:85vh; overflow-y:auto; padding:26px;">
       <h2 style="font-size:1.15rem; margin-bottom:6px;">➕ Create Manual Order</h2>
@@ -1345,6 +1358,7 @@
               <option value="">All Stores</option>
             </select>
             <input type="text" class="tbl-search" placeholder="🔍 Search products..." oninput="filterInventory(this.value)"/>
+            <button onclick="openSitemapGeneratorModal()" title="Generate an up-to-date sitemap.xml listing every current product" style="background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:8px 14px; border-radius:7px; font-size:0.8rem; font-weight:700; cursor:pointer;">🗺️ Generate Sitemap</button>
             <button onclick="openQuickScanModal()" title="Scan barcode or QR code"
               style="width:38px; height:38px; flex-shrink:0; background:var(--black); color:#fff; border:none; border-radius:7px; font-size:1.1rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.2s;"
               onmouseover="this.style.background='var(--gold)'" onmouseout="this.style.background='var(--black)'">📷</button>
@@ -4534,6 +4548,39 @@
     let code = '';
     for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
     return code;
+  }
+
+  function openSitemapGeneratorModal() {
+    // Uses the LIVE product list already loaded in this session — this is
+    // the one piece a static sitemap.xml file can't provide on its own, since
+    // it has to exist as a plain file before Google even visits, with no way
+    // to query Firestore itself at crawl time. Re-run this after any product
+    // is added or removed to keep the file matching the real catalog.
+    var urls = ['https://swiftimporters.com/'];
+    products.forEach(function(p){
+      if (p && p.id) urls.push('https://swiftimporters.com/?product=' + encodeURIComponent(p.id));
+    });
+    var xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+    urls.forEach(function(u, i){
+      xml += '  <url>\n    <loc>' + u + '</loc>\n    <changefreq>' + (i === 0 ? 'daily' : 'weekly') + '</changefreq>\n    <priority>' + (i === 0 ? '1.0' : '0.8') + '</priority>\n  </url>\n';
+    });
+    xml += '</urlset>\n';
+    document.getElementById('sitemap-output').value = xml;
+    document.getElementById('sitemap-modal').classList.add('open');
+  }
+
+  function closeSitemapGeneratorModal() {
+    document.getElementById('sitemap-modal').classList.remove('open');
+  }
+
+  function copySitemapOutput() {
+    var el = document.getElementById('sitemap-output');
+    el.select();
+    navigator.clipboard.writeText(el.value).then(function(){
+      showSuccessToast('📋 Sitemap copied — paste it into sitemap.xml on GitHub.');
+    }).catch(function(){
+      document.execCommand('copy');
+    });
   }
 
   function openManualOrderModal() {

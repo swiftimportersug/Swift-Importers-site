@@ -3034,6 +3034,46 @@
 
   function closePdOverlay() {
     closeOverlayEl(document.getElementById('pd-overlay'));
+    removeProductStructuredData();
+  }
+
+  // ── SEO: Product structured data (JSON-LD) ──
+  // Injected live from the same data already on the page, so it's always
+  // exactly in sync with the real catalog — unlike sitemap.xml, which has to
+  // exist as a plain file before Google ever visits and can't query Firestore
+  // itself, this runs client-side and needs no separate maintenance step.
+  function injectProductStructuredData(p) {
+    removeProductStructuredData();
+    var variant = (p.variants && p.variants[0]) || {};
+    var price = effectivePrice(variant);
+    var stock = parseInt(variant.stock, 10) || 0;
+    var images = (p.images && p.images.length) ? p.images : (p.image ? [p.image] : []);
+    var data = {
+      '@context': 'https://schema.org/',
+      '@type': 'Product',
+      'name': p.name,
+      'image': images,
+      'description': (p.description || '').replace(/\[color:[^\]]*\]|\[\/color\]|\[table\]|\[\/table\]|[#*]/g, '').trim().slice(0, 500) || p.name,
+      'sku': p.id,
+      'offers': {
+        '@type': 'Offer',
+        'url': window.location.origin + window.location.pathname + productShareUrl(p.id),
+        'priceCurrency': 'UGX',
+        'price': price,
+        'availability': stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        'itemCondition': p.condition === 'Brand New' ? 'https://schema.org/NewCondition' : 'https://schema.org/UsedCondition'
+      }
+    };
+    var script = document.createElement('script');
+    script.type = 'application/ld+json';
+    script.id = 'product-structured-data';
+    script.textContent = JSON.stringify(data);
+    document.head.appendChild(script);
+  }
+
+  function removeProductStructuredData() {
+    var existing = document.getElementById('product-structured-data');
+    if (existing) existing.remove();
   }
 
   // ── BROWSING HISTORY (used to personalize "You might also like") ──
@@ -3060,6 +3100,7 @@
     if (!p) return;
     recordBrowsingHistory(productId);
     loadAndRenderProductReviews(productId);
+    injectProductStructuredData(p);
     pdCurrentProduct = p;
     pdCurrentVariantIdx = null;
     pdQty = 1;

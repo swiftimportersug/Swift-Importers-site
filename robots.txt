@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /employee/
+Disallow: /boda/
+Disallow: /track/
+Disallow: /landing.html
+
+Sitemap: https://swiftimporters.com/sitemap.xml
