@@ -6,4 +6,4 @@ Disallow: /boda/
 Disallow: /track/
 Disallow: /landing.html
 
-Sitemap: https://swiftimporters.com/sitemap.xml
+Sitemap: https://swift-sitemap.swiftimportersug.workers.dev/
