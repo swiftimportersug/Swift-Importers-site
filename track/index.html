@@ -23,7 +23,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, collection, doc, getDoc, onSnapshot, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, doc, getDoc, onSnapshot, query, where, getDocs, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDqOE4NDmp3xJrTf71MzlClTZ201Uhyk0Q",
@@ -36,7 +36,7 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     window.fbDb = db;
-    window.fbFns = { collection, doc, getDoc, onSnapshot, query, where, getDocs };
+    window.fbFns = { collection, doc, getDoc, onSnapshot, query, where, getDocs, updateDoc };
     window.firebaseReady = true;
     window.dispatchEvent(new Event('firebaseReady'));
   </script>
@@ -102,6 +102,7 @@
 
     @keyframes orderStagePulse { 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.12); } }
   </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
   <div class="brand-badge">
@@ -245,7 +246,10 @@
       });
     }
 
+    var currentTrackedOrder = null;
+
     function renderOrder(o) {
+      currentTrackedOrder = o;
       document.getElementById('order-result').style.display = 'block';
 
       var previewWrap = document.getElementById('order-preview-image-wrap');
@@ -296,7 +300,9 @@
         balanceBox.innerHTML =
           '<div style="font-weight:800; color:#6b4a00; margin-bottom:4px;">💰 Partial Payment</div>' +
           '<div style="color:#2a9d50;">Amount Paid: <strong>UGX ' + paid.toLocaleString('en-UG') + '</strong></div>' +
-          '<div style="color:#a83232; margin-top:2px;">Balance Remaining: <strong>UGX ' + balance.toLocaleString('en-UG') + '</strong></div>';
+          '<div style="color:#a83232; margin-top:2px;">Balance Remaining: <strong>UGX ' + balance.toLocaleString('en-UG') + '</strong></div>' +
+          '<button onclick="openTopUpPanel(' + balance + ')" style="width:100%; margin-top:10px; background:var(--amber); border:none; color:#1a1206; padding:11px; border-radius:8px; font-weight:800; font-size:0.85rem; cursor:pointer;">💳 Complete Payment / Pay More</button>' +
+          '<div id="topup-panel" style="display:none; margin-top:12px; text-align:left;"></div>';
       } else {
         balanceBox.style.display = 'none';
       }
@@ -320,6 +326,131 @@
         else window.addEventListener('firebaseReady', lookupOrder, { once: true });
       }
     });
+
+    // ── TOP-UP PAYMENTS — pay more toward an existing balance ──
+    var MOBILE_MONEY_MERCHANT_CODES = { mtn: '86596185', airtel: '7198500' };
+    var topUpAmount = 0;
+
+    function getDeviceType() {
+      var w = window.innerWidth;
+      if (w >= 1024) return 'desktop';
+      if (w >= 600) return 'tablet';
+      return 'mobile';
+    }
+
+    function triggerTelLink(ussd) {
+      var a = document.createElement('a');
+      a.href = 'tel:' + ussd;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    function dialOrShowQr(ussd) {
+      var qrWrap = document.getElementById('topup-qr-wrap');
+      if (getDeviceType() === 'desktop') {
+        if (qrWrap) {
+          qrWrap.style.display = 'block';
+          var qrContainer = document.getElementById('topup-qr-code');
+          if (qrContainer) {
+            qrContainer.innerHTML = '';
+            if (window.QRCode) new QRCode(qrContainer, { text: 'tel:' + ussd, width: 160, height: 160 });
+          }
+        }
+      } else {
+        triggerTelLink(ussd);
+      }
+    }
+
+    // Same collision-checked offset technique used at checkout — a unique
+    // 1-99 UGX addition makes the exact landed amount a fingerprint the
+    // payment webhook can match back to this specific top-up.
+    async function generateUniquePaymentAmount(baseAmount) {
+      var { collection, query, where, getDocs } = window.fbFns;
+      for (var attempt = 0; attempt < 50; attempt++) {
+        var offset = Math.floor(Math.random() * 99) + 1;
+        var candidate = baseAmount + offset;
+        try {
+          var snap = await getDocs(query(collection(window.fbDb, 'orders'), where('expectedPaymentAmount', '==', candidate)));
+          var collision = snap.docs.some(function(d){ var s = d.data().status; return s === 'pending' || (s === 'confirmed' && d.data().paymentStatus === 'partial'); });
+          if (!collision) return candidate;
+        } catch(e) {
+          console.error('[topup] offset collision check failed:', e);
+          return candidate;
+        }
+      }
+      return baseAmount + Math.floor(Math.random() * 99) + 1;
+    }
+
+    function openTopUpPanel(remainingBalance) {
+      var panel = document.getElementById('topup-panel');
+      if (!panel) return;
+      panel.style.display = 'block';
+      panel.innerHTML =
+        '<label style="font-size:0.82rem; font-weight:700; display:block; margin-bottom:6px; color:var(--ink);">How much do you want to pay now?</label>' +
+        '<input type="number" id="topup-amount-input" value="' + remainingBalance + '" max="' + remainingBalance + '" style="width:100%; padding:10px 12px; border:1.5px solid var(--chrome); border-radius:8px; font-size:0.95rem; margin-bottom:10px; background:var(--bezel); color:var(--amber); font-weight:700; box-sizing:border-box;"/>' +
+        '<div id="topup-error" style="display:none; color:var(--led-red); font-size:0.78rem; margin-bottom:8px;"></div>' +
+        '<div style="display:flex; gap:8px;">' +
+          '<button onclick="startTopUpPayment(\'mtn\', ' + remainingBalance + ')" style="flex:1; background:#FFCC00; color:#000; border:none; padding:11px; border-radius:8px; font-weight:800; font-size:0.82rem; cursor:pointer;">MTN MoMo</button>' +
+          '<button onclick="startTopUpPayment(\'airtel\', ' + remainingBalance + ')" style="flex:1; background:#ED1C24; color:#fff; border:none; padding:11px; border-radius:8px; font-weight:800; font-size:0.82rem; cursor:pointer;">Airtel Money</button>' +
+        '</div>' +
+        '<div id="topup-status" style="display:none; margin-top:10px; font-size:0.82rem; color:var(--ink);"></div>' +
+        '<div id="topup-qr-wrap" style="display:none; text-align:center; margin-top:10px; background:var(--bezel); border:1px solid var(--chrome); border-radius:8px; padding:12px;">' +
+          '<div style="font-size:0.8rem; color:var(--ink-dim); margin-bottom:8px;">📱 Scan with your phone to pay</div>' +
+          '<div id="topup-qr-code" style="display:inline-block;"></div>' +
+        '</div>';
+    }
+
+    async function startTopUpPayment(provider, maxAmount) {
+      var errEl = document.getElementById('topup-error');
+      var statusEl = document.getElementById('topup-status');
+      var chosen = parseInt(document.getElementById('topup-amount-input').value, 10);
+      if (!chosen || chosen <= 0) {
+        errEl.textContent = 'Please enter a valid amount.';
+        errEl.style.display = 'block';
+        return;
+      }
+      if (chosen > maxAmount) {
+        errEl.textContent = 'That\'s more than your remaining balance (UGX ' + maxAmount.toLocaleString('en-UG') + ').';
+        errEl.style.display = 'block';
+        return;
+      }
+      errEl.style.display = 'none';
+      statusEl.style.display = 'block';
+      statusEl.textContent = '⏳ Preparing your payment...';
+
+      var exactAmount = await generateUniquePaymentAmount(chosen);
+      topUpAmount = exactAmount;
+
+      if (!currentTrackedOrder || !currentTrackedOrder.fbDocId) {
+        statusEl.textContent = 'Something went wrong — please refresh and try again.';
+        return;
+      }
+
+      try {
+        var { doc, updateDoc } = window.fbFns;
+        await updateDoc(doc(window.fbDb, 'orders', currentTrackedOrder.fbDocId), {
+          expectedPaymentAmount: exactAmount,
+          paymentOffset: exactAmount - chosen,
+        });
+      } catch(e) {
+        console.error('[topup] failed to save expected amount:', e);
+        statusEl.textContent = 'Could not prepare this payment — please check your connection and try again.';
+        return;
+      }
+
+      if (provider === 'mtn') {
+        var mtnUssd = '*165*3*' + MOBILE_MONEY_MERCHANT_CODES.mtn + '*' + exactAmount + '*1%23';
+        statusEl.innerHTML = '📞 Opening MTN MoMo — send exactly <strong>UGX ' + exactAmount.toLocaleString('en-UG') + '</strong> — just enter your PIN when prompted.<br/><a href="tel:' + mtnUssd + '" style="color:var(--blue-gauge);">Didn\'t open? Tap here</a>';
+        dialOrShowQr(mtnUssd);
+      } else {
+        var airtelUssd = '*185*9%23';
+        navigator.clipboard.writeText(String(exactAmount)).catch(function(){});
+        statusEl.innerHTML = '📋 Amount copied: <strong>UGX ' + exactAmount.toLocaleString('en-UG') + '</strong>. Opening Airtel — enter Merchant ID <strong>' + MOBILE_MONEY_MERCHANT_CODES.airtel + '</strong>, then paste the amount.<br/><a href="tel:' + airtelUssd + '" style="color:var(--blue-gauge);">Didn\'t open? Tap here</a>';
+        dialOrShowQr(airtelUssd);
+      }
+    }
   </script>
 </body>
 </html>
