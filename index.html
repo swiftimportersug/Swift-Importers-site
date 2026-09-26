@@ -5719,6 +5719,19 @@
         '<span style="color:#2a7a45;">Same code as your payment reference — use it under "Track Package" on the homepage anytime to check your order\'s status.</span>' +
       '</div>';
     }
+    // A remaining balance means this order can accept another payment right
+    // here — same offset/dial system already used at checkout, just aimed at
+    // whatever's left rather than the original total.
+    if (o.paymentStatus === 'partial') {
+      var total = o.orderTotal || o.subtotal || 0;
+      var paid = o.amountPaid || 0;
+      var balance = (typeof o.balanceDue === 'number') ? o.balanceDue : Math.max(0, total - paid);
+      html += '<div id="payment-balance-box-' + o.fbDocId + '" style="background:#fff3d6; border:1.5px solid var(--gold); border-radius:8px; padding:10px 12px; font-size:0.78rem; color:#6b4a00; margin-top:8px; line-height:1.6;">' +
+        '💰 Amount Paid: <strong>' + fmtPrice(paid) + '</strong> &middot; Balance: <strong style="color:#a83232;">' + fmtPrice(balance) + '</strong>' +
+        '<button onclick="openMyOrderTopUpPanel(\'' + o.fbDocId + '\', ' + balance + ')" style="width:100%; margin-top:8px; background:var(--gold); border:none; color:var(--black); padding:9px; border-radius:7px; font-weight:800; font-size:0.78rem; cursor:pointer;">💳 Complete Payment / Pay More</button>' +
+        '<div id="topup-panel-' + o.fbDocId + '" style="display:none; margin-top:10px; text-align:left;"></div>' +
+      '</div>';
+    }
     // Once a rider has claimed the delivery, their name/phone is already on the
     // order — a direct call link saves the customer from having to dig up a
     // number themselves or wait for a WhatsApp reply.
@@ -7517,6 +7530,69 @@
         });
       });
     });
+  }
+
+  // ── TOP-UP PAYMENTS from My Orders / Active Order card ──
+  // Reuses the exact same offset-generation, dial-triggering, and merchant
+  // code constants already built for checkout — no need to duplicate any of
+  // that logic here, just aim it at a remaining balance instead of a fresh order.
+  function openMyOrderTopUpPanel(orderId, remainingBalance) {
+    var panel = document.getElementById('topup-panel-' + orderId);
+    if (!panel) return;
+    panel.style.display = 'block';
+    panel.innerHTML =
+      '<label style="font-size:0.78rem; font-weight:700; display:block; margin-bottom:6px;">How much do you want to pay now?</label>' +
+      '<input type="number" id="myorder-topup-amount-' + orderId + '" value="' + remainingBalance + '" max="' + remainingBalance + '" style="width:100%; padding:9px 12px; border:1.5px solid var(--border); border-radius:7px; font-size:0.9rem; margin-bottom:8px; box-sizing:border-box;"/>' +
+      '<div id="myorder-topup-error-' + orderId + '" style="display:none; color:var(--red); font-size:0.74rem; margin-bottom:8px;"></div>' +
+      '<div style="display:flex; gap:8px;">' +
+        '<button onclick="startMyOrderTopUp(\'' + orderId + '\', \'MTN Mobile Money\', ' + remainingBalance + ')" style="flex:1; background:#FFCC00; color:#000; border:none; padding:9px; border-radius:7px; font-weight:800; font-size:0.76rem; cursor:pointer;">MTN MoMo</button>' +
+        '<button onclick="startMyOrderTopUp(\'' + orderId + '\', \'Airtel Money\', ' + remainingBalance + ')" style="flex:1; background:#ED1C24; color:#fff; border:none; padding:9px; border-radius:7px; font-weight:800; font-size:0.76rem; cursor:pointer;">Airtel Money</button>' +
+      '</div>' +
+      '<div id="myorder-topup-status-' + orderId + '" style="display:none; margin-top:8px; font-size:0.78rem;"></div>';
+  }
+
+  async function startMyOrderTopUp(orderId, provider, maxAmount) {
+    var errEl = document.getElementById('myorder-topup-error-' + orderId);
+    var statusEl = document.getElementById('myorder-topup-status-' + orderId);
+    var chosen = parseInt(document.getElementById('myorder-topup-amount-' + orderId).value, 10);
+    if (!chosen || chosen <= 0) {
+      errEl.textContent = 'Please enter a valid amount.';
+      errEl.style.display = 'block';
+      return;
+    }
+    if (chosen > maxAmount) {
+      errEl.textContent = 'That\'s more than your remaining balance (' + fmtPrice(maxAmount) + ').';
+      errEl.style.display = 'block';
+      return;
+    }
+    errEl.style.display = 'none';
+    statusEl.style.display = 'block';
+    statusEl.textContent = '⏳ Preparing your payment...';
+
+    var exactAmount = await generateUniquePaymentAmount(chosen);
+
+    try {
+      var { doc, updateDoc } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'orders', orderId), {
+        expectedPaymentAmount: exactAmount,
+        paymentOffset: exactAmount - chosen,
+      });
+    } catch(e) {
+      console.error('[topup] failed to save expected amount:', e);
+      statusEl.textContent = 'Could not prepare this payment — please check your connection and try again.';
+      return;
+    }
+
+    if (provider === 'MTN Mobile Money') {
+      var mtnUssd = '*165*3*' + MOBILE_MONEY_MERCHANT_CODES.mtn + '*' + exactAmount + '*1%23';
+      statusEl.innerHTML = '📞 Opening MTN MoMo — send exactly <strong>' + fmtPrice(exactAmount) + '</strong>.';
+      dialOrShowQr(mtnUssd);
+    } else {
+      var airtelUssd = '*185*9%23';
+      navigator.clipboard.writeText(String(exactAmount)).catch(function(){});
+      statusEl.innerHTML = '📋 Amount copied: <strong>' + fmtPrice(exactAmount) + '</strong>. Opening Airtel — paste it when asked.';
+      dialOrShowQr(airtelUssd);
+    }
   }
 
   function openTrackModal(orderId) {
