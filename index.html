@@ -1415,6 +1415,23 @@
       </div>
       <div class="form-group"><label>Notes (optional)</label><input id="order-notes" type="text" placeholder="e.g. specific colour, delivery time preference"/></div>
     </div>
+
+    <div class="modal-overlay" id="installment-choice-modal">
+      <div class="modal" style="max-width:400px; padding:26px;">
+        <h2 style="font-size:1.1rem; margin-bottom:6px;">How would you like to pay?</h2>
+        <p style="font-size:0.82rem; color:#777; margin-bottom:18px;">Total: <strong id="installment-total-display"></strong></p>
+        <button onclick="chooseFullPayment()" class="submit-btn" style="position:static; margin-bottom:10px;">💰 Pay Full Amount</button>
+        <button onclick="showInstallmentAmountInput()" id="installment-choice-btn" style="width:100%; background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:13px; border-radius:8px; font-weight:700; font-size:0.85rem; cursor:pointer;">📅 Pay in Installments</button>
+        <div id="installment-amount-wrap" style="display:none; margin-top:14px;">
+          <label style="font-size:0.8rem; font-weight:700; display:block; margin-bottom:6px;">How much do you want to pay now?</label>
+          <div style="font-size:0.74rem; color:#888; margin-bottom:8px;">Minimum: <strong id="installment-min-display"></strong> (30% of total). Pay the rest whenever you like from your tracking page — just make sure it's all cleared within <strong>2 months</strong>, or a 20% refund fee applies to any deposit left unfinished.</div>
+          <input type="number" id="installment-amount-input" style="width:100%; padding:11px 14px; border:1.5px solid var(--border); border-radius:8px; font-size:0.95rem; margin-bottom:8px; box-sizing:border-box;"/>
+          <div id="installment-amount-error" style="display:none; color:var(--red); font-size:0.78rem; margin-bottom:10px;"></div>
+          <button onclick="confirmInstallmentAmount()" class="submit-btn" style="position:static;">Continue With This Amount</button>
+        </div>
+        <button onclick="closeOverlayEl(document.getElementById('installment-choice-modal'))" style="width:100%; background:none; border:none; color:#999; padding:10px; font-size:0.8rem; margin-top:8px; cursor:pointer;">Cancel</button>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -4279,6 +4296,58 @@
     var changeLink = document.getElementById('change-payment-method-link');
     if (changeLink) changeLink.style.display = 'block';
     validateOrderFieldsVisual();
+
+    // Installments are only offered for Mobile Money (Cash on Delivery is
+    // already paid in person, nothing to split), and only when every item in
+    // the cart allows it. Everything else proceeds exactly as before.
+    var isMobileMoney = (method === 'MTN Mobile Money' || method === 'Airtel Money');
+    if (isMobileMoney && currentCheckoutInstallmentsEligible) {
+      openInstallmentChoiceModal();
+      return;
+    }
+    currentCheckoutIsInstallment = false;
+    handlePaymentMethodChange();
+  }
+
+  function openInstallmentChoiceModal() {
+    document.getElementById('installment-total-display').textContent = fmtPrice(currentCheckoutFullAmountDue);
+    document.getElementById('installment-min-display').textContent = fmtPrice(Math.ceil(currentCheckoutFullAmountDue * 0.3));
+    document.getElementById('installment-amount-wrap').style.display = 'none';
+    document.getElementById('installment-amount-error').style.display = 'none';
+    openOverlayEl(document.getElementById('installment-choice-modal'));
+  }
+
+  function chooseFullPayment() {
+    currentCheckoutIsInstallment = false;
+    currentCheckoutAmountDue = currentCheckoutFullAmountDue;
+    closeOverlayEl(document.getElementById('installment-choice-modal'));
+    handlePaymentMethodChange();
+  }
+
+  function showInstallmentAmountInput() {
+    var minAmount = Math.ceil(currentCheckoutFullAmountDue * 0.3);
+    document.getElementById('installment-amount-input').value = minAmount;
+    document.getElementById('installment-amount-input').min = minAmount;
+    document.getElementById('installment-amount-wrap').style.display = 'block';
+  }
+
+  function confirmInstallmentAmount() {
+    var errEl = document.getElementById('installment-amount-error');
+    var chosen = parseInt(document.getElementById('installment-amount-input').value, 10);
+    var minAmount = Math.ceil(currentCheckoutFullAmountDue * 0.3);
+    if (!chosen || chosen < minAmount) {
+      errEl.textContent = 'Please enter at least ' + fmtPrice(minAmount) + ' (30% of the total).';
+      errEl.style.display = 'block';
+      return;
+    }
+    if (chosen >= currentCheckoutFullAmountDue) {
+      // Paying the full amount (or more) as an "installment" is just a full payment.
+      chooseFullPayment();
+      return;
+    }
+    currentCheckoutIsInstallment = true;
+    currentCheckoutAmountDue = chosen;
+    closeOverlayEl(document.getElementById('installment-choice-modal'));
     handlePaymentMethodChange();
   }
 
@@ -4438,6 +4507,9 @@
   // that's the real amount a customer will be sending, not necessarily the
   // order's full listed total.
   var currentCheckoutAmountDue = 0;
+  var currentCheckoutInstallmentsEligible = false;
+  var currentCheckoutFullAmountDue = 0;
+  var currentCheckoutIsInstallment = false;
 
   function renderOrderItemsSummary() {
     var summary = document.getElementById('order-items-summary');
@@ -4498,6 +4570,17 @@
     var commitmentPortion = shippedSubtotal - balanceDueOnDelivery;
     var dueNow = Math.max(0, totals.finalTotal - balanceDueOnDelivery);
     currentCheckoutAmountDue = hasShippedItems ? dueNow : totals.finalTotal;
+
+    // Shipped items already have their own fixed 30%-now/70%-on-delivery split,
+    // so the customer-chosen installment flow is only offered for everything
+    // else, and only when every item in the cart actually allows it — one
+    // "no" from any item disables it for the whole order rather than trying
+    // to split eligibility line-by-line.
+    currentCheckoutInstallmentsEligible = !hasShippedItems && checkoutItems.every(function(c){
+      var prod = products.find(function(p){ return p.id === c.id; });
+      return !prod || prod.allowInstallments !== false;
+    });
+    currentCheckoutFullAmountDue = currentCheckoutAmountDue;
 
     var shippedNoticeEl = document.getElementById('checkout-shipped-notice');
     if (shippedNoticeEl) {
