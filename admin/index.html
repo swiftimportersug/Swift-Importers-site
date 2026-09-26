@@ -1148,6 +1148,10 @@
         <span class="nav-icon">📦</span> Import Requests
         <span id="import-requests-badge" style="margin-left:auto;background:var(--red);color:#fff;font-size:0.65rem;font-weight:700;padding:2px 7px;border-radius:20px;display:none;"></span>
       </div>
+      <div class="nav-item" onclick="showPage('unmatched-payments')">
+        <span class="nav-icon">🔍</span> Unmatched Payments
+        <span id="unmatched-payments-badge" style="margin-left:auto;background:var(--red);color:#fff;font-size:0.65rem;font-weight:700;padding:2px 7px;border-radius:20px;display:none;"></span>
+      </div>
       <div class="nav-item" onclick="showPage('scanner')">
         <span class="nav-icon">📷</span> QR Scanner
       </div>
@@ -1614,6 +1618,15 @@
           <button class="period-tab" data-status="rejected" onclick="setImportRequestsFilter('rejected')">✕ Rejected</button>
         </div>
         <div id="import-requests-list" style="display:flex; flex-direction:column; gap:14px;"></div>
+      </div>
+
+      <!-- UNMATCHED PAYMENTS PAGE -->
+      <div class="page" id="page-unmatched-payments">
+        <div class="section-hdr">
+          <h2>🔍 Unmatched Payments</h2>
+          <p style="font-size:0.8rem; color:#777; margin-top:4px;">Payments your SMS webhook received but couldn't automatically link to an order — search for the right one below and match it manually.</p>
+        </div>
+        <div id="unmatched-payments-list" style="display:flex; flex-direction:column; gap:14px;"></div>
       </div>
 
       <!-- SCANNER PAGE -->
@@ -3701,6 +3714,7 @@
       fbListenEmployees();
       fbListenBodaRiders();
       fbListenImportRequests();
+      fbListenUnmatchedPayments();
       fbListenAdjustmentsLog();
       fbListenCategories();
       fbListenGlobalPromoCodes();
@@ -3885,12 +3899,12 @@
     document.getElementById('page-' + name).classList.add('active');
     document.body.classList.toggle('on-dashboard-page', name === 'dashboard');
     document.querySelectorAll('.nav-item').forEach(n => {
-      const label = name === 'dashboard' ? 'dashboard' : name === 'inventory' ? 'inventory' : name === 'tracking' ? 'product tracking' : name === 'alerts' ? 'alert' : name === 'profits' ? 'profit' : name === 'emp-performance' ? 'employee performance' : name === 'boda-riders' ? 'boda riders' : name === 'rider-performance' ? 'rider performance' : name === 'import-requests' ? 'import requests' : name === 'open-orders' ? 'open orders' : name === 'closed-orders' ? 'closed orders' : name === 'customers' ? 'customers' : name === 'messages' ? 'messages' : 'scanner';
+      const label = name === 'dashboard' ? 'dashboard' : name === 'inventory' ? 'inventory' : name === 'tracking' ? 'product tracking' : name === 'alerts' ? 'alert' : name === 'profits' ? 'profit' : name === 'emp-performance' ? 'employee performance' : name === 'boda-riders' ? 'boda riders' : name === 'rider-performance' ? 'rider performance' : name === 'import-requests' ? 'import requests' : name === 'unmatched-payments' ? 'unmatched payments' : name === 'open-orders' ? 'open orders' : name === 'closed-orders' ? 'closed orders' : name === 'customers' ? 'customers' : name === 'messages' ? 'messages' : 'scanner';
       if (n.textContent.toLowerCase().includes(label)) {
         n.classList.add('active');
       }
     });
-    const titles = { dashboard:'📊 Dashboard', inventory:'📦 Inventory', tracking:'🚚 Product Tracking', alerts:'🔔 Stock Alerts', profits:'💰 Profits', 'open-orders':'📋 Open Orders', 'closed-orders':'✅ Closed Orders', 'emp-performance':'📊 Employee Performance', 'boda-riders':'🏍️ Boda Riders', 'rider-performance':'📊 Rider Performance', 'import-requests':'📦 Import Requests', customers:'👥 Customers', messages:'💬 Messages', scanner:'📷 QR Scanner' };
+    const titles = { dashboard:'📊 Dashboard', inventory:'📦 Inventory', tracking:'🚚 Product Tracking', alerts:'🔔 Stock Alerts', profits:'💰 Profits', 'open-orders':'📋 Open Orders', 'closed-orders':'✅ Closed Orders', 'emp-performance':'📊 Employee Performance', 'boda-riders':'🏍️ Boda Riders', 'rider-performance':'📊 Rider Performance', 'import-requests':'📦 Import Requests', 'unmatched-payments':'🔍 Unmatched Payments', customers:'👥 Customers', messages:'💬 Messages', scanner:'📷 QR Scanner' };
     document.getElementById('page-title').textContent = titles[name] || name;
     if (name !== 'scanner') stopScanner();
     if (name !== 'tracking' && typeof stopTrackingScanner === 'function') stopTrackingScanner();
@@ -3898,6 +3912,7 @@
     if (name === 'boda-riders') renderBodaRiders();
     if (name === 'rider-performance') renderRiderPerformanceList();
     if (name === 'import-requests') renderImportRequestsList();
+    if (name === 'unmatched-payments') renderUnmatchedPaymentsList();
     if (name === 'customers') { loadTierSettingsIntoForm(); searchCustomers(document.getElementById('customer-search-input') ? document.getElementById('customer-search-input').value : ''); }
     if (name === 'messages' && !opts.keepThread) { document.body.classList.remove('admin-thread-open'); activeThreadCustomerId = null; renderAdminThreadsList(); }
     if (name === 'tracking') { renderTrackingStats(); renderTrackingList(); }
@@ -4704,6 +4719,130 @@
       showAppAlert('Error converting to order. Check your connection.');
       console.error(e);
     }
+  }
+
+  // ── UNMATCHED PAYMENTS ──
+  let unmatchedPayments = [];
+  let unsubscribeUnmatchedPayments = null;
+
+  function fbListenUnmatchedPayments() {
+    if (!window.fbDb || !window.fbFns) return;
+    const { collection, onSnapshot } = window.fbFns;
+    if (unsubscribeUnmatchedPayments) unsubscribeUnmatchedPayments();
+    unsubscribeUnmatchedPayments = onSnapshot(collection(window.fbDb, 'unmatched_payments'), (snapshot) => {
+      unmatchedPayments = snapshot.docs.map(d => ({ fbDocId: d.id, ...d.data() }));
+      unmatchedPayments.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+      renderUnmatchedPaymentsList();
+      updateUnmatchedPaymentsBadge();
+    });
+  }
+
+  function updateUnmatchedPaymentsBadge() {
+    const unresolved = unmatchedPayments.filter(p => !p.resolved);
+    const badge = document.getElementById('unmatched-payments-badge');
+    if (badge) {
+      if (unresolved.length > 0) { badge.style.display = 'inline'; badge.textContent = unresolved.length; }
+      else { badge.style.display = 'none'; }
+    }
+  }
+
+  function renderUnmatchedPaymentsList() {
+    const wrap = document.getElementById('unmatched-payments-list');
+    if (!wrap) return;
+    const unresolved = unmatchedPayments.filter(p => !p.resolved);
+    if (unresolved.length === 0) {
+      wrap.innerHTML = '<div class="orders-empty">No unmatched payments right now — everything is linking up automatically. 🎉</div>';
+      return;
+    }
+    wrap.innerHTML = unresolved.map(p => {
+      const when = new Date(p.createdAt).toLocaleDateString('en-UG', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      const reasonLabel = p.reason === 'multiple_matches' ? '⚠️ Multiple pending orders had this exact amount' : '⚠️ No pending order matched this amount';
+      return `
+        <div class="card" style="padding:16px 18px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;">
+            <div style="font-weight:800; font-size:1rem;">UGX ${fmt(p.amount).replace('UGX ','')}</div>
+            <div style="font-size:0.76rem; color:#888;">${when}</div>
+          </div>
+          <div style="font-size:0.76rem; color:#c0392b; font-weight:700; margin-bottom:8px;">${reasonLabel}</div>
+          <div style="background:var(--light); border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:0.78rem; color:#555; white-space:pre-wrap; word-break:break-word;">${(p.smsText||'').replace(/</g,'&lt;')}</div>
+          <input type="text" placeholder="🔍 Search by customer name, phone, or tracking number..." oninput="searchOrdersForMatch('${p.fbDocId}', this.value, ${p.amount})" style="width:100%; padding:9px 12px; border:1.5px solid var(--border); border-radius:7px; font-size:0.82rem; margin-bottom:8px; box-sizing:border-box;"/>
+          <div id="match-results-${p.fbDocId}" style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;"></div>
+          <button onclick="dismissUnmatchedPayment('${p.fbDocId}')" style="width:100%; background:#fff; border:1.5px solid var(--border); color:#777; padding:7px 10px; border-radius:7px; font-size:0.76rem; font-weight:700; cursor:pointer;">Dismiss (no order to match — false alarm)</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function searchOrdersForMatch(paymentId, query, amount) {
+    const resultsEl = document.getElementById('match-results-' + paymentId);
+    if (!resultsEl) return;
+    const q = (query || '').trim().toLowerCase();
+    if (!q) { resultsEl.innerHTML = ''; return; }
+    const matches = orders.filter(o =>
+      o.status === 'pending' &&
+      ((o.customerName || '').toLowerCase().includes(q) ||
+       (o.phone || '').includes(q) ||
+       (o.refCode || '').toLowerCase().includes(q))
+    ).slice(0, 8);
+    if (matches.length === 0) {
+      resultsEl.innerHTML = '<div style="font-size:0.78rem; color:#999; padding:6px 0;">No pending orders match that search.</div>';
+      return;
+    }
+    resultsEl.innerHTML = matches.map(o => `
+      <button onclick="matchPaymentToOrder('${paymentId}', '${o.fbDocId}', ${amount})" style="text-align:left; background:#fff; border:1.5px solid var(--gold); border-radius:7px; padding:8px 10px; cursor:pointer;">
+        <div style="font-weight:700; font-size:0.82rem;">${o.customerName} — ${o.phone}</div>
+        <div style="font-size:0.74rem; color:#777;">${buildOrderItemsDisplay(o)} &middot; ${fmt(o.orderTotal || o.subtotal || 0)} &middot; #${o.refCode || o.fbDocId.slice(-6).toUpperCase()}</div>
+      </button>
+    `).join('');
+  }
+
+  async function matchPaymentToOrder(paymentId, orderId, amount) {
+    const order = orders.find(o => o.fbDocId === orderId);
+    const payment = unmatchedPayments.find(p => p.fbDocId === paymentId);
+    if (!order || !payment) { showAppAlert('Could not find that order or payment — please refresh and try again.'); return; }
+    showAppConfirm(
+      'Link this UGX ' + amount.toLocaleString() + ' payment to ' + order.customerName + '\'s order? This will mark it confirmed and adjust stock.',
+      async () => {
+        if (!window.fbDb || !window.fbFns) return;
+        try {
+          const { doc, updateDoc } = window.fbFns;
+          const hasShippedItems = !!order.hasShippedItems;
+          if (!order.stockDeducted) {
+            const { skipped, correctedCartItems } = await adjustStockForOrder(order, -1, 'Admin (manual match)');
+            const stockUpdates = { stockDeducted: true };
+            if (correctedCartItems) stockUpdates.cartItems = correctedCartItems;
+            await updateDoc(doc(window.fbDb, 'orders', orderId), stockUpdates);
+            if (skipped.length) showAppAlert('Order confirmed. Stock/cost could not be auto-adjusted for: ' + skipped.join(', ') + '.');
+          }
+          await updateDoc(doc(window.fbDb, 'orders', orderId), {
+            status: 'confirmed',
+            paymentStatus: hasShippedItems ? 'partial' : 'paid',
+            amountPaid: amount,
+          });
+          await updateDoc(doc(window.fbDb, 'unmatched_payments', paymentId), { resolved: true });
+          showSuccessToast('✅ Payment linked and order confirmed.');
+        } catch(e) {
+          showAppAlert('Error linking payment. Check your connection.');
+          console.error(e);
+        }
+      },
+      null,
+      { icon: '🔗', confirmText: 'Link & Confirm' }
+    );
+  }
+
+  function dismissUnmatchedPayment(paymentId) {
+    showAppConfirm('Dismiss this without linking it to any order? Only do this if you\'re sure it was a false alarm.', async () => {
+      if (!window.fbDb || !window.fbFns) return;
+      try {
+        const { doc, updateDoc } = window.fbFns;
+        await updateDoc(doc(window.fbDb, 'unmatched_payments', paymentId), { resolved: true });
+        showSuccessToast('Dismissed.');
+      } catch(e) {
+        showAppAlert('Error dismissing. Check your connection.');
+        console.error(e);
+      }
+    }, null, { icon: '✕', confirmText: 'Dismiss' });
   }
 
   // ── STAFF NAMES (for sale/adjustment attribution in Employee Panel) ──
