@@ -1590,7 +1590,7 @@
      ontouchstart="fsTouchStart(event)" ontouchmove="fsTouchMove(event)" ontouchend="fsTouchEnd(event)">
   <button class="fs-close" onclick="event.stopPropagation(); closeFullscreen();">&times;</button>
   <button class="fs-arrow fs-arrow-left" id="fs-arrow-left" onclick="fsNav(-1, event)">&#8249;</button>
-  <img id="fs-img-prev" src="" alt="" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); max-width:100%; max-height:100%; object-fit:contain; opacity:0; pointer-events:none; z-index:2;"/>
+  <img id="fs-img-prev" src="" alt="Product photo preview" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); max-width:100%; max-height:100%; object-fit:contain; opacity:0; pointer-events:none; z-index:2;"/>
   <img id="fs-img" src="" alt="Full image" style="position:relative; z-index:1;"/>
   <button class="fs-arrow fs-arrow-right" id="fs-arrow-right" onclick="fsNav(1, event)">&#8250;</button>
   <div class="fs-counter" id="fs-counter"></div>
@@ -2698,7 +2698,7 @@
             : fmtPrice(minEff))
         : 'Price TBA';
       var imgHtml = p.image
-        ? '<img src="'+p.image+'" alt="" onerror="this.outerHTML=\'<div class=&quot;hot-tile-icon&quot;>'+icon+'</div>\'"/>'
+        ? '<img src="'+p.image+'" alt="'+p.name+'" onerror="this.outerHTML=\'<div class=&quot;hot-tile-icon&quot;>'+icon+'</div>\'"/>'
         : '<div class="hot-tile-icon">'+icon+'</div>';
       var discPct = anyDiscount ? Math.round((1 - effectivePrice(discountVariant)/parseInt(discountVariant.sell)) * 100) : 0;
       var soonestExp = anyDiscount ? soonestDiscountExpiry(vList) : null;
@@ -3211,7 +3211,7 @@
     } else if (giftProductPd) {
       var giftThumbSrc = giftProductPd.image || (giftProductPd.images && giftProductPd.images[0]) || '';
       var giftThumbHtml = giftThumbSrc
-        ? '<img src="'+giftThumbSrc+'" alt="" onerror="this.parentElement.innerHTML=\'&#127873;\'"/>'
+        ? '<img src="'+giftThumbSrc+'" alt="'+giftProductPd.name+'" onerror="this.parentElement.innerHTML=\'&#127873;\'"/>'
         : '&#127873;';
       var giftExpMs = p.freeGiftExpiresAt ? new Date(p.freeGiftExpiresAt).getTime() : null;
       var giftTimerHtml = giftExpMs
@@ -4068,7 +4068,7 @@
     if (!bundleProd || !bv) { box.style.display = 'none'; box.innerHTML = ''; return; }
 
     var thumb = p.bundleImage || bv.variantImage || bundleProd.image || (bundleProd.images && bundleProd.images[0]) || '';
-    var thumbHtml = thumb ? '<img src="'+thumb+'" alt="" onerror="this.parentElement.textContent=\'📦\'"/>' : '📦';
+    var thumbHtml = thumb ? '<img src="'+thumb+'" alt="'+bundleProd.name+'" onerror="this.parentElement.textContent=\'📦\'"/>' : '📦';
     var v = p.variants[pdCurrentVariantIdx !== null && pdCurrentVariantIdx !== undefined ? pdCurrentVariantIdx : 0] || p.variants[0];
     var mainPrice = v ? pdEffectivePrice(v) : 0;
     var companionPrice = effectivePrice(bv);
@@ -4545,7 +4545,7 @@
     if (itemsList) {
       itemsList.innerHTML = checkoutItems.map(function(c){
         var thumb = c.img
-          ? '<img src="'+c.img+'" alt="" style="width:58px;height:58px;border-radius:8px;object-fit:cover;border:1px solid #a5d6a7;flex-shrink:0;" onerror="this.style.display=\'none\'"/>'
+          ? '<img src="'+c.img+'" alt="'+c.name+'" style="width:58px;height:58px;border-radius:8px;object-fit:cover;border:1px solid #a5d6a7;flex-shrink:0;" onerror="this.style.display=\'none\'"/>'
           : '<span style="width:58px;height:58px;border-radius:8px;background:#e3f2e3;display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0;">'+(c.icon||'📦')+'</span>';
         return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #d5ecc7;font-size:0.83rem;color:#1b5e20;">' +
           '<span style="display:flex;align-items:center;gap:8px;min-width:0;">' + thumb + '<span style="font-weight:600;overflow:hidden;text-overflow:ellipsis;">' + c.name + ' &times;' + c.qty + '</span></span>' +
@@ -4723,7 +4723,7 @@
       if (!v) return '';
       var thumb = v.variantImage || p.image || (p.images && p.images[0]) || '';
       var price = effectivePrice(v);
-      var imgHtml = thumb ? '<img src="'+thumb+'" alt="" onerror="this.parentElement.textContent=\'📦\'"/>' : '📦';
+      var imgHtml = thumb ? '<img src="'+thumb+'" alt="'+p.name+'" onerror="this.parentElement.textContent=\'📦\'"/>' : '📦';
       var safeId = String(p.id).replace(/'/g,"\\'");
       return '<div class="fbw-card">' +
           '<div class="fbw-card-img" onclick="openFbwPreview(\''+safeId+'\')" style="cursor:pointer;">'+imgHtml+'</div>' +
@@ -7023,7 +7023,7 @@
         var div = document.createElement('div');
         div.className='cart-item';
         div.setAttribute('data-key', item.cartKey);
-        div.innerHTML='<div class="ci-icon">'+(item.img?('<img src="'+item.img+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" onerror="this.parentElement.textContent=\''+(item.icon||'📦')+'\';"/>'):(item.icon||'📦'))+'</div><div class="ci-info"><div class="ci-name">'+item.name+'</div><div class="ci-price">'+fmtPrice(item.price)+' x '+item.qty+'</div></div>';
+        div.innerHTML='<div class="ci-icon">'+(item.img?('<img src="'+item.img+'" alt="'+item.name+'" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" onerror="this.parentElement.textContent=\''+(item.icon||'📦')+'\';"/>'):(item.icon||'📦'))+'</div><div class="ci-info"><div class="ci-name">'+item.name+'</div><div class="ci-price">'+fmtPrice(item.price)+' x '+item.qty+'</div></div>';
         var removeBtn = document.createElement('button');
         removeBtn.className = 'ci-remove';
         removeBtn.textContent = 'X';
