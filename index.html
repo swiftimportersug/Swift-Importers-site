@@ -5285,7 +5285,33 @@
   // verified against a server, so it should be treated as a convenience layer rather than
   // bank-grade security. Also requires HTTPS; won't work over plain http://.
   function isWebAuthnSupported() {
+    // Inside the installed Android app there is no browser WebAuthn — the phone's own
+    // biometric prompt (via app-bridge.js) takes its place, if the phone has a
+    // fingerprint/face unlock set up. In a normal browser this is unchanged.
+    if (window.SwiftApp && window.SwiftApp.isNative) return !!window.SwiftApp.biometricAvailable;
     return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create && window.isSecureContext);
+  }
+
+  function randomToken() {
+    return bufferToBase64Url(randomChallenge().buffer);
+  }
+
+  function isBiometricCancel(e) {
+    return !!(e && (e.name === 'NotAllowedError' || /cancel|dismiss/i.test(String(e.message || e))));
+  }
+
+  // Whether THIS device holds the biometric key for the signed-in account. A customer who
+  // turned it on in a browser (a different key, stored on the account) shouldn't see
+  // "enabled" inside the app, where nothing has actually been set up yet.
+  function biometricEnabledHere() {
+    if (!currentAccount || !currentAccount.webauthnCredentialId) return false;
+    if (window.SwiftApp && window.SwiftApp.isNative) {
+      try {
+        var rec = JSON.parse(localStorage.getItem(BIOMETRIC_STORAGE_KEY) || 'null');
+        return !!(rec && rec.credentialId === currentAccount.webauthnCredentialId);
+      } catch (e) { return false; }
+    }
+    return true;
   }
 
   function randomChallenge() {
@@ -5314,7 +5340,26 @@
     var msg = document.getElementById('account-biometric-msg');
     if (!currentAccount || !window.fbDb || !window.fbFns) return;
     if (!isWebAuthnSupported()) {
-      if (msg) { msg.textContent = 'Biometric sign-in isn\'t available on this device or browser (needs HTTPS and a fingerprint/Face ID sensor).'; msg.style.color = 'var(--red)'; msg.style.display = 'block'; }
+      var unsupportedText = (window.SwiftApp && window.SwiftApp.isNative)
+        ? 'Set up a fingerprint or face unlock in your phone\'s Settings first, then try again.'
+        : 'Biometric sign-in isn\'t available on this device or browser (needs HTTPS and a fingerprint/Face ID sensor).';
+      if (msg) { msg.textContent = unsupportedText; msg.style.color = 'var(--red)'; msg.style.display = 'block'; }
+      return;
+    }
+    if (window.SwiftApp && window.SwiftApp.isNative) {
+      try {
+        var nativeToken = randomToken();
+        await window.SwiftApp.biometric.enroll(nativeToken);
+        var nativeFns = window.fbFns;
+        await nativeFns.updateDoc(nativeFns.doc(window.fbDb, 'customers', currentAccount.fbDocId), { webauthnCredentialId: nativeToken });
+        currentAccount.webauthnCredentialId = nativeToken;
+        try { localStorage.setItem(BIOMETRIC_STORAGE_KEY, JSON.stringify({ phone: currentAccount.phone, credentialId: nativeToken })); } catch(e) {}
+        if (msg) { msg.textContent = '✓ Biometric sign-in enabled on this device!'; msg.style.color = '#2a9d50'; msg.style.display = 'block'; }
+        renderAccountDashboard();
+      } catch(e) {
+        console.error('[biometric] native enable failed:', e);
+        if (msg) { msg.textContent = isBiometricCancel(e) ? 'Cancelled — you can try again anytime.' : 'Could not enable biometric sign-in on this device.'; msg.style.color = 'var(--red)'; msg.style.display = 'block'; }
+      }
       return;
     }
     try {
@@ -5347,7 +5392,7 @@
   }
 
   function handleBiometricToggle() {
-    if (currentAccount && currentAccount.webauthnCredentialId) {
+    if (biometricEnabledHere()) {
       showAppConfirm(
         'Turn off Face/Touch ID sign-in on this device?\nYou\'ll need your phone number and code to sign in next time.',
         disableBiometricLogin,
@@ -5366,6 +5411,7 @@
       await updateDoc(doc(window.fbDb, 'customers', currentAccount.fbDocId), { webauthnCredentialId: null });
       currentAccount.webauthnCredentialId = null;
       try { localStorage.removeItem(BIOMETRIC_STORAGE_KEY); } catch(e) {}
+      if (window.SwiftApp && window.SwiftApp.isNative && window.SwiftApp.biometric) window.SwiftApp.biometric.remove();
       renderAccountDashboard();
     } catch(e) { console.error('[biometric] disable failed:', e); }
   }
@@ -5379,6 +5425,12 @@
   // button before, it'll still find their account correctly via the credential itself,
   // rather than depending on a locally-remembered phone number.
   function hasBiometricLoginAvailable() {
+    // In the app, only offer the sign-in button once this phone actually has a key stored
+    // (a scan can't tell us who to sign in as until then).
+    if (window.SwiftApp && window.SwiftApp.isNative) {
+      if (!window.SwiftApp.biometricAvailable) return false;
+      try { return !!localStorage.getItem(BIOMETRIC_STORAGE_KEY); } catch (e) { return false; }
+    }
     return isWebAuthnSupported();
   }
 
@@ -5386,19 +5438,27 @@
     if (!isWebAuthnSupported()) return false;
     var msg = document.getElementById('account-phone-msg');
     try {
-      var challenge = randomChallenge();
-      var assertion = await navigator.credentials.get({
-        publicKey: {
-          challenge: challenge,
-          userVerification: 'required',
-          timeout: 60000
-          // No allowCredentials list — this lets the platform authenticator offer any
-          // discoverable credential it holds for this site, so login works purely from
-          // what's on the device, not from anything we cached locally.
-        }
-      });
-      if (!assertion) return false;
-      var credentialId = bufferToBase64Url(assertion.rawId);
+      var credentialId;
+      if (window.SwiftApp && window.SwiftApp.isNative) {
+        // Phone's own fingerprint/face prompt; resolves with the token stored when this
+        // was turned on, which is looked up exactly like the browser credential ID below.
+        credentialId = await window.SwiftApp.biometric.authenticate();
+        if (!credentialId) return false;
+      } else {
+        var challenge = randomChallenge();
+        var assertion = await navigator.credentials.get({
+          publicKey: {
+            challenge: challenge,
+            userVerification: 'required',
+            timeout: 60000
+            // No allowCredentials list — this lets the platform authenticator offer any
+            // discoverable credential it holds for this site, so login works purely from
+            // what's on the device, not from anything we cached locally.
+          }
+        });
+        if (!assertion) return false;
+        credentialId = bufferToBase64Url(assertion.rawId);
+      }
       var { collection, query, where, getDocs } = window.fbFns;
       var q = query(collection(window.fbDb, 'customers'), where('webauthnCredentialId', '==', credentialId));
       var snap = await getDocs(q);
@@ -5421,7 +5481,7 @@
       if (msg) { msg.textContent = 'No account on this device matched that fingerprint/Face ID. Please sign in with your phone number instead, or contact us below if you\'re locked out.'; msg.style.display = 'block'; }
     } catch(e) {
       console.error('[biometric] login failed or cancelled:', e);
-      if (msg && e && e.name !== 'NotAllowedError') { msg.textContent = 'Biometric sign-in isn\'t set up on this device yet — please use your phone number.'; msg.style.display = 'block'; }
+      if (msg && e && !isBiometricCancel(e)) { msg.textContent = 'Biometric sign-in isn\'t set up on this device yet — please use your phone number.'; msg.style.display = 'block'; }
     }
     return false;
   }
@@ -6594,7 +6654,7 @@
         var bioToggleBtn = document.getElementById('account-biometric-toggle-btn');
         var bioMsg = document.getElementById('account-biometric-msg');
         if (bioMsg) bioMsg.style.display = 'none';
-        var enabled = !!currentAccount.webauthnCredentialId;
+        var enabled = biometricEnabledHere();
         bioStatus.textContent = enabled ? 'Enabled on this device' : 'Sign in faster next time, without typing your code';
         bioToggleBtn.textContent = enabled ? 'Turn Off' : 'Enable';
         bioToggleBtn.style.background = enabled ? 'var(--light)' : 'var(--black)';

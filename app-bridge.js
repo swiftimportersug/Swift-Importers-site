@@ -84,6 +84,53 @@
     });
   }
 
+  // ── 3. Native fingerprint / face sign-in ──
+  // Browser WebAuthn doesn't exist inside an Android WebView, so the site uses the phone's
+  // own biometric prompt instead. The prompt only answers "is this the phone's owner?" —
+  // it can't say WHICH account — so a random token is kept in the phone's secure storage
+  // (Android Keystore) when sign-in is turned on, and handed back after a successful scan.
+  // Like the browser version it replaces, this is a convenience layer on top of the
+  // existing phone-number sign-in, not bank-grade security.
+  var Bio = getPlugin('NativeBiometric');
+  var BIO_SERVER = 'swiftimporters.com';
+  window.SwiftApp.biometricAvailable = false;
+  if (Bio) {
+    try {
+      Bio.isAvailable().then(function (r) {
+        window.SwiftApp.biometricAvailable = !!(r && r.isAvailable);
+      }).catch(function () {});
+    } catch (e) {}
+  }
+  function bioPrompt(reason) {
+    return Bio.verifyIdentity({
+      reason: reason,
+      title: 'Swift Importers',
+      subtitle: 'Confirm it\'s you',
+      description: reason
+    });
+  }
+  window.SwiftApp.biometric = {
+    // Scan first, then store the token. Rejects if the scan fails or is cancelled.
+    enroll: function (token) {
+      if (!Bio) return Promise.reject(new Error('biometric plugin missing'));
+      return bioPrompt('Use your fingerprint or face to turn on quick sign-in').then(function () {
+        return Bio.setCredentials({ username: 'swift-account', password: token, server: BIO_SERVER });
+      });
+    },
+    // Scan, then resolve with the stored token. Rejects if the scan fails or is cancelled.
+    authenticate: function () {
+      if (!Bio) return Promise.reject(new Error('biometric plugin missing'));
+      return bioPrompt('Use your fingerprint or face to sign in').then(function () {
+        return Bio.getCredentials({ server: BIO_SERVER });
+      }).then(function (c) { return (c && c.password) || null; });
+    },
+    remove: function () {
+      if (!Bio) return Promise.resolve();
+      try { return Bio.deleteCredentials({ server: BIO_SERVER }).catch(function () {}); }
+      catch (e) { return Promise.resolve(); }
+    }
+  };
+
   // Asks permission, registers with Firebase, resolves with the device's push token.
   window.SwiftApp.registerForPush = function () {
     if (!Push) return Promise.reject(new Error('push plugin missing'));
