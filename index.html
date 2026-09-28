@@ -1089,6 +1089,7 @@
     }
   </style>
   <!-- Firebase -->
+  <script src="/app-bridge.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getFirestore, collection, doc, getDoc, updateDoc, addDoc, onSnapshot, getDocs, increment, query, where, arrayUnion, arrayRemove, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -2985,6 +2986,20 @@
     if (closeFn) closeFn();
     if (typeof syncCartFabVisibility === 'function') syncCartFabVisibility();
   });
+
+  // ── ANDROID APP: what the hardware Back button does on this page ──
+  // Called by app-bridge.js (which only runs inside the installed app). Returns
+  // true when it handled the press. Anything tracked in the overlay stack goes
+  // through history.back(), so the normal popstate logic above closes it and
+  // the stack and browser history stay in sync exactly as with an on-screen X.
+  window.appHandleBack = function() {
+    var dlg = document.getElementById('app-dialog-overlay');
+    if (dlg && dlg.classList.contains('open')) { dlg.classList.remove('open'); return true; }
+    var leave = document.getElementById('checkout-leave-warning-modal');
+    if (leave && leave.classList.contains('open')) { checkoutLeaveCancelled(); return true; }
+    if (overlayStack.length > 0 || checkoutGuardArmed) { history.back(); return true; }
+    return false;
+  };
 
   // ── GENERIC APP DIALOG (replaces native alert()/confirm(), which show the
   // site's URL in the browser's own dialog chrome — these are proper in-page
@@ -5627,6 +5642,23 @@
       statusEl.style.display = 'block';
     }
     if (!lastPlacedOrderDocId) return;
+    // Inside the installed app there is no browser web-push, so register with
+    // Firebase natively instead and store the token on the same order field.
+    if (window.SwiftApp && window.SwiftApp.isNative) {
+      showStatus('⏳ Enabling notifications...', false);
+      window.SwiftApp.registerForPush().then(function(token) {
+        return window.fbFns.updateDoc(window.fbFns.doc(window.fbDb, 'orders', lastPlacedOrderDocId), { customerFcmToken: token });
+      }).then(function() {
+        showStatus('✅ You\'ll be notified as your order updates!', false);
+        if (btnEl) btnEl.style.display = 'none';
+      }).catch(function(e) {
+        console.error('[notify] native push registration failed:', e);
+        showStatus(e && e.message === 'denied'
+          ? 'Notifications not enabled — you can still track your order in My Orders.'
+          : 'Could not enable notifications right now.', true);
+      });
+      return;
+    }
     if (!('Notification' in window) || !('serviceWorker' in navigator)) {
       showStatus('Notifications aren\'t supported on this browser.', true);
       return;
@@ -5779,7 +5811,9 @@
       });
     }, function(err){
       var msg;
-      if (err.code === 1) msg = 'Location access was denied. Please allow location access for this site in your browser settings, or share your location by text or WhatsApp instead.';
+      if (err.code === 1) msg = (window.SwiftApp && window.SwiftApp.isNative)
+        ? 'Location access was denied. Please allow location for the Swift Importers app in your phone\'s Settings → Apps → Swift Importers → Permissions, or share your location by text or WhatsApp instead.'
+        : 'Location access was denied. Please allow location access for this site in your browser settings, or share your location by text or WhatsApp instead.';
       else if (err.code === 3) msg = 'Getting your location took too long — this often happens indoors with a weak GPS signal. Try again near a window.';
       else msg = 'Could not determine your location right now. Please try again.';
       showAppAlert(msg);
@@ -7500,6 +7534,21 @@
       statusEl.style.display = 'block';
     }
     if (!currentAccount) return;
+    if (window.SwiftApp && window.SwiftApp.isNative) {
+      showStatus('⏳ Enabling notifications...', false);
+      window.SwiftApp.registerForPush().then(function(token) {
+        return window.fbFns.updateDoc(window.fbFns.doc(window.fbDb, 'customers', currentAccount.fbDocId), { fcmToken: token });
+      }).then(function() {
+        showStatus('✅ You\'ll be notified once we quote your request!', false);
+        if (btnEl) btnEl.style.display = 'none';
+      }).catch(function(e) {
+        console.error('[import] native push registration failed:', e);
+        showStatus(e && e.message === 'denied'
+          ? 'Notifications not enabled — you can still check "My Import Requests" anytime.'
+          : 'Could not enable notifications right now.', true);
+      });
+      return;
+    }
     if (!('Notification' in window) || !('serviceWorker' in navigator)) {
       showStatus('Notifications aren\'t supported on this browser.', true);
       return;
