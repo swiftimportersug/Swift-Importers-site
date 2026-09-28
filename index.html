@@ -2948,6 +2948,7 @@
       if (extraCleanup) extraCleanup();
     };
     el._overlayClose = closeFn;
+    closeFn._overlayEl = el;
     if (url) history.pushState({ overlayDepth: overlayStack.length + 1 }, '', url);
     else history.pushState({ overlayDepth: overlayStack.length + 1 }, '');
     overlayStack.push(closeFn);
@@ -2988,17 +2989,71 @@
   });
 
   // ── ANDROID APP: what the hardware Back button does on this page ──
-  // Called by app-bridge.js (which only runs inside the installed app). Returns
-  // true when it handled the press. Anything tracked in the overlay stack goes
-  // through history.back(), so the normal popstate logic above closes it and
-  // the stack and browser history stay in sync exactly as with an on-screen X.
+  // Called by app-bridge.js (which only runs inside the installed app) and it ALWAYS
+  // handles the press itself — it never falls back on the browser's own idea of
+  // "can go back". That flag can't be trusted on this page: product-to-product
+  // browsing and a few other flows leave extra entries in the browser history, so
+  // a press could be spent stepping through an entry that changes nothing on screen.
+  // Instead it closes what's actually open, in the same way the on-screen X does.
+  var appBackPresses = 0;
+  var appBackResetTimer = null;
+  var appBackLastPress = 0;
+
   window.appHandleBack = function() {
+    // A duplicate event fired within a fraction of a second is the same physical press.
+    var now = Date.now();
+    if (now - appBackLastPress < 250) return true;
+    appBackLastPress = now;
+
+    // 1. Plain dialogs that aren't part of the overlay system.
     var dlg = document.getElementById('app-dialog-overlay');
-    if (dlg && dlg.classList.contains('open')) { dlg.classList.remove('open'); return true; }
+    if (dlg && dlg.classList.contains('open')) { dlg.classList.remove('open'); appBackPresses = 0; return true; }
     var leave = document.getElementById('checkout-leave-warning-modal');
-    if (leave && leave.classList.contains('open')) { checkoutLeaveCancelled(); return true; }
-    if (overlayStack.length > 0 || checkoutGuardArmed) { history.back(); return true; }
-    return false;
+    if (leave && leave.classList.contains('open')) { checkoutLeaveCancelled(); appBackPresses = 0; return true; }
+
+    // 2. Browsing product to product ("You might also like"): step back to the previous
+    //    product rather than closing the whole page.
+    if (pdProductHistoryStack.length > 1 && document.getElementById('pd-overlay').classList.contains('open')) {
+      pdProductHistoryStack.pop();
+      var prevId = pdProductHistoryStack[pdProductHistoryStack.length - 1];
+      if (prevId) {
+        renderProductDetailContent(prevId);
+        document.getElementById('pd-overlay').scrollTop = 0;
+      }
+      appBackPresses = 0;
+      return true;
+    }
+
+    // 3. The top-most tracked overlay (product page, cart, profile, messages, saved
+    //    items...). Anything already closed some other way is skipped and cleared, so
+    //    a stale entry can never swallow a press.
+    while (overlayStack.length > 0) {
+      var topFn = overlayStack[overlayStack.length - 1];
+      var el = topFn && topFn._overlayEl;
+      if (el && el.classList.contains('open')) {
+        closeOverlayEl(el);
+        appBackPresses = 0;
+        return true;
+      }
+      overlayStack.pop();
+    }
+
+    // 4. Mid-checkout: let the existing "are you sure you want to leave?" guard ask.
+    if (checkoutGuardArmed) { history.back(); appBackPresses = 0; return true; }
+
+    // 5. Nothing left to close — this is the home screen. Three presses to leave, so a
+    //    stray tap can't throw a customer out of the app.
+    appBackPresses++;
+    clearTimeout(appBackResetTimer);
+    appBackResetTimer = setTimeout(function(){ appBackPresses = 0; }, 3000);
+    if (appBackPresses >= 3) {
+      appBackPresses = 0;
+      if (window.SwiftApp && typeof window.SwiftApp.exit === 'function') window.SwiftApp.exit();
+      return true;
+    }
+    var remaining = 3 - appBackPresses;
+    showToastMessage('Press back ' + remaining + ' more time' + (remaining === 1 ? '' : 's') + ' to exit the app', '#555');
+    return true;
   };
 
   // ── GENERIC APP DIALOG (replaces native alert()/confirm(), which show the

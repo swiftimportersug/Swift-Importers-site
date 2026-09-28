@@ -51,6 +51,9 @@
 
   // ── 1. Hardware Back button ──
   var AppPlugin = getPlugin('App');
+  window.SwiftApp.exit = function () {
+    try { if (AppPlugin) AppPlugin.exitApp(); } catch (e) { console.error('[app-bridge] exitApp failed:', e); }
+  };
   if (AppPlugin) {
     safeAddListener(AppPlugin, 'backButton', function (ev) {
       // Page-specific first: close popups, overlays, dialogs.
