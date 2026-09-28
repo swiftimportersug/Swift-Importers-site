@@ -5303,15 +5303,31 @@
   // Whether THIS device holds the biometric key for the signed-in account. A customer who
   // turned it on in a browser (a different key, stored on the account) shouldn't see
   // "enabled" inside the app, where nothing has actually been set up yet.
+  // A credential belongs to a specific device/browser, never the account as a whole,
+  // so "is it on?" always means "does THIS device's stored key still match the account?" —
+  // never just "has ANY device enabled it". webauthnCredentialIds is the current array
+  // field (multiple devices); webauthnCredentialId is the older single-value field kept
+  // for accounts that enabled biometrics before this device-limit fix and haven't
+  // re-enabled since — both are checked so neither group loses access silently.
+  function thisDeviceStoredCredentialId() {
+    try {
+      var rec = JSON.parse(localStorage.getItem(BIOMETRIC_STORAGE_KEY) || 'null');
+      return (rec && rec.credentialId) || null;
+    } catch (e) { return null; }
+  }
+
   function biometricEnabledHere() {
-    if (!currentAccount || !currentAccount.webauthnCredentialId) return false;
-    if (window.SwiftApp && window.SwiftApp.isNative) {
-      try {
-        var rec = JSON.parse(localStorage.getItem(BIOMETRIC_STORAGE_KEY) || 'null');
-        return !!(rec && rec.credentialId === currentAccount.webauthnCredentialId);
-      } catch (e) { return false; }
-    }
-    return true;
+    if (!currentAccount) return false;
+    var mine = thisDeviceStoredCredentialId();
+    if (!mine) return false;
+    var ids = currentAccount.webauthnCredentialIds || [];
+    return ids.indexOf(mine) > -1 || currentAccount.webauthnCredentialId === mine;
+  }
+
+  function biometricDeviceCount(account) {
+    var ids = (account.webauthnCredentialIds || []).slice();
+    if (account.webauthnCredentialId && ids.indexOf(account.webauthnCredentialId) === -1) ids.push(account.webauthnCredentialId);
+    return ids.length;
   }
 
   function randomChallenge() {
@@ -5351,8 +5367,8 @@
         var nativeToken = randomToken();
         await window.SwiftApp.biometric.enroll(nativeToken);
         var nativeFns = window.fbFns;
-        await nativeFns.updateDoc(nativeFns.doc(window.fbDb, 'customers', currentAccount.fbDocId), { webauthnCredentialId: nativeToken });
-        currentAccount.webauthnCredentialId = nativeToken;
+        await nativeFns.updateDoc(nativeFns.doc(window.fbDb, 'customers', currentAccount.fbDocId), { webauthnCredentialIds: nativeFns.arrayUnion(nativeToken) });
+        currentAccount.webauthnCredentialIds = (currentAccount.webauthnCredentialIds || []).concat([nativeToken]);
         try { localStorage.setItem(BIOMETRIC_STORAGE_KEY, JSON.stringify({ phone: currentAccount.phone, credentialId: nativeToken })); } catch(e) {}
         if (msg) { msg.textContent = '✓ Biometric sign-in enabled on this device!'; msg.style.color = '#2a9d50'; msg.style.display = 'block'; }
         renderAccountDashboard();
@@ -5379,9 +5395,9 @@
         }
       });
       var credentialId = bufferToBase64Url(credential.rawId);
-      var { doc, updateDoc } = window.fbFns;
-      await updateDoc(doc(window.fbDb, 'customers', currentAccount.fbDocId), { webauthnCredentialId: credentialId });
-      currentAccount.webauthnCredentialId = credentialId;
+      var { doc, updateDoc, arrayUnion } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'customers', currentAccount.fbDocId), { webauthnCredentialIds: arrayUnion(credentialId) });
+      currentAccount.webauthnCredentialIds = (currentAccount.webauthnCredentialIds || []).concat([credentialId]);
       try { localStorage.setItem(BIOMETRIC_STORAGE_KEY, JSON.stringify({ phone: currentAccount.phone, credentialId: credentialId })); } catch(e) {}
       if (msg) { msg.textContent = '✓ Biometric sign-in enabled on this device!'; msg.style.color = '#2a9d50'; msg.style.display = 'block'; }
       renderAccountDashboard();
@@ -5406,10 +5422,16 @@
 
   async function disableBiometricLogin() {
     if (!currentAccount || !window.fbDb || !window.fbFns) return;
+    var mine = thisDeviceStoredCredentialId();
     try {
-      var { doc, updateDoc } = window.fbFns;
-      await updateDoc(doc(window.fbDb, 'customers', currentAccount.fbDocId), { webauthnCredentialId: null });
-      currentAccount.webauthnCredentialId = null;
+      var { doc, updateDoc, arrayRemove } = window.fbFns;
+      var updates = { webauthnCredentialIds: arrayRemove(mine) };
+      // Only clear the legacy field if it's actually THIS device's — otherwise a
+      // different device that's still on the old field would be logged out by mistake.
+      if (currentAccount.webauthnCredentialId === mine) updates.webauthnCredentialId = null;
+      await updateDoc(doc(window.fbDb, 'customers', currentAccount.fbDocId), updates);
+      currentAccount.webauthnCredentialIds = (currentAccount.webauthnCredentialIds || []).filter(function(id){ return id !== mine; });
+      if (currentAccount.webauthnCredentialId === mine) currentAccount.webauthnCredentialId = null;
       try { localStorage.removeItem(BIOMETRIC_STORAGE_KEY); } catch(e) {}
       if (window.SwiftApp && window.SwiftApp.isNative && window.SwiftApp.biometric) window.SwiftApp.biometric.remove();
       renderAccountDashboard();
@@ -5460,8 +5482,12 @@
         credentialId = bufferToBase64Url(assertion.rawId);
       }
       var { collection, query, where, getDocs } = window.fbFns;
-      var q = query(collection(window.fbDb, 'customers'), where('webauthnCredentialId', '==', credentialId));
-      var snap = await getDocs(q);
+      // Checked separately rather than as one combined query — this account may have
+      // its credential in either place depending on when it was enrolled (see the
+      // comment above biometricEnabledHere), and running two plain equality/array-contains
+      // queries works on every Firestore SDK version without needing composite OR support.
+      var newFieldSnap = await getDocs(query(collection(window.fbDb, 'customers'), where('webauthnCredentialIds', 'array-contains', credentialId)));
+      var snap = !newFieldSnap.empty ? newFieldSnap : await getDocs(query(collection(window.fbDb, 'customers'), where('webauthnCredentialId', '==', credentialId)));
       if (!snap.empty) {
         var docSnap = snap.docs[0];
         var acc = { fbDocId: docSnap.id, ...docSnap.data() };
@@ -6655,7 +6681,11 @@
         var bioMsg = document.getElementById('account-biometric-msg');
         if (bioMsg) bioMsg.style.display = 'none';
         var enabled = biometricEnabledHere();
-        bioStatus.textContent = enabled ? 'Enabled on this device' : 'Sign in faster next time, without typing your code';
+        var deviceCount = biometricDeviceCount(currentAccount);
+        var otherDevices = enabled ? deviceCount - 1 : deviceCount;
+        bioStatus.textContent = enabled
+          ? ('Enabled on this device' + (otherDevices > 0 ? ' (+' + otherDevices + ' other device' + (otherDevices === 1 ? '' : 's') + ')' : ''))
+          : (deviceCount > 0 ? 'Enabled on ' + deviceCount + ' other device' + (deviceCount === 1 ? '' : 's') + ' — turn it on here too' : 'Sign in faster next time, without typing your code');
         bioToggleBtn.textContent = enabled ? 'Turn Off' : 'Enable';
         bioToggleBtn.style.background = enabled ? 'var(--light)' : 'var(--black)';
         bioToggleBtn.style.color = enabled ? '#c0392b' : '#fff';
