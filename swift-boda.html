@@ -320,6 +320,15 @@
       <div style="font-size:0.8rem; color:#6b5410; font-weight:700; flex:1; min-width:180px;">🔔 Get alerted the moment a new job is posted — even with the app closed.</div>
       <button onclick="enableBodaNotifications()" style="background:var(--gold); color:var(--black); border:none; padding:9px 16px; border-radius:8px; font-weight:800; font-size:0.8rem; white-space:nowrap;">Turn On Alerts</button>
     </div>
+    <!-- Persistent banner, same pattern as the notification one above — replaces a
+         one-time setTimeout+confirm() prompt that was both easy to miss and showed
+         as an ugly generic "swiftimporters.com says..." browser dialog. Stays
+         visible until enabled ON THIS DEVICE, so a rider always has a real,
+         visible way in, not just a single chance right after their first login. -->
+    <div id="boda-biometric-banner" style="display:none; background:#e8f4ff; border-bottom:1.5px solid #4a9eff; padding:12px 16px; align-items:center; gap:10px; justify-content:space-between; flex-wrap:wrap;">
+      <div style="font-size:0.8rem; color:#1a4a7a; font-weight:700; flex:1; min-width:180px;">👆 Sign in faster next time with your fingerprint or face.</div>
+      <button onclick="enableBodaBiometricLogin(currentRider)" style="background:#4a9eff; color:#fff; border:none; padding:9px 16px; border-radius:8px; font-weight:800; font-size:0.8rem; white-space:nowrap;">Enable</button>
+    </div>
     <div class="tabs">
       <button class="active" id="tab-btn-available" onclick="switchBodaTab('available')">
         📦 Available <span class="tab-badge" id="available-count-badge" style="display:none;"></span>
@@ -449,6 +458,29 @@
       return btoa(str).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
     }
 
+    var BODA_BIOMETRIC_STORAGE_KEY = 'swift_boda_biometric_v1';
+
+    // Mirrors the customer-facing storefront's device-tracking approach — a
+    // credential belongs to a specific PHONE, not the rider's account as a
+    // whole, so "is it on?" always means "does THIS device's stored key match
+    // a credential this rider has enrolled?", checking both the current array
+    // field and the older single-value field for backward compatibility.
+    function bodaBiometricEnabledHere() {
+      if (!currentRider) return false;
+      var mine = null;
+      try { mine = localStorage.getItem(BODA_BIOMETRIC_STORAGE_KEY); } catch(e) {}
+      if (!mine) return false;
+      var ids = currentRider.webauthnCredentialIds || [];
+      return ids.indexOf(mine) > -1 || currentRider.webauthnCredentialId === mine;
+    }
+
+    function updateBodaBiometricBannerVisibility() {
+      var banner = document.getElementById('boda-biometric-banner');
+      if (!banner) return;
+      var supported = isWebAuthnSupported();
+      banner.style.display = (supported && !bodaBiometricEnabledHere()) ? 'flex' : 'none';
+    }
+
     async function enableBodaBiometricLogin(rider) {
       if (!window.fbDb || !window.fbFns) return;
       // Stored as an array from the start (arrayUnion), unlike the customer-facing
@@ -461,9 +493,13 @@
           await window.SwiftApp.biometric.enroll(nativeToken);
           var { doc, updateDoc, arrayUnion } = window.fbFns;
           await updateDoc(doc(window.fbDb, 'boda_riders', rider.fbDocId), { webauthnCredentialIds: arrayUnion(nativeToken) });
+          rider.webauthnCredentialIds = (rider.webauthnCredentialIds || []).concat([nativeToken]);
+          try { localStorage.setItem(BODA_BIOMETRIC_STORAGE_KEY, nativeToken); } catch(e) {}
+          updateBodaBiometricBannerVisibility();
           showToast('✅ Face/Touch ID enabled for next time!');
         } catch(e) {
           console.error('[boda] native enable biometric failed:', e);
+          if (e && e.message !== 'cancelled') showToast('Could not enable Face/Touch ID on this device.');
         }
         return;
       }
@@ -484,6 +520,9 @@
         var credentialId = bufferToBase64Url(credential.rawId);
         var { doc, updateDoc, arrayUnion } = window.fbFns;
         await updateDoc(doc(window.fbDb, 'boda_riders', rider.fbDocId), { webauthnCredentialIds: arrayUnion(credentialId) });
+        rider.webauthnCredentialIds = (rider.webauthnCredentialIds || []).concat([credentialId]);
+        try { localStorage.setItem(BODA_BIOMETRIC_STORAGE_KEY, credentialId); } catch(e) {}
+        updateBodaBiometricBannerVisibility();
         showToast('✅ Face/Touch ID enabled for next time!');
       } catch(e) {
         console.error('[boda] enable biometric failed:', e);
@@ -534,6 +573,7 @@
         startBoardListener();
         registerBodaServiceWorker();
         updateBodaNotifyBannerVisibility();
+        updateBodaBiometricBannerVisibility();
       } catch(e) {
         console.error('[boda] biometric login failed:', e);
         if (errEl && e && e.name !== 'NotAllowedError') errEl.textContent = 'Could not sign in with Face/Touch ID — try your code instead.';
@@ -576,15 +616,7 @@
       registerBodaServiceWorker();
       updateBodaNotifyBannerVisibility();
 
-      // One-time offer, right after a successful manual code entry — the
-      // natural moment to suggest a faster way in next time.
-      if (isWebAuthnSupported() && !currentRider.webauthnCredentialId) {
-        setTimeout(function(){
-          if (confirm('Enable Face/Touch ID sign-in on this device for next time?')) {
-            enableBodaBiometricLogin(currentRider);
-          }
-        }, 400);
-      }
+      updateBodaBiometricBannerVisibility();
     }
 
     // ── PUSH NOTIFICATIONS — real background alerts even with the app closed.
