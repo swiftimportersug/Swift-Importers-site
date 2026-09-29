@@ -15,6 +15,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
   <!-- Firebase -->
+  <script src="/app-bridge.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getFirestore, collection, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, deleteDoc, query, orderBy, addDoc, where, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -1974,6 +1975,16 @@
         </div>
         <div class="form-group">
           <label style="display:flex; align-items:center; justify-content:space-between;">
+            <span>💳 Allow Pay in Installments</span>
+            <label class="switch" style="position:relative; display:inline-block; width:46px; height:26px; flex-shrink:0;">
+              <input type="checkbox" id="f-allow-installments" checked style="opacity:0; width:0; height:0;" onchange="updateInstallmentsToggleStyle()"/>
+              <span id="f-allow-installments-slider" style="position:absolute; cursor:pointer; inset:0; background:var(--gold); border-radius:26px; transition:0.2s;"></span>
+            </label>
+          </label>
+          <div style="font-size:0.74rem; color:#777; margin-top:4px; line-height:1.5;">When on, customers can choose to pay any amount now toward this item and clear the rest later. On by default — turn off for items you don't want sold this way.</div>
+        </div>
+        <div class="form-group">
+          <label style="display:flex; align-items:center; justify-content:space-between;">
             <span>🎟️ Site-Wide Promo Eligible</span>
           </label>
           <div style="display:flex; align-items:center; gap:10px; padding:9px 0;">
@@ -2315,6 +2326,16 @@
     const show = codeInput.value.trim() ? 'flex' : 'none';
     if (wrap) wrap.style.display = show;
     if (codeWrap) codeWrap.style.display = show;
+  }
+
+  function updateInstallmentsToggleStyle() {
+    const on = document.getElementById('f-allow-installments').checked;
+    const slider = document.getElementById('f-allow-installments-slider');
+    slider.style.background = on ? 'var(--gold)' : '#ccc';
+    slider.innerHTML = '';
+    const knob = document.createElement('span');
+    knob.style.cssText = 'position:absolute; height:20px; width:20px; left:' + (on ? '23px' : '3px') + '; top:3px; background:#fff; border-radius:50%; transition:0.2s; box-shadow:0 1px 3px rgba(0,0,0,0.3);';
+    slider.appendChild(knob);
   }
 
   function updateHotDealBoxStyle() {
@@ -5585,15 +5606,28 @@
     // pattern Chrome's Safe Browsing flags as "abusive," which quarantines
     // real notifications behind a generic "Possible spam" warning instead of
     // showing their actual content — exactly what happened before this fix.
+    if (window.SwiftApp && window.SwiftApp.isNative) {
+      window.SwiftApp.pushPermissionGranted().then(function(granted) {
+        if (granted) { notificationsEnabled = true; registerNativePush(); }
+      });
+      return;
+    }
     if ('Notification' in window && Notification.permission === 'granted') {
       notificationsEnabled = true;
       registerServiceWorker();
     }
   }
 
+  function registerNativePush() {
+    window.SwiftApp.registerForPush().then(function(token) {
+      saveFcmToken(token);
+    }).catch(function(e) { console.log('[push] native registration failed:', e); });
+  }
+
   function requestNotificationPermission() {
     // This is the ONLY place that ever calls Notification.requestPermission() —
     // always tied to an explicit button click (see toggleNotifications below).
+    if (window.SwiftApp && window.SwiftApp.isNative) { registerNativePush(); return; }
     if (!('Notification' in window) || Notification.permission === 'denied') return;
     Notification.requestPermission().then(p => {
       notificationsEnabled = p === 'granted';
@@ -7509,6 +7543,8 @@
     if (wc) { wc.textContent = '0 words'; wc.style.color = 'var(--grey)'; }
     document.getElementById('f-hotdeal').checked = false;
     updateHotDealBoxStyle();
+    document.getElementById('f-allow-installments').checked = true;
+    updateInstallmentsToggleStyle();
     document.getElementById('f-featured').checked = false;
     updateFeaturedBoxStyle();
     const giftSelAdd = document.getElementById('f-freegift');
@@ -7604,6 +7640,8 @@
     updateDescWordCount(document.getElementById('f-description'));
     document.getElementById('f-hotdeal').checked = !!p.hotDeal;
     updateHotDealBoxStyle();
+    document.getElementById('f-allow-installments').checked = p.allowInstallments !== false;
+    updateInstallmentsToggleStyle();
     document.getElementById('f-featured').checked = !!p.featured;
     updateFeaturedBoxStyle();
     const giftSelEdit = document.getElementById('f-freegift');
@@ -7983,6 +8021,7 @@
     });
 
     const hotDeal = document.getElementById('f-hotdeal').checked;
+    const allowInstallments = document.getElementById('f-allow-installments').checked;
     const featured = document.getElementById('f-featured').checked;
     const freeGiftProductId = document.getElementById('f-freegift') ? document.getElementById('f-freegift').value : '';
     const freeGiftExpiresRaw = document.getElementById('f-freegift-expires') ? document.getElementById('f-freegift-expires').value : '';
@@ -8020,8 +8059,8 @@
 
     // Build the full candidate product object (used for both change-detection and saving)
     const candidateProduct = editingId
-      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, freeGiftAccountOnly: freeGiftAccountOnly, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', warehouseCoverImage2: warehouseCoverImage2 || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 }
-      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, freeGiftAccountOnly: freeGiftAccountOnly, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', warehouseCoverImage2: warehouseCoverImage2 || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
+      ? { ...products.find(p => p.id === editingId), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, allowInstallments, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, freeGiftAccountOnly: freeGiftAccountOnly, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', warehouseCoverImage2: warehouseCoverImage2 || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 }
+      : { id: 'p_' + Date.now(), name, category: cat, store, sku, description, images: imageUrls, image: imageUrls[0]||'', video, threshold: threshold_, variants, hotDeal, allowInstallments, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, freeGiftAccountOnly: freeGiftAccountOnly, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', warehouseCoverImage2: warehouseCoverImage2 || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
 
     // If editing an existing product and nothing actually changed, skip the save entirely
     if (editingId && editingOriginalSnapshot && productSignature(editingOriginalSnapshot) === productSignature(candidateProduct)) {
@@ -8033,14 +8072,14 @@
     if (editingId) {
       const idx = products.findIndex(p => p.id === editingId);
       if (idx > -1) {
-        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, freeGiftAccountOnly: freeGiftAccountOnly, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', warehouseCoverImage2: warehouseCoverImage2 || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
+        products[idx] = { ...products[idx], name, category: cat, store, sku, threshold: threshold_, variants, hotDeal, allowInstallments, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, freeGiftAccountOnly: freeGiftAccountOnly, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', warehouseCoverImage2: warehouseCoverImage2 || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0 };
       }
     } else {
       products.push({
         id: candidateProduct.id,
         name, category: cat, store, sku,
         threshold: threshold_,
-        variants, hotDeal, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, freeGiftAccountOnly: freeGiftAccountOnly, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', warehouseCoverImage2: warehouseCoverImage2 || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0
+        variants, hotDeal, allowInstallments, featured, freeGiftProductId: freeGiftProductId || null, freeGiftExpiresAt: freeGiftExpiresAt || null, freeGiftAccountOnly: freeGiftAccountOnly, promoCode: promoCode || null, promoDiscountAmount: promoDiscountAmount || null, promoExpiresAt: promoExpiresAt || null, promoVisible: promoVisible, promoCodeVisible: promoCodeVisible, frequentlyBoughtWith: frequentlyBoughtWith, warehouseLocation: warehouseLocation || '', warehouseCoverImage: warehouseCoverImage || '', warehouseCoverImage2: warehouseCoverImage2 || '', condition: condition || 'Brand New', promoEligible: promoEligible, bundleProductId: bundleProductId || null, bundleImage: bundleImage || '', bundlePrice: bundlePrice || 0
       });
     }
 
@@ -9210,6 +9249,12 @@
   }
 
   document.getElementById('finance-entry-modal').addEventListener('click', function(e) { if(e.target===this) closeFinanceEntryModal(); });
+
+  window.appHandleBack = function() {
+    var dlg = document.getElementById('app-dialog-overlay');
+    if (dlg && dlg.classList.contains('open')) { dlg.classList.remove('open'); return true; }
+    return false; // nothing app-specific open — let app-bridge.js's default history/exit logic run
+  };
 
   document.getElementById('app-dialog-overlay').addEventListener('click', function(e) {
     if (e.target === this) {
