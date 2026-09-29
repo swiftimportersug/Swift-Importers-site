@@ -15,9 +15,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
   <!-- Firebase -->
+  <script src="/app-bridge.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, collection, doc, setDoc, getDocs, onSnapshot, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, doc, setDoc, getDocs, onSnapshot, updateDoc, query, where, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
 
@@ -42,7 +43,7 @@
     const messaging = getMessaging(app);
 
     window.fbDb = db;
-    window.fbFns = { collection, doc, setDoc, getDocs, onSnapshot, updateDoc, query, where };
+    window.fbFns = { collection, doc, setDoc, getDocs, onSnapshot, updateDoc, query, where, arrayUnion };
     window.fbAuthFns = { signInWithEmailAndPassword, signOut, onAuthStateChanged };
     window.fbMessaging = messaging;
     window.fbMessagingFns = { getToken };
@@ -431,6 +432,9 @@
     // the PIN system it sits alongside. Requires HTTPS and a platform
     // authenticator (won't appear on devices/browsers without one).
     function isWebAuthnSupported() {
+      // Inside the installed app there is no browser WebAuthn — the phone's own
+      // biometric prompt (via app-bridge.js) takes its place, if set up.
+      if (window.SwiftApp && window.SwiftApp.isNative) return !!window.SwiftApp.biometricAvailable;
       return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create && window.isSecureContext);
     }
     function randomChallenge() {
@@ -446,7 +450,24 @@
     }
 
     async function enableBodaBiometricLogin(rider) {
-      if (!isWebAuthnSupported() || !window.fbDb || !window.fbFns) return;
+      if (!window.fbDb || !window.fbFns) return;
+      // Stored as an array from the start (arrayUnion), unlike the customer-facing
+      // version's first pass — this lets a rider who switches phones, or uses a
+      // personal phone alongside a work one, have biometric sign-in work on both
+      // without one device's enrollment silently breaking the other's.
+      if (window.SwiftApp && window.SwiftApp.isNative) {
+        try {
+          var nativeToken = bufferToBase64Url(randomChallenge().buffer);
+          await window.SwiftApp.biometric.enroll(nativeToken);
+          var { doc, updateDoc, arrayUnion } = window.fbFns;
+          await updateDoc(doc(window.fbDb, 'boda_riders', rider.fbDocId), { webauthnCredentialIds: arrayUnion(nativeToken) });
+          showToast('✅ Face/Touch ID enabled for next time!');
+        } catch(e) {
+          console.error('[boda] native enable biometric failed:', e);
+        }
+        return;
+      }
+      if (!isWebAuthnSupported()) return;
       try {
         var challenge = randomChallenge();
         var userId = new TextEncoder().encode(rider.fbDocId);
@@ -461,8 +482,8 @@
           }
         });
         var credentialId = bufferToBase64Url(credential.rawId);
-        var { doc, updateDoc } = window.fbFns;
-        await updateDoc(doc(window.fbDb, 'boda_riders', rider.fbDocId), { webauthnCredentialId: credentialId });
+        var { doc, updateDoc, arrayUnion } = window.fbFns;
+        await updateDoc(doc(window.fbDb, 'boda_riders', rider.fbDocId), { webauthnCredentialIds: arrayUnion(credentialId) });
         showToast('✅ Face/Touch ID enabled for next time!');
       } catch(e) {
         console.error('[boda] enable biometric failed:', e);
@@ -471,19 +492,31 @@
     }
 
     async function tryBodaBiometricLogin() {
-      if (!isWebAuthnSupported() || !window.fbDb || !window.fbFns) return;
+      if (!window.fbDb || !window.fbFns) return;
+      if (!(window.SwiftApp && window.SwiftApp.isNative) && !isWebAuthnSupported()) return;
       var errEl = document.getElementById('pin-error');
       try {
-        var challenge = randomChallenge();
-        var assertion = await navigator.credentials.get({
-          publicKey: { challenge: challenge, userVerification: 'required', timeout: 60000 }
-          // No allowCredentials list — lets the device offer any discoverable
-          // credential it holds for this site, same as the customer flow.
-        });
-        if (!assertion) return;
-        var credentialId = bufferToBase64Url(assertion.rawId);
+        var credentialId;
+        if (window.SwiftApp && window.SwiftApp.isNative) {
+          credentialId = await window.SwiftApp.biometric.authenticate();
+          if (!credentialId) return;
+        } else {
+          var challenge = randomChallenge();
+          var assertion = await navigator.credentials.get({
+            publicKey: { challenge: challenge, userVerification: 'required', timeout: 60000 }
+            // No allowCredentials list — lets the device offer any discoverable
+            // credential it holds for this site, same as the customer flow.
+          });
+          if (!assertion) return;
+          credentialId = bufferToBase64Url(assertion.rawId);
+        }
         var { collection, query, where, getDocs } = window.fbFns;
-        var snap = await getDocs(query(collection(window.fbDb, 'boda_riders'), where('webauthnCredentialId', '==', credentialId)));
+        // Checked separately, same reasoning as the customer-facing login: works on
+        // any Firestore SDK version without needing composite OR query support, and
+        // the legacy singular field only matters for now, before any rider has
+        // actually re-enrolled — this app ships with array-based storage from day one.
+        var arrSnap = await getDocs(query(collection(window.fbDb, 'boda_riders'), where('webauthnCredentialIds', 'array-contains', credentialId)));
+        var snap = !arrSnap.empty ? arrSnap : await getDocs(query(collection(window.fbDb, 'boda_riders'), where('webauthnCredentialId', '==', credentialId)));
         if (snap.empty) {
           if (errEl) errEl.textContent = 'That fingerprint/Face ID isn\'t linked to a rider yet — enter your code instead.';
           return;
@@ -567,6 +600,13 @@
     function updateBodaNotifyBannerVisibility() {
       var banner = document.getElementById('boda-notify-banner');
       if (!banner) return;
+      if (window.SwiftApp && window.SwiftApp.isNative) {
+        window.SwiftApp.pushPermissionGranted().then(function(granted) {
+          banner.style.display = granted ? 'none' : 'flex';
+          if (granted) registerNativeBodaPush(false);
+        });
+        return;
+      }
       var alreadyGranted = ('Notification' in window) && Notification.permission === 'granted';
       banner.style.display = alreadyGranted ? 'none' : 'flex';
       if (alreadyGranted) {
@@ -612,7 +652,26 @@
       });
     }
 
+    function registerNativeBodaPush(showToastOnSuccess) {
+      if (!currentRider || !window.fbDb || !window.fbFns) return;
+      window.SwiftApp.registerForPush().then(function(token) {
+        var { doc, setDoc } = window.fbFns;
+        return setDoc(doc(window.fbDb, 'boda_fcm_tokens', token), {
+          riderId: currentRider.fbDocId,
+          name: currentRider.name,
+          phone: currentRider.phone,
+          updatedAt: new Date().toISOString()
+        });
+      }).then(function() {
+        if (showToastOnSuccess) { showToast('✅ Job alerts turned on!'); updateBodaNotifyBannerVisibility(); }
+      }).catch(function(e) {
+        console.error('[boda] native push registration failed:', e);
+        if (showToastOnSuccess) showToast('Could not enable notifications right now.');
+      });
+    }
+
     function enableBodaNotifications() {
+      if (window.SwiftApp && window.SwiftApp.isNative) { registerNativeBodaPush(true); return; }
       if (!('Notification' in window) || !('serviceWorker' in navigator)) {
         showToast('Notifications aren\'t supported on this device.');
         return;
@@ -729,6 +788,12 @@
       // that would just re-add the entry we're trying to leave.
       if (!fromHistory) history.pushState({ bodaTab: tab }, '');
     }
+
+    window.appHandleBack = function() {
+      var dlg = document.getElementById('boda-dialog-overlay');
+      if (dlg && dlg.classList.contains('open')) { dlg.classList.remove('open'); return true; }
+      return false;
+    };
 
     window.addEventListener('popstate', function(e){
       if (e.state && e.state.bodaTab) {

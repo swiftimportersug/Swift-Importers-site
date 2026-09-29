@@ -132,6 +132,15 @@
   };
 
   // Asks permission, registers with Firebase, resolves with the device's push token.
+  // Checks current permission WITHOUT ever prompting — for a page's silent,
+  // no-gesture "was this already granted on a past visit?" init logic, exactly
+  // mirroring how the browser version only checks Notification.permission
+  // without calling requestPermission() itself.
+  window.SwiftApp.pushPermissionGranted = function () {
+    if (!Push) return Promise.resolve(false);
+    return Push.checkPermissions().then(function (s) { return s.receive === 'granted'; }).catch(function () { return false; });
+  };
+
   window.SwiftApp.registerForPush = function () {
     if (!Push) return Promise.reject(new Error('push plugin missing'));
     return Push.checkPermissions().then(function (status) {

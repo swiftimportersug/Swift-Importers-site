@@ -15,6 +15,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
   <!-- Firebase -->
+  <script src="/app-bridge.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getFirestore, collection, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, deleteDoc, query, orderBy, addDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -2967,15 +2968,28 @@
     // pattern Chrome's Safe Browsing flags as "abusive," which quarantines
     // real notifications behind a generic "Possible spam" warning instead of
     // showing their actual content.
+    if (window.SwiftApp && window.SwiftApp.isNative) {
+      window.SwiftApp.pushPermissionGranted().then(function(granted) {
+        if (granted) { notificationsEnabled = true; registerNativePush(); }
+      });
+      return;
+    }
     if ('Notification' in window && Notification.permission === 'granted') {
       notificationsEnabled = true;
       registerServiceWorker();
     }
   }
 
+  function registerNativePush() {
+    window.SwiftApp.registerForPush().then(function(token) {
+      saveFcmToken(token);
+    }).catch(function(e) { console.log('[push] native registration failed:', e); });
+  }
+
   function requestNotificationPermission() {
     // This is the ONLY place that ever calls Notification.requestPermission() —
     // always tied to an explicit button click.
+    if (window.SwiftApp && window.SwiftApp.isNative) { registerNativePush(); return; }
     if (!('Notification' in window) || Notification.permission === 'denied') return;
     Notification.requestPermission().then(p => {
       notificationsEnabled = p === 'granted';
@@ -4146,6 +4160,12 @@
     btns.appendChild(confirmBtn);
     overlay.classList.add('open');
   }
+
+  window.appHandleBack = function() {
+    var dlg = document.getElementById('app-dialog-overlay');
+    if (dlg && dlg.classList.contains('open')) { dlg.classList.remove('open'); return true; }
+    return false;
+  };
 
   document.getElementById('app-dialog-overlay').addEventListener('click', function(e) {
     if (e.target === this) this.classList.remove('open');
