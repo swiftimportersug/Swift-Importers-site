@@ -311,10 +311,16 @@
         <div class="brand"><span style="font-size:1.6rem; vertical-align:middle; margin-right:4px;">🏍️</span> Swift Boda</div>
         <div class="rider-name" id="topbar-rider-name"></div>
       </div>
-      <button onclick="doBodaLogout()" style="display:flex; align-items:center; gap:8px;">
-        <img id="topbar-rider-avatar" style="display:none; width:22px; height:22px; border-radius:50%; object-fit:cover;"/>
-        Switch Rider
-      </button>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button id="boda-online-toggle-btn" onclick="toggleBodaOnlineStatus()" style="display:flex; align-items:center; gap:6px;">
+          <span id="boda-online-toggle-dot" style="width:8px; height:8px; border-radius:50%; background:var(--led-green); flex-shrink:0;"></span>
+          <span id="boda-online-toggle-label">Online</span>
+        </button>
+        <button onclick="doBodaLogout()" style="display:flex; align-items:center; gap:8px;">
+          <img id="topbar-rider-avatar" style="display:none; width:22px; height:22px; border-radius:50%; object-fit:cover;"/>
+          Switch Rider
+        </button>
+      </div>
     </div>
     <div id="boda-notify-banner" style="display:none; background:#fff3d6; border-bottom:1.5px solid var(--gold); padding:12px 16px; align-items:center; gap:10px; justify-content:space-between; flex-wrap:wrap;">
       <div style="font-size:0.8rem; color:#6b5410; font-weight:700; flex:1; min-width:180px;">🔔 Get alerted the moment a new job is posted — even with the app closed.</div>
@@ -573,6 +579,7 @@
         startBoardListener();
         registerBodaServiceWorker();
         updateBodaNotifyBannerVisibility();
+        updateBodaOnlineToggleUI();
         updateBodaBiometricBannerVisibility();
       } catch(e) {
         console.error('[boda] biometric login failed:', e);
@@ -615,6 +622,7 @@
       startBoardListener();
       registerBodaServiceWorker();
       updateBodaNotifyBannerVisibility();
+      updateBodaOnlineToggleUI();
 
       updateBodaBiometricBannerVisibility();
     }
@@ -627,6 +635,44 @@
     function registerBodaServiceWorker() {
       if (!('serviceWorker' in navigator)) return;
       navigator.serviceWorker.register('/sw.js').catch(function(e){ console.log('[boda] SW registration failed:', e); });
+    }
+
+    // ── ONLINE / OFFLINE STATUS ──
+    // A rider explicitly stopping new delivery requests without switching riders
+    // or force-quitting the app. Persisted on their own rider document so it
+    // survives app restarts and is visible to the Worker deciding who to alert.
+    // Missing/undefined is treated as online — existing riders who've never
+    // touched this toggle keep getting notified exactly as before.
+    function updateBodaOnlineToggleUI() {
+      var isOnline = !currentRider || currentRider.isOnline !== false;
+      var dot = document.getElementById('boda-online-toggle-dot');
+      var label = document.getElementById('boda-online-toggle-label');
+      var btn = document.getElementById('boda-online-toggle-btn');
+      if (!dot || !label || !btn) return;
+      dot.style.background = isOnline ? 'var(--led-green)' : 'var(--led-red)';
+      label.textContent = isOnline ? 'Online' : 'Offline';
+      btn.style.opacity = isOnline ? '1' : '0.75';
+    }
+
+    async function toggleBodaOnlineStatus() {
+      if (!currentRider || !window.fbDb || !window.fbFns) return;
+      var goingOnline = currentRider.isOnline === false; // currently offline -> about to go online
+      var newValue = goingOnline;
+      currentRider.isOnline = newValue; // optimistic UI update first
+      updateBodaOnlineToggleUI();
+      renderBodaTabs();
+      try {
+        var { doc, updateDoc } = window.fbFns;
+        await updateDoc(doc(window.fbDb, 'boda_riders', currentRider.fbDocId), { isOnline: newValue });
+        showToast(newValue ? '🟢 You\'re online — new jobs will alert you.' : '⚫ You\'re offline — no new job alerts until you go back online.');
+      } catch(e) {
+        // Roll back on failure so the UI never claims a status that didn't actually save.
+        currentRider.isOnline = !newValue;
+        updateBodaOnlineToggleUI();
+        renderBodaTabs();
+        showToast('Could not update your status — check your connection.');
+        console.error('[boda] toggle online status failed:', e);
+      }
     }
 
     function updateBodaNotifyBannerVisibility() {
@@ -877,7 +923,9 @@
       else mineBadge.style.display = 'none';
 
       var availEl = document.getElementById('tab-available');
-      if (available.length === 0) {
+      if (currentRider && currentRider.isOnline === false) {
+        availEl.innerHTML = '<div class="empty-state">⚫ You\'re offline.<br/>Go online to see and receive new delivery jobs.</div>';
+      } else if (available.length === 0) {
         availEl.innerHTML = '<div class="empty-state">🎉 No jobs waiting right now.<br/>Check back soon!</div>';
       } else {
         availEl.innerHTML = available.map(renderAvailableJobCard).join('');
