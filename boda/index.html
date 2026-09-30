@@ -306,6 +306,23 @@
 
   <!-- MAIN APP -->
   <div class="screen" id="screen-app">
+    <!-- Fixed overlay, not part of the normal document flow — needs to be visible
+         no matter which tab the rider is currently looking at, and urgent enough
+         to actually get noticed alongside the chime, not just another line of text
+         buried wherever they happen to be scrolled to. -->
+    <div id="boda-new-job-banner" style="display:none; position:fixed; top:0; left:0; right:0; z-index:900; background:linear-gradient(180deg, #3a2d10, #241a08); border-bottom:2px solid var(--amber); padding:14px 16px; align-items:center; gap:12px; justify-content:space-between; box-shadow:0 6px 20px rgba(0,0,0,0.5);">
+      <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
+        <span style="font-size:1.6rem; flex-shrink:0;">🆕</span>
+        <div style="min-width:0;">
+          <div style="color:var(--amber); font-weight:800; font-size:0.9rem;">New Delivery Request!</div>
+          <div id="boda-new-job-banner-detail" style="color:var(--ink-dim); font-size:0.76rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; flex-shrink:0;">
+        <button onclick="viewBodaNewJobFromBanner()" style="background:var(--amber); color:#1a1206; border:none; padding:9px 14px; border-radius:8px; font-weight:800; font-size:0.8rem;">View</button>
+        <button onclick="dismissBodaNewJobBanner()" style="background:none; border:none; color:var(--ink-dim); font-size:1.1rem; padding:4px 8px;">✕</button>
+      </div>
+    </div>
     <div class="topbar">
       <div>
         <div class="brand"><span style="font-size:1.6rem; vertical-align:middle; margin-right:4px;">🏍️</span> Swift Boda</div>
@@ -775,6 +792,34 @@
     // and employee panels — this one WILL make sound, guaranteed, whenever the
     // app is open, since it doesn't go through the Notifications API at all.
     var bodaSoundTimeout = null;
+    var bodaNewJobBannerTimeout = null;
+    var bodaNewJobBannerLatestId = null;
+
+    function showBodaNewJobBanner(job) {
+      var banner = document.getElementById('boda-new-job-banner');
+      var detail = document.getElementById('boda-new-job-banner-detail');
+      if (!banner) return;
+      bodaNewJobBannerLatestId = job ? job.fbDocId : null;
+      if (detail) detail.textContent = (job && (job.itemsSummary || job.products)) || 'Tap View to see the details';
+      banner.style.display = 'flex';
+      // Matches the chime's own ring length — long enough to actually notice,
+      // short enough not to sit there forever once the moment's passed.
+      if (bodaNewJobBannerTimeout) clearTimeout(bodaNewJobBannerTimeout);
+      bodaNewJobBannerTimeout = setTimeout(dismissBodaNewJobBanner, 22000);
+    }
+
+    function dismissBodaNewJobBanner() {
+      var banner = document.getElementById('boda-new-job-banner');
+      if (banner) banner.style.display = 'none';
+      if (bodaNewJobBannerTimeout) { clearTimeout(bodaNewJobBannerTimeout); bodaNewJobBannerTimeout = null; }
+    }
+
+    function viewBodaNewJobFromBanner() {
+      dismissBodaNewJobBanner();
+      stopBodaAlertSound();
+      switchBodaTab('available');
+    }
+
     function playBodaAlertSound() {
       if (bodaSoundTimeout) { clearTimeout(bodaSoundTimeout); bodaSoundTimeout = null; }
       try {
@@ -817,6 +862,7 @@
     }
     function stopBodaAlertSound() {
       if (bodaSoundTimeout) { clearTimeout(bodaSoundTimeout); bodaSoundTimeout = null; }
+      dismissBodaNewJobBanner();
     }
 
     // Tracks which job IDs were already visible, so the chime only fires for
@@ -824,20 +870,24 @@
     // every pre-existing job the instant a rider logs in).
     var knownAvailableJobIds = null;
     function checkForNewAvailableJobs() {
-      var availableIds = boardOrders.filter(function(o){ return !o.bodaClaimedBy; }).map(function(o){ return o.fbDocId; });
+      var availableJobs = boardOrders.filter(function(o){ return !o.bodaClaimedBy; });
+      var availableIds = availableJobs.map(function(o){ return o.fbDocId; });
       if (knownAvailableJobIds === null) {
         knownAvailableJobIds = {};
         availableIds.forEach(function(id){ knownAvailableJobIds[id] = true; });
         return;
       }
-      var hasNew = availableIds.some(function(id){ return !knownAvailableJobIds[id]; });
+      var newJobs = availableJobs.filter(function(o){ return !knownAvailableJobIds[o.fbDocId]; });
       // This listener runs whenever the app is open, regardless of the offline
       // toggle — that toggle only ever stopped the Worker's push notification,
       // which only matters when the app is closed. Without this check, a rider
       // who went offline but left the app open would still hear every new job
       // alert, making the button feel broken even though it worked correctly
       // for its actual purpose (not being pushed to while away from the app).
-      if (hasNew && currentRider && currentRider.isOnline !== false) playBodaAlertSound();
+      if (newJobs.length > 0 && currentRider && currentRider.isOnline !== false) {
+        playBodaAlertSound();
+        showBodaNewJobBanner(newJobs[0]);
+      }
       knownAvailableJobIds = {};
       availableIds.forEach(function(id){ knownAvailableJobIds[id] = true; });
     }
