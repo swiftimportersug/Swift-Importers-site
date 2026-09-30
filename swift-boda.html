@@ -831,7 +831,13 @@
         return;
       }
       var hasNew = availableIds.some(function(id){ return !knownAvailableJobIds[id]; });
-      if (hasNew) playBodaAlertSound();
+      // This listener runs whenever the app is open, regardless of the offline
+      // toggle — that toggle only ever stopped the Worker's push notification,
+      // which only matters when the app is closed. Without this check, a rider
+      // who went offline but left the app open would still hear every new job
+      // alert, making the button feel broken even though it worked correctly
+      // for its actual purpose (not being pushed to while away from the app).
+      if (hasNew && currentRider && currentRider.isOnline !== false) playBodaAlertSound();
       knownAvailableJobIds = {};
       availableIds.forEach(function(id){ knownAvailableJobIds[id] = true; });
     }
