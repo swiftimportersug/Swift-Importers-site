@@ -749,7 +749,17 @@
 
     function registerNativeBodaPush(showToastOnSuccess) {
       if (!currentRider || !window.fbDb || !window.fbFns) return;
-      window.SwiftApp.registerForPush().then(function(token) {
+      // A dedicated channel, distinct from the shared 'swift-orders' one the
+      // other three apps use — needed both so this tone doesn't collide with
+      // theirs, and because a channel's sound is locked the moment Android
+      // creates it, so reusing an existing channel id would never actually
+      // pick up this custom tone on a phone that already has it.
+      window.SwiftApp.registerForPush({
+        id: 'boda-job-alerts',
+        name: 'New delivery jobs',
+        description: 'Alerts when a new delivery is posted',
+        sound: 'rider_alert'
+      }).then(function(token) {
         var { doc, setDoc } = window.fbFns;
         return setDoc(doc(window.fbDb, 'boda_fcm_tokens', token), {
           riderId: currentRider.fbDocId,
@@ -825,11 +835,16 @@
     var bodaAlertAudio = null;
 
     function playBodaAlertSound() {
-      // Stop any currently playing instance first — calling .pause() and
-      // resetting .currentTime is a real, immediate stop, unlike the old
-      // Web Audio approach this replaces, where every chime for the full
-      // ring was scheduled upfront and clearing a timeout did nothing to
-      // silence what was already scheduled to play.
+      // Android throttles/mutes audio played from a WebView the moment it's not
+      // the app actually in front of the user — even just minimized counts. That's
+      // exactly the "plays for half a second then goes silent" glitch. Rather than
+      // fight that restriction, this only ever attempts playback while genuinely
+      // visible; every other state (minimized, closed, phone restarted) is instead
+      // handled reliably by the system notification itself, via the dedicated
+      // 'boda-job-alerts' channel now configured with this same tone — Android
+      // plays that one correctly in every state, since it owns it directly rather
+      // than asking a backgrounded WebView to do it.
+      if (document.visibilityState !== 'visible') return;
       stopBodaAlertSound();
       try {
         bodaAlertAudio = new Audio('/sounds/rider-alert.m4a');

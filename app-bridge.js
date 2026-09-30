@@ -147,7 +147,7 @@
     return Push.checkPermissions().then(function (s) { return s.receive === 'granted'; }).catch(function () { return false; });
   };
 
-  window.SwiftApp.registerForPush = function () {
+  window.SwiftApp.registerForPush = function (customChannel) {
     if (!Push) return Promise.reject(new Error('push plugin missing'));
     return Push.checkPermissions().then(function (status) {
       if (status.receive === 'granted') return status;
@@ -173,16 +173,26 @@
           // The Workers name this same channel when sending. Waited on properly now
           // (previously fired-and-forgot) so registration can never complete a hair
           // before the channel it depends on actually exists on the device.
+          //
+          // A caller (boda) can pass its own channel config with a custom "sound"
+          // (the resource name of an .m4a/.mp3/.wav bundled under
+          // android/app/src/main/res/raw/, WITHOUT the file extension) to get its
+          // own distinct tone. A channel's sound is locked the first time Android
+          // creates it — changing this code later never retroactively changes it
+          // on a phone that already has the old channel, which is exactly why this
+          // uses its own channel id rather than reusing the shared default.
+          var channelConfig = customChannel || {
+            id: PUSH_CHANNEL_ID,
+            name: 'Order updates',
+            description: 'Order status and payment updates'
+          };
           var channelPromise;
           try {
-            channelPromise = Push.createChannel({
-              id: PUSH_CHANNEL_ID,
-              name: 'Order updates',
-              description: 'Order status and payment updates',
+            channelPromise = Push.createChannel(Object.assign({
               importance: 5,
               visibility: 1,
               vibration: true
-            });
+            }, channelConfig));
           } catch (e) {
             channelPromise = Promise.resolve();
           }
