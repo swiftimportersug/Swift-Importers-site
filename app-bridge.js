@@ -102,11 +102,17 @@
     } catch (e) {}
   }
   function bioPrompt(reason) {
+    // Android always shows the app's own name above this automatically (a
+    // security feature so it can never be faked to look like it's from
+    // somewhere else) — so repeating the brand name again in our own title
+    // was pure redundancy. This keeps it to one clear line of actual content.
+    // Note: the box itself (colors, layout, shape) is drawn entirely by
+    // Android — no app can restyle it, by design, so this text is the only
+    // part of this screen anything can actually change.
     return Bio.verifyIdentity({
       reason: reason,
-      title: 'Swift Importers',
-      subtitle: 'Confirm it\'s you',
-      description: reason
+      title: 'Confirm it\'s you',
+      subtitle: reason
     });
   }
   window.SwiftApp.biometric = {
