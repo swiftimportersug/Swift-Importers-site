@@ -170,9 +170,12 @@
         ]).then(function (hs) {
           handles = hs;
           // High-importance channel so order updates pop up with sound, not silently.
-          // The Workers name this same channel when sending.
+          // The Workers name this same channel when sending. Waited on properly now
+          // (previously fired-and-forgot) so registration can never complete a hair
+          // before the channel it depends on actually exists on the device.
+          var channelPromise;
           try {
-            var ch = Push.createChannel({
+            channelPromise = Push.createChannel({
               id: PUSH_CHANNEL_ID,
               name: 'Order updates',
               description: 'Order status and payment updates',
@@ -180,9 +183,12 @@
               visibility: 1,
               vibration: true
             });
-            if (ch && typeof ch.catch === 'function') ch.catch(function () {});
-          } catch (e) {}
-          return Push.register();
+          } catch (e) {
+            channelPromise = Promise.resolve();
+          }
+          return Promise.resolve(channelPromise).catch(function () {}).then(function () {
+            return Push.register();
+          });
         }).catch(function (e) { clearTimeout(timer); finish(reject, e); });
       });
     });
