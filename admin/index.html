@@ -5678,13 +5678,20 @@
   }
 
   let soundTimeout = null;
+  let activeOrderSoundCtx = null;
 
   function playOrderSound() {
-    // Stop any currently playing sound first
-    if (soundTimeout) { clearTimeout(soundTimeout); soundTimeout = null; }
+    // Stop any currently playing sound first — closing the AudioContext (not
+    // just clearing the timeout) is what actually silences it, since every
+    // chime for the full 22 seconds gets scheduled upfront via the Web Audio
+    // API. The old version only ever cleared a later cleanup timer, which did
+    // nothing to the already-scheduled oscillators — the sound played to the
+    // end regardless of clicking anything.
+    stopOrderSound();
 
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      activeOrderSoundCtx = ctx;
       const notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
       const chimeDuration = 0.4;
       const chimeSpacing = 0.18;
@@ -5727,7 +5734,18 @@
 
   function stopOrderSound() {
     if (soundTimeout) { clearTimeout(soundTimeout); soundTimeout = null; }
+    if (activeOrderSoundCtx) {
+      try { activeOrderSoundCtx.close(); } catch(e) {}
+      activeOrderSoundCtx = null;
+    }
   }
+
+  // Coming back to the tab counts as "reacting" the same as clicking the
+  // toast itself — nobody wants the chime to keep ringing in the background
+  // once they're actually looking at the screen again.
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') stopOrderSound();
+  });
 
   function showOrderToast(order) {
     const old = document.getElementById('order-toast');

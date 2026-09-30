@@ -791,7 +791,7 @@
     // directly via Web Audio, same proven technique already used in the admin
     // and employee panels — this one WILL make sound, guaranteed, whenever the
     // app is open, since it doesn't go through the Notifications API at all.
-    var bodaSoundTimeout = null;
+    // (bodaSoundTimeout removed — the new tone uses an <audio> element, stopped directly)
     var bodaNewJobBannerTimeout = null;
     var bodaNewJobBannerLatestId = null;
 
@@ -805,7 +805,9 @@
       // Matches the chime's own ring length — long enough to actually notice,
       // short enough not to sit there forever once the moment's passed.
       if (bodaNewJobBannerTimeout) clearTimeout(bodaNewJobBannerTimeout);
-      bodaNewJobBannerTimeout = setTimeout(dismissBodaNewJobBanner, 22000);
+      // Matches the new rider tone's actual length (33s) — was tuned to the
+      // old synthetic chime's 22s ring before the tone was replaced.
+      bodaNewJobBannerTimeout = setTimeout(dismissBodaNewJobBanner, 33000);
     }
 
     function dismissBodaNewJobBanner() {
@@ -820,50 +822,35 @@
       switchBodaTab('available');
     }
 
+    var bodaAlertAudio = null;
+
     function playBodaAlertSound() {
-      if (bodaSoundTimeout) { clearTimeout(bodaSoundTimeout); bodaSoundTimeout = null; }
+      // Stop any currently playing instance first — calling .pause() and
+      // resetting .currentTime is a real, immediate stop, unlike the old
+      // Web Audio approach this replaces, where every chime for the full
+      // ring was scheduled upfront and clearing a timeout did nothing to
+      // silence what was already scheduled to play.
+      stopBodaAlertSound();
       try {
-        var ctx = new (window.AudioContext || window.webkitAudioContext)();
-        var notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
-        var chimeDuration = 0.4;
-        var chimeSpacing = 0.18;
-        var totalChimeLength = notes.length * chimeSpacing + chimeDuration;
-        var repeatInterval = totalChimeLength + 0.3;
-        var totalDuration = 22; // rings for 22 seconds — a job up for grabs is time-sensitive
-
-        function playChime(startOffset) {
-          notes.forEach(function(freq, i){
-            var osc = ctx.createOscillator();
-            var gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.type = 'sine';
-            osc.frequency.value = freq;
-            var start = ctx.currentTime + startOffset + i * chimeSpacing;
-            gain.gain.setValueAtTime(0, start);
-            gain.gain.linearRampToValueAtTime(0.5, start + 0.05);
-            gain.gain.linearRampToValueAtTime(0, start + chimeDuration);
-            osc.start(start);
-            osc.stop(start + chimeDuration + 0.05);
-          });
-        }
-
-        var offset = 0;
-        while (offset < totalDuration) {
-          playChime(offset);
-          offset += repeatInterval;
-        }
-
-        bodaSoundTimeout = setTimeout(function(){
-          try { ctx.close(); } catch(e) {}
-          bodaSoundTimeout = null;
-        }, 23000);
+        bodaAlertAudio = new Audio('/sounds/rider-alert.m4a');
+        bodaAlertAudio.volume = 1.0;
+        bodaAlertAudio.play().catch(function(e) { console.log('[boda] audio play failed:', e); });
       } catch(e) { console.log('[boda] Audio not available:', e); }
     }
     function stopBodaAlertSound() {
-      if (bodaSoundTimeout) { clearTimeout(bodaSoundTimeout); bodaSoundTimeout = null; }
+      if (bodaAlertAudio) {
+        try { bodaAlertAudio.pause(); bodaAlertAudio.currentTime = 0; } catch(e) {}
+        bodaAlertAudio = null;
+      }
       dismissBodaNewJobBanner();
     }
+
+    // Opening/returning to the app counts as reacting, same as tapping the
+    // banner or switching tabs — the ring shouldn't keep going once the rider
+    // is actually looking at the screen again.
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible') stopBodaAlertSound();
+    });
 
     // Tracks which job IDs were already visible, so the chime only fires for
     // GENUINELY NEW jobs — not on first load (which would otherwise ring for
