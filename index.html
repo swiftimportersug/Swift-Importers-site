@@ -7362,6 +7362,11 @@
         // that matching path at all.
         expectedPaymentAmount: (paymentVal === 'MTN Mobile Money' || paymentVal === 'Airtel Money') ? currentCheckoutPaymentAmount : null,
         paymentOffset: (paymentVal === 'MTN Mobile Money' || paymentVal === 'Airtel Money') ? currentCheckoutPaymentOffset : null,
+        // Distinct from hasShippedItems' automatic 30% deposit — this is true only
+        // when the customer actively chose "Pay in Installments" and picked their
+        // own amount at checkout, so admin/employee can tell the two apart instead
+        // of seeing every partial payment as visually identical.
+        isInstallmentOrder: currentCheckoutIsInstallment,
         status: 'pending', timestamp: new Date().toISOString()
       };
       // Fires whatever the caller needs done (opening the phone dialer, for

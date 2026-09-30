@@ -5899,7 +5899,12 @@
     return !!(o.hasShippedItems || (o.paymentMethod && o.paymentMethod !== 'Cash on Delivery'));
   }
   function getPaymentGateExpectedAmount(o) {
-    return o.hasShippedItems ? (o.amountDueNow || 0) : getOrderTotal(o);
+    if (o.hasShippedItems) return o.amountDueNow || 0;
+    // expectedPaymentAmount includes the random 1-99 UGX offset used for automatic
+    // SMS matching — subtracting it back out gives the actual amount the customer
+    // chose to pay, not the full order total they never committed to paying yet.
+    if (o.isInstallmentOrder && o.expectedPaymentAmount) return o.expectedPaymentAmount - (o.paymentOffset || 0);
+    return getOrderTotal(o);
   }
 
   // Prefers cartItems (structured, real product IDs) over the plain o.products text,
@@ -5991,6 +5996,7 @@
           </div>
           <div style="text-align:right;">
             ${badge}
+            ${o.isInstallmentOrder ? '<div style="margin-top:4px;"><span style="display:inline-flex; align-items:center; gap:4px; background:#e8f4ff; color:#1a5c9e; border:1px solid #a8d0f5; font-size:0.68rem; font-weight:800; padding:3px 9px; border-radius:20px;">📅 Installment</span></div>' : (o.hasShippedItems ? '<div style="margin-top:4px;"><span style="display:inline-flex; align-items:center; gap:4px; background:#fff3e0; color:#8a5a00; border:1px solid #e0b74a; font-size:0.68rem; font-weight:800; padding:3px 9px; border-radius:20px;">✈️ Shipped Item</span></div>' : '')}
             <div class="order-card-time">${fmtOrderTime(o.timestamp)}</div>
           </div>
         </div>
@@ -6706,8 +6712,15 @@
     if (!o) return;
     paymentReceivedTargetDocId = docId;
     const expected = getPaymentGateExpectedAmount(o);
-    const label = o.hasShippedItems ? '30% Commitment Fee Expected: ' : 'Order Total: ';
-    document.getElementById('payment-received-context').textContent = label + fmt(expected);
+    let label;
+    if (o.hasShippedItems) {
+      label = '30% Commitment Fee Expected: ' + fmt(expected);
+    } else if (o.isInstallmentOrder) {
+      label = '📅 Installment Order — First Payment Expected: ' + fmt(expected) + ' (of ' + fmt(getOrderTotal(o)) + ' total)';
+    } else {
+      label = 'Order Total: ' + fmt(expected);
+    }
+    document.getElementById('payment-received-context').textContent = label;
     document.getElementById('payment-received-confirm-modal').classList.add('open');
   }
 
@@ -6742,7 +6755,7 @@
     const o = orders.find(x => x.fbDocId === docId);
     if (!o) return;
     const expected = getPaymentGateExpectedAmount(o);
-    const label = o.hasShippedItems ? 'Commitment fee expected: ' : 'Order total: ';
+    const label = o.hasShippedItems ? 'Commitment fee expected: ' : (o.isInstallmentOrder ? '📅 Installment — first payment expected: ' : 'Order total: ');
     document.getElementById('payment-received-partial-context').textContent = label + fmt(expected);
     document.getElementById('payment-received-partial-input').value = '';
     document.getElementById('payment-received-partial-modal').classList.add('open');
