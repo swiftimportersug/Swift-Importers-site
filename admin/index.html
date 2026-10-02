@@ -5607,8 +5607,22 @@
     // real notifications behind a generic "Possible spam" warning instead of
     // showing their actual content — exactly what happened before this fix.
     if (window.SwiftApp && window.SwiftApp.isNative) {
-      window.SwiftApp.pushPermissionGranted().then(function(granted) {
-        if (granted) { notificationsEnabled = true; registerNativePush(); }
+      window.SwiftApp.pushPermissionStatus().then(function(status) {
+        if (status === 'granted') {
+          notificationsEnabled = true;
+          registerNativePush();
+        } else if (status === 'prompt' || status === 'prompt-with-rationale') {
+          // Genuinely never asked before — ask automatically right now, the
+          // same moment of first login, rather than waiting on a separate
+          // button click. This is this admin's own installed app asking its
+          // own mandatory Android 13+ question, not an unrelated website
+          // angling for a popup — the concern the old wait-for-a-click
+          // approach was actually guarding against.
+          registerNativePush();
+        }
+        // Explicitly denied previously: do nothing automatically. Android
+        // won't show the system dialog again here anyway, and the manual
+        // "Enable notifications" button remains as a fallback.
       });
       return;
     }
@@ -5619,7 +5633,17 @@
   }
 
   function registerNativePush() {
-    window.SwiftApp.registerForPush().then(function(token) {
+    // A dedicated channel, distinct from the other three apps' own channels —
+    // needed both so this tone doesn't collide with theirs, and because a
+    // channel's sound is locked the moment Android creates it, so reusing any
+    // existing channel id would never actually pick up this tone.
+    window.SwiftApp.registerForPush({
+      id: 'order-alerts',
+      name: 'New orders',
+      description: 'Alerts when a new order needs attention',
+      sound: 'order_alert'
+    }).then(function(token) {
+      notificationsEnabled = true;
       saveFcmToken(token);
     }).catch(function(e) { console.log('[push] native registration failed:', e); });
   }

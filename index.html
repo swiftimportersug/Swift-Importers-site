@@ -5787,7 +5787,12 @@
     // Firebase natively instead and store the token on the same order field.
     if (window.SwiftApp && window.SwiftApp.isNative) {
       showStatus('⏳ Enabling notifications...', false);
-      window.SwiftApp.registerForPush().then(function(token) {
+      window.SwiftApp.registerForPush({
+        id: 'customer-updates',
+        name: 'Order updates',
+        description: 'Updates on your order and import request status',
+        sound: 'order_update'
+      }).then(function(token) {
         return window.fbFns.updateDoc(window.fbFns.doc(window.fbDb, 'orders', lastPlacedOrderDocId), { customerFcmToken: token });
       }).then(function() {
         showStatus('✅ You\'ll be notified as your order updates!', false);
@@ -7686,7 +7691,12 @@
     if (!currentAccount) return;
     if (window.SwiftApp && window.SwiftApp.isNative) {
       showStatus('⏳ Enabling notifications...', false);
-      window.SwiftApp.registerForPush().then(function(token) {
+      window.SwiftApp.registerForPush({
+        id: 'customer-updates',
+        name: 'Order updates',
+        description: 'Updates on your order and import request status',
+        sound: 'order_update'
+      }).then(function(token) {
         return window.fbFns.updateDoc(window.fbFns.doc(window.fbDb, 'customers', currentAccount.fbDocId), { fcmToken: token });
       }).then(function() {
         showStatus('✅ You\'ll be notified once we quote your request!', false);

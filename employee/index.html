@@ -2969,8 +2969,17 @@
     // real notifications behind a generic "Possible spam" warning instead of
     // showing their actual content.
     if (window.SwiftApp && window.SwiftApp.isNative) {
-      window.SwiftApp.pushPermissionGranted().then(function(granted) {
-        if (granted) { notificationsEnabled = true; registerNativePush(); }
+      window.SwiftApp.pushPermissionStatus().then(function(status) {
+        if (status === 'granted') {
+          notificationsEnabled = true;
+          registerNativePush();
+        } else if (status === 'prompt' || status === 'prompt-with-rationale') {
+          // Genuinely never asked before — ask automatically right now, the
+          // same moment of first login, rather than waiting on a separate
+          // button click.
+          registerNativePush();
+        }
+        // Explicitly denied previously: do nothing automatically.
       });
       return;
     }
@@ -2981,7 +2990,17 @@
   }
 
   function registerNativePush() {
-    window.SwiftApp.registerForPush().then(function(token) {
+    // Same channel id and tone as admin — they're separate apps with their
+    // own independent channel namespaces, so no collision, and sharing one
+    // tone across both matches the shared "one tone for staff order alerts"
+    // design.
+    window.SwiftApp.registerForPush({
+      id: 'order-alerts',
+      name: 'New orders',
+      description: 'Alerts when a new order needs attention',
+      sound: 'order_alert'
+    }).then(function(token) {
+      notificationsEnabled = true;
       saveFcmToken(token);
     }).catch(function(e) { console.log('[push] native registration failed:', e); });
   }
