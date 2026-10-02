@@ -696,9 +696,26 @@
       var banner = document.getElementById('boda-notify-banner');
       if (!banner) return;
       if (window.SwiftApp && window.SwiftApp.isNative) {
-        window.SwiftApp.pushPermissionGranted().then(function(granted) {
-          banner.style.display = granted ? 'none' : 'flex';
-          if (granted) registerNativeBodaPush(false);
+        window.SwiftApp.pushPermissionStatus().then(function(status) {
+          if (status === 'granted') {
+            banner.style.display = 'none';
+            registerNativeBodaPush(false);
+          } else if (status === 'prompt' || status === 'prompt-with-rationale') {
+            // Genuinely never asked before — ask right now, automatically, the
+            // same moment a rider first logs in. This is the one time asking
+            // without a separate tap is the RIGHT call: it's this rider's own
+            // installed app asking its own mandatory Android 13+ question, not
+            // an unrelated website angling for a popup. Every ride-hailing app
+            // (SafeBoda, Bolt...) does exactly this during first login.
+            banner.style.display = 'none';
+            registerNativeBodaPush(false);
+          } else {
+            // Explicitly denied previously — never auto-re-prompt (Android
+            // itself won't show the system dialog again here anyway). The
+            // banner stays as a manual fallback in case they want to try again
+            // after changing it in phone Settings.
+            banner.style.display = 'flex';
+          }
         });
         return;
       }

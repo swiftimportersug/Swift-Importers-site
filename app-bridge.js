@@ -147,6 +147,16 @@
     return Push.checkPermissions().then(function (s) { return s.receive === 'granted'; }).catch(function () { return false; });
   };
 
+  // Raw status ('granted' | 'denied' | 'prompt' | 'prompt-with-rationale') rather
+  // than a collapsed true/false — a caller needs this distinction to auto-ask on
+  // a genuinely first-ever login without ever re-pestering someone who already
+  // said no once (repeatedly re-prompting after an explicit denial is both
+  // against Android's own guidance and just an annoying experience).
+  window.SwiftApp.pushPermissionStatus = function () {
+    if (!Push) return Promise.resolve('unavailable');
+    return Push.checkPermissions().then(function (s) { return s.receive; }).catch(function () { return 'unavailable'; });
+  };
+
   window.SwiftApp.registerForPush = function (customChannel) {
     if (!Push) return Promise.reject(new Error('push plugin missing'));
     return Push.checkPermissions().then(function (status) {
