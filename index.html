@@ -7078,6 +7078,39 @@
     }
   }
 
+  // ── ONE-TIME PUSH TOKEN, REUSED EVERYWHERE (native app only) ──
+  // Replaces the old "ask again after every order" / "ask again after every
+  // import request" pattern. Native only: the "don't auto-prompt" caution
+  // elsewhere in this file is specifically about BROWSERS (an unsolicited
+  // prompt on page load is a documented pattern Chrome's own spam system
+  // flags as abusive) — that risk doesn't apply to a customer's own installed
+  // app asking its own one-time question, so this asks automatically, once,
+  // the first time the app is ever opened, and every order/import request
+  // afterward reuses the same result with no further prompting at all.
+  var cachedCustomerPushToken = null;
+  var customerPushTokenPromise = null;
+
+  function getCustomerPushToken() {
+    if (!(window.SwiftApp && window.SwiftApp.isNative)) return Promise.resolve(null);
+    if (cachedCustomerPushToken) return Promise.resolve(cachedCustomerPushToken);
+    if (customerPushTokenPromise) return customerPushTokenPromise;
+    customerPushTokenPromise = window.SwiftApp.pushPermissionStatus().then(function(status) {
+      if (status === 'denied') return null;
+      // granted or prompt/undetermined — attempt registration either way;
+      // registerForPush() itself only shows the OS popup when genuinely needed.
+      return window.SwiftApp.registerForPush({
+        id: 'customer-updates',
+        name: 'Order updates',
+        description: 'Updates on your order and import request status',
+        sound: 'order_update'
+      }).then(function(token) {
+        cachedCustomerPushToken = token;
+        return token;
+      }).catch(function() { return null; });
+    }).catch(function() { return null; });
+    return customerPushTokenPromise;
+  }
+
   async function tryAutoLoginAccount() {
     var saved;
     try { saved = JSON.parse(localStorage.getItem(ACCOUNT_STORAGE_KEY) || 'null'); } catch(e) { saved = null; }
@@ -7110,6 +7143,7 @@
     tryAutoLoginAccount();
   } else {
     window.addEventListener('firebaseReady', tryAutoLoginAccount, { once: true });
+    window.addEventListener('firebaseReady', function(){ getCustomerPushToken(); }, { once: true });
   }
 
   // Deep-link support: a notification click lands here as
@@ -7372,6 +7406,11 @@
         // own amount at checkout, so admin/employee can tell the two apart instead
         // of seeing every partial payment as visually identical.
         isInstallmentOrder: currentCheckoutIsInstallment,
+        // Already obtained (if granted) back at app start — reused here with
+        // no separate prompt or button, unlike the old per-order opt-in.
+        // Read synchronously since by checkout time the one-time async
+        // registration from app launch has virtually always already settled.
+        customerFcmToken: (window.SwiftApp && window.SwiftApp.isNative) ? cachedCustomerPushToken : null,
         status: 'pending', timestamp: new Date().toISOString()
       };
       // Fires whatever the caller needs done (opening the phone dialer, for
@@ -7408,7 +7447,7 @@
         // which only applies to payment-gated orders).
         lastPlacedOrderDocId = docRef && docRef.id ? docRef.id : null;
         var notifyBtn = document.getElementById('success-notify-btn');
-        if (notifyBtn && lastPlacedOrderDocId) notifyBtn.style.display = 'block';
+        if (notifyBtn && lastPlacedOrderDocId && !(window.SwiftApp && window.SwiftApp.isNative)) notifyBtn.style.display = 'block';
         currentCheckoutRefCode = null; // next order (if any) gets its own fresh code
         currentCheckoutPaymentAmount = null;
         currentCheckoutPaymentOffset = null;
@@ -7647,6 +7686,14 @@
     if (!phone) { msgEl.textContent = 'Please enter a phone number so we can reach you.'; msgEl.style.display = 'block'; return; }
     if (!currentAccount || !window.fbDb || !window.fbFns) { msgEl.textContent = 'Not connected. Check your internet connection.'; msgEl.style.display = 'block'; return; }
     msgEl.style.display = 'none';
+    // Same already-obtained token as orders — synced onto the account here too
+    // (if not already saved) rather than a separate per-request opt-in button.
+    if (window.SwiftApp && window.SwiftApp.isNative && cachedCustomerPushToken && currentAccount.fcmToken !== cachedCustomerPushToken) {
+      var tokenToSave = cachedCustomerPushToken;
+      window.fbFns.updateDoc(window.fbFns.doc(window.fbDb, 'customers', currentAccount.fbDocId), { fcmToken: tokenToSave }).then(function(){
+        currentAccount.fcmToken = tokenToSave;
+      }).catch(function(e){ console.error('[import] failed to sync push token to account:', e); });
+    }
     var { collection, addDoc } = window.fbFns;
     addDoc(collection(window.fbDb, 'import_requests'), {
       customerId: currentAccount.fbDocId,
@@ -7659,6 +7706,8 @@
       createdAt: new Date().toISOString()
     }).then(function(){
       closeOverlayEl(document.getElementById('import-request-modal'));
+      var importNotifyBtn = document.getElementById('import-notify-btn');
+      if (importNotifyBtn) importNotifyBtn.style.display = (window.SwiftApp && window.SwiftApp.isNative) ? 'none' : 'block';
       openOverlayEl(document.getElementById('import-success-modal'));
       // Reuses the exact same admin alert channel (Telegram + FCM) as new
       // orders — no Worker changes needed, just different field values.
