@@ -6890,13 +6890,13 @@
       body.innerHTML = reqs.map(function(r){
         var meta = statusMeta[r.status] || statusMeta.pending;
         var when = new Date(r.createdAt).toLocaleDateString('en-UG', { day:'numeric', month:'short', year:'numeric' });
-        return '<div style="background:var(--light); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:12px;">' +
+        return '<div style="background:linear-gradient(135deg,#1a1a1a,#2c2c2c); border-radius:14px; padding:16px 18px; margin-bottom:12px; color:#fff;">' +
           '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;">' +
-            '<div style="font-size:0.78rem; color:#888;">' + when + '</div>' +
+            '<div style="font-size:0.78rem; color:rgba(255,255,255,0.55);">' + when + '</div>' +
             '<span style="background:' + meta.bg + '; color:' + meta.color + '; font-size:0.72rem; font-weight:800; padding:4px 10px; border-radius:20px; white-space:nowrap;">' + meta.label + '</span>' +
           '</div>' +
-          '<div style="font-size:0.85rem; margin-bottom:6px; word-break:break-all;"><a href="' + r.itemLink + '" target="_blank" style="color:var(--black); text-decoration:underline;">' + r.itemLink + '</a></div>' +
-          '<div style="font-size:0.8rem; color:#666;">Quantity: ' + r.quantity + '</div>' +
+          '<div style="font-size:0.85rem; margin-bottom:6px; word-break:break-all;"><a href="' + r.itemLink + '" target="_blank" style="color:#8fc4ff; text-decoration:underline;">' + r.itemLink + '</a></div>' +
+          '<div style="font-size:0.8rem; color:rgba(255,255,255,0.75);">Quantity: ' + r.quantity + '</div>' +
           (r.status === 'quoted' && r.quotedPrice ? (function(){
             var deposit = Math.ceil(r.quotedPrice * 0.6);
             var box = '<div style="margin-top:10px; background:#fff; border:1.5px solid #4a9eff; border-radius:8px; padding:10px 12px;">' +
@@ -6915,7 +6915,7 @@
             }
             return box + '</div>';
           })() : '') +
-          (r.status === 'converted' && r.convertedOrderId ? '<div style="margin-top:10px;"><button onclick="closeOverlayEl(document.getElementById(\'my-import-requests-modal\')); openTrackModal(\'' + r.convertedOrderId + '\');" class="btn-primary" style="padding:9px 14px; border-radius:7px; font-size:0.8rem; font-weight:700;">Track This Order</button></div>' : '') +
+          (r.status === 'converted' && r.convertedOrderId ? '<div style="margin-top:10px;"><button onclick="openTrackModal(\'' + r.convertedOrderId + '\')" class="btn-primary" style="padding:9px 14px; border-radius:7px; font-size:0.8rem; font-weight:700;">Track This Order</button></div>' : '') +
         '</div>';
       }).join('');
     } catch(e) {
