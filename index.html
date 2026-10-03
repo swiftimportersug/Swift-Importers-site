@@ -1156,6 +1156,7 @@
       <div id="nav-account-dropdown" class="nav-account-dropdown">
         <button onclick="closeAccountDropdown();openAccountEntry();">👤 <span style="flex:1;">Profile</span><span id="nav-dropdown-profile-badge" class="nav-dropdown-badge" style="display:none;">!</span></button>
         <button onclick="closeAccountDropdown();openMyOrdersModal();">🧾 <span style="flex:1;">My Orders</span><span id="nav-dropdown-orders-badge" class="nav-dropdown-badge" style="display:none;background:#2a9d50;"></span></button>
+        <button onclick="closeAccountDropdown();openActiveOrdersModal();">⚡ <span style="flex:1;">Active Orders</span><span id="nav-dropdown-active-badge" class="nav-dropdown-badge" style="display:none;background:#2a9d50;"></span></button>
         <button onclick="closeAccountDropdown();openMyImportRequestsModal();">📦 <span style="flex:1;">My Import Requests</span></button>
         <button onclick="closeAccountDropdown();openSavedPage();">🔖 <span>Saved</span></button>
         <button onclick="closeAccountDropdown();openMessagesPage();">💬 <span style="flex:1;">Messages</span><span id="nav-dropdown-messages-badge" class="nav-dropdown-badge" style="display:none;"></span></button>
@@ -1947,6 +1948,14 @@
     <button class="modal-close" onclick="closeOverlayEl(document.getElementById('my-orders-modal'))">✕</button>
     <h2 style="font-size:1.25rem;">🧾 My Orders</h2>
     <div id="my-orders-modal-body" style="margin-top:14px;"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="active-orders-modal" style="z-index:900;" onclick="if(event.target===this) closeOverlayEl(this);">
+  <div class="modal" style="max-width:640px; max-height:85vh; overflow-y:auto; padding:26px;">
+    <button class="modal-close" onclick="closeOverlayEl(document.getElementById('active-orders-modal'))">✕</button>
+    <h2 style="font-size:1.25rem;">⚡ Active Orders</h2>
+    <div id="active-orders-modal-body" style="margin-top:14px;"></div>
   </div>
 </div>
 
@@ -4323,6 +4332,61 @@
     return baseAmount + fallbackOffset;
   }
 
+  // Same technique as checkout's generateUniquePaymentAmount, but deliberately
+  // separate rather than reused: that one has a checkout-specific side effect
+  // (setting currentCheckoutPaymentOffset) and only checks the orders
+  // collection. An import deposit needs to check BOTH orders and
+  // import_requests for collisions — the payment webhook has to search across
+  // both, so a shared exact amount between an order and a request would be a
+  // genuine ambiguity, not just a cosmetic one.
+  async function generateUniqueImportDepositAmount(baseAmount) {
+    if (!window.fbDb || !window.fbFns) return { amount: baseAmount + (Math.floor(Math.random() * 99) + 1), offset: 1 };
+    var { collection, query, where, getDocs } = window.fbFns;
+    for (var attempt = 0; attempt < 50; attempt++) {
+      var offset = Math.floor(Math.random() * 99) + 1;
+      var candidate = baseAmount + offset;
+      try {
+        var orderSnap = await getDocs(query(collection(window.fbDb, 'orders'), where('expectedPaymentAmount', '==', candidate)));
+        var orderCollision = orderSnap.docs.some(function(d){ return d.data().status === 'pending'; });
+        var reqSnap = await getDocs(query(collection(window.fbDb, 'import_requests'), where('expectedPaymentAmount', '==', candidate)));
+        var reqCollision = reqSnap.docs.some(function(d){ return d.data().status === 'quoted'; });
+        if (!orderCollision && !reqCollision) return { amount: candidate, offset: offset };
+      } catch(e) {
+        console.error('[import-deposit] offset collision check failed:', e);
+        return { amount: candidate, offset: offset };
+      }
+    }
+    var fallbackOffset = Math.floor(Math.random() * 99) + 1;
+    return { amount: baseAmount + fallbackOffset, offset: fallbackOffset };
+  }
+
+  async function startImportDepositPayment(reqId, provider, depositAmount) {
+    var statusEl = document.getElementById('import-deposit-status-' + reqId);
+    if (statusEl) { statusEl.style.display = 'block'; statusEl.textContent = '⏳ Preparing your payment...'; }
+    var result = await generateUniqueImportDepositAmount(depositAmount);
+    try {
+      var { doc, updateDoc } = window.fbFns;
+      await updateDoc(doc(window.fbDb, 'import_requests', reqId), {
+        expectedPaymentAmount: result.amount,
+        paymentOffset: result.offset
+      });
+    } catch(e) {
+      console.error('[import-deposit] failed to save expected amount:', e);
+      if (statusEl) statusEl.textContent = 'Could not prepare this payment — check your connection and try again.';
+      return;
+    }
+    if (provider === 'mtn') {
+      var mtnUssd = '*165*3*' + MOBILE_MONEY_MERCHANT_CODES.mtn + '*' + result.amount + '*1%23';
+      if (statusEl) statusEl.innerHTML = '📞 Opening MTN MoMo — send exactly <strong>' + fmtPrice(result.amount) + '</strong>.';
+      dialOrShowQr(mtnUssd);
+    } else {
+      var airtelUssd = '*185*9%23';
+      navigator.clipboard.writeText(String(result.amount)).catch(function(){});
+      if (statusEl) statusEl.innerHTML = '📋 Amount copied: <strong>' + fmtPrice(result.amount) + '</strong>. Opening Airtel — paste it when asked.';
+      dialOrShowQr(airtelUssd);
+    }
+  }
+
   // "To Be Shipped" items can't be paid Cash on Delivery, since there's no delivery
   // happening at order time — only Mobile Money now, or cash in person at the store.
   var lastPaymentOptionsWereShippedMode = null; // avoids rebuilding/resetting on every keystroke
@@ -5634,6 +5698,8 @@
     if (card) card.style.display = 'none';
     var ordersBadge = document.getElementById('nav-dropdown-orders-badge');
     if (ordersBadge) ordersBadge.style.display = 'none';
+    var activeBadge = document.getElementById('nav-dropdown-active-badge');
+    if (activeBadge) activeBadge.style.display = 'none';
     lastSeenActiveOrderKey = null;
     hasUnseenOrderUpdate = false;
   }
@@ -6046,14 +6112,17 @@
   function renderActiveOrderCard(o) {
     var card = document.getElementById('active-order-card');
     var ordersBadge = document.getElementById('nav-dropdown-orders-badge');
+    var activeBadge = document.getElementById('nav-dropdown-active-badge');
     if (!card) return;
     if (!o) {
       card.style.display = 'none';
       if (ordersBadge) ordersBadge.style.display = 'none';
+      if (activeBadge) activeBadge.style.display = 'none';
       return;
     }
     card.style.display = 'block';
     if (ordersBadge) { ordersBadge.style.display = 'flex'; ordersBadge.classList.add('pulsing'); }
+    if (activeBadge) { activeBadge.style.display = 'flex'; activeBadge.classList.add('pulsing'); }
     var items = (o.cartItems || []).map(function(c){ return c.name + ' x' + c.qty; }).join(', ');
     document.getElementById('active-order-items').textContent = items || o.products || 'Your order';
     renderOrderStageTracker(o);
@@ -6817,13 +6886,73 @@
           '</div>' +
           '<div style="font-size:0.85rem; margin-bottom:6px; word-break:break-all;"><a href="' + r.itemLink + '" target="_blank" style="color:var(--black); text-decoration:underline;">' + r.itemLink + '</a></div>' +
           '<div style="font-size:0.8rem; color:#666;">Quantity: ' + r.quantity + '</div>' +
-          (r.status === 'quoted' && r.quotedPrice ? '<div style="margin-top:10px; background:#fff; border:1.5px solid #4a9eff; border-radius:8px; padding:10px 12px;"><div style="font-weight:800; font-size:0.9rem; color:#1a5c8a;">Quoted Price: ' + fmtPrice(r.quotedPrice) + '</div><div style="font-size:0.78rem; color:#555; margin-top:4px;">Deposit required (60%): ' + fmtPrice(Math.ceil(r.quotedPrice * 0.6)) + '</div><div style="font-size:0.78rem; color:#555; margin-top:6px;">We\'ll be in touch by phone/WhatsApp to arrange payment — feel free to reach out to us too!</div></div>' : '') +
+          (r.status === 'quoted' && r.quotedPrice ? (function(){
+            var deposit = Math.ceil(r.quotedPrice * 0.6);
+            var box = '<div style="margin-top:10px; background:#fff; border:1.5px solid #4a9eff; border-radius:8px; padding:10px 12px;">' +
+              '<div style="font-weight:800; font-size:0.9rem; color:#1a5c8a;">Quoted Price: ' + fmtPrice(r.quotedPrice) + '</div>' +
+              '<div style="font-size:0.78rem; color:#555; margin-top:4px;">Deposit required (60%): ' + fmtPrice(deposit) + '</div>';
+            if (r.depositPaid) {
+              box += '<div style="margin-top:8px; background:#e8f9ed; border:1px solid #2a9d50; border-radius:7px; padding:8px 10px; font-size:0.8rem; color:#1a6b38; font-weight:700;">✅ Deposit received — we\'re arranging your import now!</div>';
+            } else {
+              box += '<div style="font-size:0.78rem; color:#777; margin-top:8px; margin-bottom:8px;">Pay your deposit directly below to get this moving:</div>' +
+                '<div style="display:flex; gap:8px;">' +
+                  '<button onclick="startImportDepositPayment(\'' + r.fbDocId + '\', \'mtn\', ' + deposit + ')" style="flex:1; background:#FFCC00; color:#000; border:none; padding:10px; border-radius:7px; font-weight:800; font-size:0.78rem; cursor:pointer;">MTN MoMo</button>' +
+                  '<button onclick="startImportDepositPayment(\'' + r.fbDocId + '\', \'airtel\', ' + deposit + ')" style="flex:1; background:#ED1C24; color:#fff; border:none; padding:10px; border-radius:7px; font-weight:800; font-size:0.78rem; cursor:pointer;">Airtel Money</button>' +
+                '</div>' +
+                '<div id="import-deposit-status-' + r.fbDocId + '" style="display:none; margin-top:8px; font-size:0.78rem; color:#555;"></div>' +
+                '<div style="font-size:0.72rem; color:#999; margin-top:8px;">Prefer to pay another way? WhatsApp us and we\'ll arrange it.</div>';
+            }
+            return box + '</div>';
+          })() : '') +
           (r.status === 'converted' && r.convertedOrderId ? '<div style="margin-top:10px;"><button onclick="closeOverlayEl(document.getElementById(\'my-import-requests-modal\')); openTrackModal(\'' + r.convertedOrderId + '\');" class="btn-primary" style="padding:9px 14px; border-radius:7px; font-size:0.8rem; font-weight:700;">Track This Order</button></div>' : '') +
         '</div>';
       }).join('');
     } catch(e) {
       console.error('[import] loading requests failed:', e);
       body.innerHTML = '<div style="font-size:0.85rem;color:var(--red);text-align:center;padding:20px 0;">Could not load your requests. Please try again.</div>';
+    }
+  }
+
+  function openActiveOrdersModal() {
+    if (!currentAccount) return;
+    var body = document.getElementById('active-orders-modal-body');
+    body.innerHTML = '<div style="font-size:0.85rem;color:var(--grey);text-align:center;padding:20px 0;">Loading...</div>';
+    openOverlayEl(document.getElementById('active-orders-modal'));
+    renderActiveOrdersModalContent();
+  }
+
+  async function renderActiveOrdersModalContent() {
+    var body = document.getElementById('active-orders-modal-body');
+    if (!currentAccount || !window.fbDb || !window.fbFns || !body) return;
+    try {
+      var { collection, query, where, getDocs } = window.fbFns;
+      var q = query(collection(window.fbDb, 'orders'), where('accountId', '==', currentAccount.fbDocId));
+      var snap = await getDocs(q);
+      var ords = snap.docs.map(function(d){ return { fbDocId: d.id, ...d.data() }; }).sort(function(a,b){ return new Date(b.timestamp) - new Date(a.timestamp); });
+      var activeOrders = ords.filter(function(o){ return o.status === 'pending' || o.status === 'confirmed'; });
+      if (activeOrders.length === 0) {
+        body.innerHTML = '<div style="font-size:0.85rem;color:var(--grey);text-align:center;padding:20px 0;">No active orders right now. Anything you buy will show up here until it\'s delivered.</div>';
+        return;
+      }
+      // Same card treatment as My Orders' active section — same code, kept
+      // identical deliberately so this never silently drifts out of sync with it.
+      body.innerHTML = activeOrders.map(function(o){
+        var items = (o.cartItems || []).map(function(c){ return c.name + ' x' + c.qty; }).join(', ');
+        var badgeData = buildOrderStageBadgeHtml(o);
+        var stepsHtml = buildOrderStepsHtml(o);
+        var deliveryHtml = buildOrderDeliveryInfoHtml(o);
+        return '<div style="background:linear-gradient(135deg,#1a1a1a,#2c2c2c); border-radius:14px; padding:16px 18px; margin-bottom:12px; color:#fff;">' +
+          '<div style="font-size:0.86rem; font-weight:700; margin-bottom:12px;">' + (items || o.products || 'Your order') + '</div>' +
+          '<div style="display:flex; align-items:center; gap:8px; padding:9px 14px; border-radius:9px; margin-bottom:12px; font-size:0.88rem; font-weight:800; ' + badgeData.style + '">' + badgeData.html + '</div>' +
+          (stepsHtml ? '<div style="margin-bottom:14px;">' + stepsHtml + '</div>' : '') +
+          (deliveryHtml ? '<div style="background:rgba(255,255,255,0.08); border-radius:10px; padding:10px 12px; font-size:0.78rem; line-height:1.7;">' + deliveryHtml + '</div>' : '') +
+          buildOrderReferenceAndCancelHtml(o) +
+          '<div style="font-size:0.72rem; color:rgba(255,255,255,0.5); margin-top:10px;">Ordered ' + fmtMessageTime(o.timestamp) + ' &middot; ' + fmtPrice(o.orderTotal || o.subtotal || 0) + '</div>' +
+        '</div>';
+      }).join('');
+    } catch(e) {
+      console.error('[active-orders] loading failed:', e);
+      body.innerHTML = '<div style="font-size:0.85rem;color:var(--red);text-align:center;padding:20px 0;">Could not load your orders. Please try again.</div>';
     }
   }
 
