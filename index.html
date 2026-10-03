@@ -2070,6 +2070,17 @@
       </div>
       <div id="account-dash-progress-note" style="display:none;font-size:0.76rem;color:var(--grey);margin-bottom:16px;line-height:1.5;"></div>
 
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+        <button onclick="openActiveOrdersModal()" style="background:var(--black);color:#fff;border:none;border-radius:10px;padding:13px 10px;text-align:center;cursor:pointer;font-family:'Inter',sans-serif;">
+          <div style="font-size:1.1rem;margin-bottom:2px;">⚡</div>
+          <div style="font-size:0.78rem;font-weight:800;">Active Orders</div>
+        </button>
+        <button onclick="openMyImportRequestsModal()" style="background:var(--black);color:#fff;border:none;border-radius:10px;padding:13px 10px;text-align:center;cursor:pointer;font-family:'Inter',sans-serif;">
+          <div style="font-size:1.1rem;margin-bottom:2px;">📦</div>
+          <div style="font-size:0.78rem;font-weight:800;">Import Requests</div>
+        </button>
+      </div>
+
       <div style="margin-bottom:10px;">
         <button onclick="toggleAccountSection('purchases')" style="width:100%;text-align:left;background:var(--light);border:none;padding:12px 14px;border-radius:8px;font-size:0.85rem;font-weight:700;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-family:'Inter',sans-serif;">
           <span>📦 Purchase History</span><span id="account-purchases-arrow">▸</span>
