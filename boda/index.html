@@ -394,6 +394,12 @@
       <div style="font-size:0.8rem; color:#1a4a7a; font-weight:700; flex:1; min-width:180px;">👆 Sign in faster next time with your fingerprint or face.</div>
       <button onclick="enableBodaBiometricLogin(currentRider)" style="background:#4a9eff; color:#fff; border:none; padding:9px 16px; border-radius:8px; font-weight:800; font-size:0.8rem; white-space:nowrap;">Enable</button>
     </div>
+    <!-- Full-screen job alerts: only shown in the installed app, and only once its
+         native part is present. Amber until the two Android permissions are on. -->
+    <div id="boda-fullscreen-banner" style="display:none; background:linear-gradient(180deg, #2a2118, #1c150e); border-bottom:1.5px solid var(--amber); padding:12px 16px; align-items:center; gap:10px; justify-content:space-between; flex-wrap:wrap;">
+      <div id="boda-fullscreen-text" style="font-size:0.8rem; color:var(--amber); font-weight:700; flex:1; min-width:180px;"></div>
+      <button id="boda-fullscreen-btn" onclick="bodaFullScreenAction()" style="background:linear-gradient(180deg, #ffcf6e, var(--amber)); color:#1a1206; border:none; padding:9px 16px; border-radius:8px; font-weight:800; font-size:0.8rem; white-space:nowrap;">Set up</button>
+    </div>
     <div class="tabs">
       <button class="active" id="tab-btn-available" onclick="switchBodaTab('available')">
         📦 Available <span class="tab-badge" id="available-count-badge" style="display:none;"></span>
@@ -636,7 +642,7 @@
         }
         showScreen('screen-app');
         history.pushState({ bodaTab: 'available' }, '');
-        startBoardListener(); startRiderMessagesListener();
+        startBoardListener(); startRiderMessagesListener(); initJobAlertSetup();
         registerBodaServiceWorker();
         updateBodaNotifyBannerVisibility();
         updateBodaOnlineToggleUI();
@@ -679,7 +685,7 @@
       // already the default active tab in the static markup, so this just gives
       // the back button somewhere real to land after stepping back through tabs.
       history.pushState({ bodaTab: 'available' }, '');
-      startBoardListener(); startRiderMessagesListener();
+      startBoardListener(); startRiderMessagesListener(); initJobAlertSetup();
       registerBodaServiceWorker();
       updateBodaNotifyBannerVisibility();
       updateBodaOnlineToggleUI();
@@ -828,6 +834,9 @@
           riderId: currentRider.fbDocId,
           name: currentRider.name,
           phone: currentRider.phone,
+          // Only a build that actually contains the native full-screen alert may be sent
+          // the "data-only" job message — an older build has no code to show it.
+          fullScreenAlerts: bodaFullScreenCapable(),
           updatedAt: new Date().toISOString()
         });
       }).then(function() {
@@ -1329,7 +1338,7 @@
       refreshChatBadges();
     }
 
-    function sendBodaQuick(i) { sendBodaChat(BODA_QUICK_REPLIES[i]); }
+    function sendBodaQuick(i) { return sendBodaChat(BODA_QUICK_REPLIES[i]); }
 
     async function sendBodaChat(presetText) {
       var input = document.getElementById('boda-chat-input');
@@ -1357,22 +1366,104 @@
       }
     }
 
-    // Reuses the exact push route admin already uses to tell a customer about an
-    // order update. Only possible if the customer allowed notifications — if not,
-    // the message simply waits for them in the tracking page / their Messages.
+    // Asks the Worker to alert the customer, and the WORKER finds their phone: it
+    // checks the order's own notification token AND the customer's account token.
+    // (Before, this only worked if the order itself happened to carry a token —
+    // and many don't, so messages arrived silently.) The reply says how many
+    // devices it actually reached, so the rider can be told honestly when it
+    // reached none and phone the customer instead.
     function notifyCustomerOfRiderMessage(o, text) {
-      if (!o.customerFcmToken) return;
       fetch(ORDER_ALERT_WORKER_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Notify-Key': ORDER_ALERT_SHARED_KEY },
         body: JSON.stringify({
-          targetToken: o.customerFcmToken,
+          customerMessageAlert: true,
+          orderId: o.fbDocId,
           title: '🏍️ ' + (currentRider && currentRider.name ? currentRider.name : 'Your rider') + ' (your rider)',
           body: text.slice(0, 140),
-          url: '/track?code=' + encodeURIComponent(refCodeFor(o)) + '&chat=1'
+          // Opens the app's own tracking screen with the conversation already open.
+          url: '/?trackOrder=' + encodeURIComponent(o.fbDocId) + '&chat=1'
         })
+      }).then(function(res){ return res.json(); }).then(function(result){
+        if (result && result.sentTo === 0) {
+          showToast('Message sent — but this customer has notifications off. Call them if it\'s urgent.');
+        }
       }).catch(function(e){ console.error('[boda] customer push failed:', e); });
     }
+
+    // ── FULL-SCREEN JOB ALERTS (installed app only) ──
+    // The native half (a request screen that wakes the phone and takes over the
+    // display) lives in the Android project; this is just the setup + testing UI.
+    function bodaJobAlert() {
+      var ja = window.SwiftApp && window.SwiftApp.jobAlert;
+      return ja && ja.available ? ja : null;
+    }
+    function bodaFullScreenCapable() { return !!bodaJobAlert(); }
+    var bodaFullScreenReady = false;
+
+    function refreshFullScreenBanner() {
+      var banner = document.getElementById('boda-fullscreen-banner');
+      if (!banner) return;
+      var ja = bodaJobAlert();
+      if (!ja) { banner.style.display = 'none'; return; }
+      ja.getStatus().then(function(st){
+        var ready = !!(st && st.canOverlay && st.canFullScreen && st.notificationsEnabled);
+        bodaFullScreenReady = ready;
+        var text = document.getElementById('boda-fullscreen-text');
+        var btn = document.getElementById('boda-fullscreen-btn');
+        if (ready) {
+          text.textContent = '✅ Full-screen job alerts are on — a new request takes over your screen.';
+          text.style.color = 'var(--led-green)';
+          btn.textContent = '🔔 Test it';
+        } else {
+          text.textContent = '⚡ Turn on full-screen job alerts, so a new request takes over your screen even when your phone is locked or you\'re in another app.';
+          text.style.color = 'var(--amber)';
+          btn.textContent = 'Set up';
+        }
+        banner.style.display = 'flex';
+      }).catch(function(){ banner.style.display = 'none'; });
+    }
+
+    // One tap does the next thing that's missing: each Android permission needs a
+    // visit to a system screen, so explain it first (a toast would vanish the
+    // instant Settings opens), then take them there. Once everything's on, the
+    // same button sends a test alert.
+    function bodaFullScreenAction() {
+      var ja = bodaJobAlert();
+      if (!ja) return;
+      ja.getStatus().then(function(st){
+        if (!st.notificationsEnabled) {
+          showToast('Turn on notifications for Swift Boda first.');
+          return;
+        }
+        if (!st.canOverlay) {
+          showBodaConfirm('Android needs your OK to show requests over other apps. Open that screen now? Find "Swift Boda", switch it ON, then come back.', function(){ ja.openOverlaySettings(); });
+          return;
+        }
+        if (!st.canFullScreen) {
+          showBodaConfirm('One more: allow full-screen notifications for Swift Boda. Open that screen now? Switch it ON, then come back.', function(){ ja.openFullScreenSettings(); });
+          return;
+        }
+        showToast('Test alert in 5 seconds — lock your phone or press Home to see it.');
+        return ja.testAlert();
+      }).catch(function(e){ console.error('[boda] full-screen setup failed:', e); });
+    }
+
+    // Tapping "View Job" on the native alert opens the app; this lands the rider
+    // on the Available tab instead of wherever they last were.
+    function applyPendingJobAlertAction() {
+      var ja = bodaJobAlert();
+      if (!ja || !currentRider) return;
+      ja.consumePendingAction().then(function(action){
+        if (action === 'view_jobs') switchBodaTab('available');
+      }).catch(function(){});
+    }
+    function initJobAlertSetup() { refreshFullScreenBanner(); applyPendingJobAlertAction(); }
+
+    // Coming back from Android's settings screen (or from the alert) re-checks everything.
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible' && currentRider) initJobAlertSetup();
+    });
 
     // ── CLAIMING — first tap wins, enforced by Firestore rules themselves ──
     function claimJob(docId) {

@@ -472,7 +472,7 @@
       }
     }
 
-    function sendRiderQuick(i) { sendRiderChat(TRACK_QUICK_REPLIES[i]); }
+    function sendRiderQuick(i) { return sendRiderChat(TRACK_QUICK_REPLIES[i]); }
 
     async function sendRiderChat(presetText) {
       var input = document.getElementById('rider-chat-input');

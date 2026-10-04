@@ -221,4 +221,22 @@
       });
     });
   };
+  // ── 4. Native full-screen job alert ──
+  // Only the boda build ships this native plugin; everywhere else (storefront,
+  // admin, employee, a normal browser, an older boda build) it's simply absent
+  // and { available: false } lets pages skip the feature without checking anything else.
+  var JobAlertPlugin = null;
+  try {
+    if (typeof cap.isPluginAvailable === 'function' && cap.isPluginAvailable('JobAlert')) JobAlertPlugin = getPlugin('JobAlert');
+  } catch (e) { JobAlertPlugin = null; }
+  window.SwiftApp.jobAlert = JobAlertPlugin ? {
+    available: true,
+    getStatus: function () { return JobAlertPlugin.getStatus(); },
+    openOverlaySettings: function () { return JobAlertPlugin.openOverlaySettings(); },
+    openFullScreenSettings: function () { return JobAlertPlugin.openFullScreenSettings(); },
+    testAlert: function () { return JobAlertPlugin.testAlert(); },
+    consumePendingAction: function () {
+      return JobAlertPlugin.consumePendingAction().then(function (r) { return (r && r.action) || ''; });
+    }
+  } : { available: false };
 })();

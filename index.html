@@ -1851,6 +1851,20 @@
         <div id="track-live-steps" style="background:linear-gradient(135deg,#1a1a1a,#2c2c2c); border-radius:12px; padding:16px; margin-bottom:14px;"></div>
         <div id="track-live-delivery" style="background:var(--light); border-radius:10px; padding:12px 14px; font-size:0.85rem; line-height:1.7; margin-bottom:14px; display:none;"></div>
         <div id="track-live-items" style="background:var(--light); border-radius:10px; padding:12px 14px; font-size:0.85rem; margin-bottom:14px;"></div>
+        <div id="mdl-chat-wrap" style="display:none; margin-bottom:14px;">
+          <button id="mdl-chat-toggle" onclick="toggleModalRiderChat()" style="width:100%; background:var(--black); color:#fff; border:none; padding:12px; border-radius:10px; font-weight:800; font-size:0.88rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; font-family:'Inter',sans-serif;">💬 Message Rider <span id="mdl-chat-badge" style="background:var(--red); color:#fff; font-size:0.68rem; font-weight:800; padding:2px 8px; border-radius:20px; display:none;"></span></button>
+          <div id="mdl-chat-panel" style="display:none; margin-top:10px; border:1.5px solid var(--border); border-radius:12px; overflow:hidden; background:#fff;">
+            <div id="mdl-chat-thread" style="max-height:260px; min-height:90px; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:8px;"></div>
+            <div id="mdl-chat-compose">
+              <div id="mdl-chat-quick" style="display:flex; gap:6px; padding:0 10px 8px; overflow-x:auto;"></div>
+              <div style="display:flex; gap:8px; padding:10px; border-top:1px solid var(--border);">
+                <input type="text" id="mdl-chat-input" maxlength="500" placeholder="Message your rider..." onkeydown="if(event.key==='Enter'){sendModalRiderChat();}" style="flex:1; min-width:0; padding:11px 14px; border:1.5px solid var(--border); border-radius:20px; font-size:0.85rem; font-family:'Inter',sans-serif;"/>
+                <button onclick="sendModalRiderChat()" style="background:var(--black); color:#fff; border:none; width:42px; height:42px; border-radius:50%; cursor:pointer; font-size:1rem; flex-shrink:0;">&#10148;</button>
+              </div>
+            </div>
+            <div id="mdl-chat-closed" style="display:none; padding:12px; border-top:1px solid var(--border); text-align:center; font-size:0.78rem; color:var(--grey);">This delivery is finished, so messaging has ended.</div>
+          </div>
+        </div>
         <div id="track-live-footer" style="margin-bottom:14px;"></div>
         <div id="track-live-feedback-prompt" style="display:none; background:linear-gradient(160deg,#fff8e6,#ffedc2); border:1.5px solid var(--gold); border-radius:10px; padding:14px 16px; margin-bottom:14px; text-align:center;">
           <div style="font-weight:800; font-size:0.92rem; margin-bottom:10px; color:#6b4a00;">⭐ How was your order?</div>
@@ -5653,26 +5667,57 @@
   var messagesFirstSnapshotSeen = false;
   var lastKnownUnreadMsgCount = 0;
 
+  // ── MESSAGE CHIME ──
+  // ONE shared audio context, "unlocked" by the person's first tap or key press.
+  // The old chime built a brand-new context for every alert and never closed or
+  // resumed it: browsers start those suspended (silent) until a gesture, and
+  // eventually refuse to create any more — so message alerts quietly went mute.
+  // A single context that's resumed before each chime avoids both problems.
+  var sharedAudioCtx = null;
+  function getSharedAudioCtx() {
+    if (sharedAudioCtx) return sharedAudioCtx;
+    try { sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch(e) { sharedAudioCtx = null; }
+    return sharedAudioCtx;
+  }
+  function unlockSharedAudio() {
+    var ctx = getSharedAudioCtx();
+    if (ctx && ctx.state === 'suspended') { try { ctx.resume(); } catch(e) {} }
+  }
+  ['pointerdown', 'touchstart', 'keydown', 'click'].forEach(function(ev){
+    document.addEventListener(ev, unlockSharedAudio, { passive: true });
+  });
+
   function playMessageAlertSound() {
-    try {
-      var ctx = new (window.AudioContext || window.webkitAudioContext)();
-      var playTone = function(freq, startTime, duration, peakGain) {
-        var osc = ctx.createOscillator();
-        var gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(peakGain, startTime + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(startTime);
-        osc.stop(startTime + duration);
-      };
-      var now = ctx.currentTime;
-      playTone(880, now, 0.16, 0.22);        // pleasant two-note "ding-dong" chime
-      playTone(1318.51, now + 0.11, 0.28, 0.18);
-    } catch(e) { /* Web Audio unavailable/blocked — fail silently, badge still shows */ }
+    var ctx = getSharedAudioCtx();
+    if (!ctx) return;
+    var play = function() {
+      try {
+        var start = ctx.currentTime;
+        var tone = function(freq, at, dur, peak) {
+          var osc = ctx.createOscillator();
+          var gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0, at);
+          gain.gain.linearRampToValueAtTime(peak, at + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, at + dur);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(at);
+          osc.stop(at + dur);
+        };
+        // A clear two-note "ding-dong", played twice, at a volume you can actually
+        // hear (the old one was a barely-there fraction of a second).
+        [0, 0.7].forEach(function(offset){
+          tone(880, start + offset, 0.28, 0.6);
+          tone(1318.51, start + offset + 0.16, 0.5, 0.5);
+        });
+      } catch(e) { /* audio unavailable — the badge and toast still show */ }
+    };
+    var resumed = ctx.state === 'suspended' ? ctx.resume() : null;
+    if (resumed && typeof resumed.then === 'function') resumed.then(play).catch(function(){});
+    else play();
   }
 
   // Browser notifications for new messages — see sw.js for the honest limits (this
@@ -6197,6 +6242,7 @@
   function startMessagesListener() {
     if (!currentAccount || !window.fbDb || !window.fbFns || !window.fbFns.query || !window.fbFns.where) return;
     startCustomerRiderMsgsListener();
+    syncPushTokenToAccount();
     if (unsubscribeMessages) { unsubscribeMessages(); unsubscribeMessages = null; }
     messagesFirstSnapshotSeen = false;
     requestNotificationPermission();
@@ -6413,8 +6459,8 @@
       var watching = modalOpen && messagesActiveTab === 'rider' && !!activeRiderThreadOrderId && document.visibilityState === 'visible';
       fresh.forEach(function(m){
         if (watching && m.orderId === activeRiderThreadOrderId) return; // reading it right now
-        playMessageAlertSound();
-        showToastMessage('🏍️ ' + (m.riderName || 'Your rider') + ': ' + String(m.text).slice(0, 60), '#2a9d50');
+        if (modalChatIsOpenFor(m.orderId)) return;                       // reading it on the tracking screen
+        alertNewRiderMessage(m);
       });
       if (watching) markRiderThreadSeen(activeRiderThreadOrderId);
       updateMessagesBadge();
@@ -6576,6 +6622,166 @@
     } catch(e) {
       console.error('[rider-messages] failed to send:', e);
       input.value = text;
+    }
+  }
+
+  // ── MESSAGE RIDER — inside the app's own tracking screen ──
+  // The standalone tracking page (track.html) has this same panel, but the app
+  // tracks orders HERE, so it needs one too. Works for guests as well as account
+  // holders because it listens by ORDER, not by account.
+  var MODAL_QUICK_REPLIES = ['I\'m at the gate', 'Please call me', 'Where are you now?', 'I\'ll be there in 5 minutes'];
+  var mdlChatOrderId = null;
+  var mdlChatOrder = null;
+  var mdlChatMsgs = [];
+  var unsubscribeMdlChat = null;
+  var mdlChatOpen = false;
+  var modalChatAutoOpenPending = false;
+  var alertedRiderMsgIds = {};
+
+  // One chime + toast per message, no matter which listener notices it first
+  // (the account-wide one and this screen's own can both see the same message).
+  function alertNewRiderMessage(m) {
+    if (!m || alertedRiderMsgIds[m.fbDocId]) return;
+    alertedRiderMsgIds[m.fbDocId] = true;
+    playMessageAlertSound();
+    showToastMessage('🏍️ ' + (m.riderName || 'Your rider') + ': ' + String(m.text).slice(0, 60), '#2a9d50');
+  }
+  function modalChatIsOpenFor(orderId) {
+    return mdlChatOpen && mdlChatOrderId === orderId && document.visibilityState === 'visible';
+  }
+  // Same "seen" record the Messages > Riders tab uses, so reading here clears it there too.
+  function setRiderSeenCount(orderId, n) {
+    var s = loadRiderSeen();
+    s[orderId] = n;
+    try { localStorage.setItem(CUST_RIDER_SEEN_KEY, JSON.stringify(s)); } catch(e) {}
+  }
+  function mdlRiderCount() { return mdlChatMsgs.filter(function(m){ return m.sender === 'rider'; }).length; }
+  function mdlUnread() { return Math.max(0, mdlRiderCount() - (loadRiderSeen()[mdlChatOrderId] || 0)); }
+  function markMdlSeen() {
+    if (mdlChatOrderId) setRiderSeenCount(mdlChatOrderId, mdlRiderCount());
+    updateMessagesBadge();
+  }
+  function updateMdlBadge() {
+    var badge = document.getElementById('mdl-chat-badge');
+    var n = mdlChatOpen ? 0 : mdlUnread();
+    if (badge) { badge.textContent = n + ' new'; badge.style.display = n > 0 ? 'inline-block' : 'none'; }
+  }
+
+  function renderModalRiderChat() {
+    var thread = document.getElementById('mdl-chat-thread');
+    if (!thread) return;
+    var riderName = (mdlChatOrder && mdlChatOrder.bodaClaimedBy && mdlChatOrder.bodaClaimedBy.name) || 'your rider';
+    if (mdlChatMsgs.length === 0) {
+      thread.innerHTML = '<div style="margin:auto; text-align:center; color:var(--grey); font-size:0.8rem; padding:14px 6px;">No messages yet.<br/>Say hello to ' + escapeHtml(riderName) + ' — tell them where to find you.</div>';
+      return;
+    }
+    thread.innerHTML = mdlChatMsgs.map(function(m){
+      var isMe = m.sender === 'customer';
+      return '<div style="align-self:' + (isMe ? 'flex-end' : 'flex-start') + '; max-width:82%;">' +
+        '<div style="background:' + (isMe ? 'var(--black)' : 'var(--light)') + '; color:' + (isMe ? '#fff' : '#222') + '; padding:8px 12px; border-radius:' + (isMe ? '14px 14px 3px 14px' : '14px 14px 14px 3px') + '; font-size:0.85rem; line-height:1.4; word-wrap:break-word;">' + escapeHtml(m.text) + '</div>' +
+        '<div style="font-size:0.6rem; color:var(--grey); margin-top:3px; text-align:' + (isMe ? 'right' : 'left') + ';">' + (isMe ? 'You' : escapeHtml(m.riderName || riderName)) + ' · ' + fmtMessageTime(m.timestamp) + '</div>' +
+      '</div>';
+    }).join('');
+    thread.scrollTop = thread.scrollHeight;
+  }
+
+  // Listener + state only — never touches what's on screen.
+  function teardownModalRiderChat() {
+    if (unsubscribeMdlChat) { unsubscribeMdlChat(); unsubscribeMdlChat = null; }
+    mdlChatOrderId = null; mdlChatMsgs = []; mdlChatOpen = false;
+  }
+  // Full stop: also hides the section (no rider, or the screen was closed).
+  function stopModalRiderChat() {
+    teardownModalRiderChat();
+    mdlChatOrder = null;
+    var wrap = document.getElementById('mdl-chat-wrap');
+    if (wrap) wrap.style.display = 'none';
+    var panel = document.getElementById('mdl-chat-panel');
+    if (panel) panel.style.display = 'none';
+  }
+
+  function startModalRiderChat(o) {
+    // Tear down the previous listener WITHOUT hiding the section: the caller has
+    // just decided to show it.
+    teardownModalRiderChat();
+    var panelEl = document.getElementById('mdl-chat-panel');
+    if (panelEl) panelEl.style.display = 'none';
+    if (!window.fbDb || !window.fbFns || !window.fbFns.query) return;
+    mdlChatOrderId = o.fbDocId;
+    var { collection, query, where, onSnapshot } = window.fbFns;
+    var known = null;
+    unsubscribeMdlChat = onSnapshot(query(collection(window.fbDb, 'rider_messages'), where('orderId', '==', o.fbDocId)), function(snap){
+      mdlChatMsgs = snap.docs.map(function(d){ return Object.assign({ fbDocId: d.id }, d.data()); })
+        .sort(function(a, b){ return new Date(a.timestamp) - new Date(b.timestamp); });
+      // Only genuinely NEW rider messages react — never the backlog on first load.
+      var fresh = known ? mdlChatMsgs.filter(function(m){ return !known[m.fbDocId] && m.sender === 'rider'; }) : [];
+      known = {};
+      mdlChatMsgs.forEach(function(m){ known[m.fbDocId] = true; });
+      fresh.forEach(function(m){ if (!modalChatIsOpenFor(m.orderId)) alertNewRiderMessage(m); });
+      if (mdlChatOpen) markMdlSeen();
+      renderModalRiderChat();
+      updateMdlBadge();
+      updateMessagesBadge();
+    }, function(e){ console.error('[track] rider chat listener failed:', e); });
+  }
+
+  function setModalChatPanel(open) {
+    mdlChatOpen = !!open;
+    var panel = document.getElementById('mdl-chat-panel');
+    if (panel) panel.style.display = mdlChatOpen ? 'block' : 'none';
+    if (mdlChatOpen) { markMdlSeen(); renderModalRiderChat(); }
+    updateMdlBadge();
+  }
+  function toggleModalRiderChat() { setModalChatPanel(!mdlChatOpen); }
+
+  // Called every time the order re-renders — must be safe to repeat.
+  function syncModalRiderChat(o) {
+    var wrap = document.getElementById('mdl-chat-wrap');
+    if (!wrap) return;
+    mdlChatOrder = o;
+    if (!o || !o.bodaClaimedBy || !o.bodaClaimedBy.riderId) { stopModalRiderChat(); return; }
+    wrap.style.display = 'block';
+    var over = o.status === 'closed' || o.status === 'cancelled';
+    document.getElementById('mdl-chat-compose').style.display = over ? 'none' : 'block';
+    document.getElementById('mdl-chat-closed').style.display = over ? 'block' : 'none';
+    document.getElementById('mdl-chat-quick').innerHTML = MODAL_QUICK_REPLIES.map(function(t, i){
+      return '<button onclick="sendModalQuick(' + i + ')" style="flex-shrink:0; background:var(--light); color:#222; border:1px solid var(--border); padding:6px 11px; border-radius:15px; font-size:0.72rem; font-weight:700; white-space:nowrap; cursor:pointer; font-family:\'Inter\',sans-serif;">' + escapeHtml(t) + '</button>';
+    }).join('');
+    if (mdlChatOrderId !== o.fbDocId) startModalRiderChat(o);
+    if (modalChatAutoOpenPending) { modalChatAutoOpenPending = false; setModalChatPanel(true); }
+  }
+
+  function sendModalQuick(i) { return sendModalRiderChat(MODAL_QUICK_REPLIES[i]); }
+
+  async function sendModalRiderChat(presetText) {
+    var input = document.getElementById('mdl-chat-input');
+    var text = String(presetText || (input && input.value) || '').trim().slice(0, 500);
+    var o = mdlChatOrder;
+    if (!text || !o || !o.bodaClaimedBy || !o.bodaClaimedBy.riderId || !window.fbDb || !window.fbFns) return;
+    if (o.status === 'closed' || o.status === 'cancelled') return;
+    if (!presetText && input) input.value = '';
+    var who = (currentAccount && currentAccount.name) || o.customerName || 'Customer';
+    try {
+      await window.fbFns.addDoc(window.fbFns.collection(window.fbDb, 'rider_messages'), {
+        orderId: o.fbDocId,
+        orderRef: o.refCode || '',
+        riderId: o.bodaClaimedBy.riderId,
+        riderName: o.bodaClaimedBy.name || '',
+        customerId: o.accountId || (currentAccount ? currentAccount.fbDocId : null),
+        sender: 'customer',
+        text: text,
+        timestamp: new Date().toISOString()
+      });
+      // Wake that one rider's phone, on its own gentle channel.
+      fetch(ORDER_ALERT_WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Notify-Key': ORDER_ALERT_SHARED_KEY },
+        body: JSON.stringify({ riderMessageAlert: true, riderId: o.bodaClaimedBy.riderId, title: '💬 ' + who + ' (order #' + (o.refCode || '') + ')', body: text.slice(0, 140), url: '/boda' })
+      }).catch(function(e){ console.error('[track] push to rider failed:', e); });
+    } catch(e) {
+      console.error('[track] failed to send message:', e);
+      if (!presetText && input) input.value = text;
+      showToastMessage('Could not send — please check your connection.', '#c0392b');
     }
   }
 
@@ -7493,13 +7699,30 @@
         id: 'customer-updates',
         name: 'Order updates',
         description: 'Updates on your order and import request status',
-        sound: 'order_update'
+        sound: 'order_update',
+        // A second channel for chat messages from a delivery rider — default system
+        // sound, so a message is clearly audible rather than the short order chime.
+        extraChannels: [{ id: 'customer-messages', name: 'Messages from your rider', description: 'Messages from your delivery rider' }]
       }).then(function(token) {
         cachedCustomerPushToken = token;
         return token;
       }).catch(function() { return null; });
     }).catch(function() { return null; });
     return customerPushTokenPromise;
+  }
+
+  // Keeps the phone's notification token on the customer's ACCOUNT, not just on
+  // individual orders. Previously it only reached the account when an import
+  // request was submitted, so a rider's message about an order that happened to
+  // be missing its own token had nowhere to be delivered. Safe to call often.
+  function syncPushTokenToAccount() {
+    if (!(window.SwiftApp && window.SwiftApp.isNative) || !currentAccount || !window.fbDb || !window.fbFns) return;
+    var acct = currentAccount;
+    getCustomerPushToken().then(function(token) {
+      if (!token || acct.fcmToken === token) return;
+      return window.fbFns.updateDoc(window.fbFns.doc(window.fbDb, 'customers', acct.fbDocId), { fcmToken: token })
+        .then(function(){ acct.fcmToken = token; });
+    }).catch(function(e){ console.error('[push] could not save token to account:', e); });
   }
 
   async function tryAutoLoginAccount() {
@@ -7837,6 +8060,16 @@
         // the notify button always makes sense here (unlike the reference code box,
         // which only applies to payment-gated orders).
         lastPlacedOrderDocId = docRef && docRef.id ? docRef.id : null;
+        // If the phone hadn't finished registering for notifications when the order
+        // was placed, attach the token the moment it has — otherwise this order's
+        // messages from the rider would have no device to reach.
+        if (lastPlacedOrderDocId && window.SwiftApp && window.SwiftApp.isNative && !cachedCustomerPushToken) {
+          var placedOrderId = lastPlacedOrderDocId;
+          getCustomerPushToken().then(function(token) {
+            if (!token || !window.fbFns || !window.fbDb) return;
+            return window.fbFns.updateDoc(window.fbFns.doc(window.fbDb, 'orders', placedOrderId), { customerFcmToken: token });
+          }).catch(function(e){ console.error('[order] could not attach push token afterwards:', e); });
+        }
         var notifyBtn = document.getElementById('success-notify-btn');
         if (notifyBtn && lastPlacedOrderDocId && !(window.SwiftApp && window.SwiftApp.isNative)) notifyBtn.style.display = 'block';
         currentCheckoutRefCode = null; // next order (if any) gets its own fresh code
@@ -8250,8 +8483,10 @@
     // to a different order (or closing and reopening) would leave old listeners
     // running in the background indefinitely.
     if (unsubscribeTrackedOrder) { unsubscribeTrackedOrder(); unsubscribeTrackedOrder = null; }
+    stopModalRiderChat();
     openOverlayEl(document.getElementById('track-order-modal'), function(){
       if (unsubscribeTrackedOrder) { unsubscribeTrackedOrder(); unsubscribeTrackedOrder = null; }
+      stopModalRiderChat();
     });
     setTimeout(function(){var e=document.getElementById('track-opt-2');if(e)e.classList.add('visible');},280);
     setTimeout(function(){var e=document.getElementById('track-footer-btn');if(e)e.classList.add('visible');},420);
@@ -8530,6 +8765,7 @@
       if (feedbackThanksEl) feedbackThanksEl.style.display = 'none';
     }
 
+    syncModalRiderChat(o);
     foundEl.style.display = 'block';
   }
 
@@ -8539,7 +8775,11 @@
   function checkForTrackOrderDeepLink() {
     var params = new URLSearchParams(window.location.search);
     var orderId = params.get('trackOrder');
-    if (orderId) openTrackModal(orderId);
+    if (orderId) {
+      // A "your rider messaged you" push links here with chat=1: land on the conversation.
+      if (params.get('chat') === '1') modalChatAutoOpenPending = true;
+      openTrackModal(orderId);
+    }
     if (params.get('importRequest')) {
       // Requires the account to actually be logged in/restored first — if a
       // persisted session exists it should already be restored by the time
