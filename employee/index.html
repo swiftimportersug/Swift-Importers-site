@@ -1432,6 +1432,10 @@
             💰 Awaiting Payment
             <span id="open-orders-awaiting-badge" style="background:var(--red); color:#fff; font-size:0.65rem; font-weight:700; padding:2px 7px; border-radius:20px; display:none;"></span>
           </button>
+          <button id="open-orders-subtab-todispatch" onclick="switchOpenOrdersTab('todispatch')" style="background:none; border:none; padding:10px 10px; font-size:0.85rem; font-weight:800; color:var(--grey); border-bottom:2.5px solid transparent; cursor:pointer; font-family:'Inter',sans-serif; display:flex; align-items:center; gap:6px;">
+            🏍️ To Dispatch
+            <span id="open-orders-todispatch-badge" style="background:#e8820c; color:#fff; font-size:0.65rem; font-weight:700; padding:2px 7px; border-radius:20px; display:none;"></span>
+          </button>
           <button id="open-orders-subtab-confirmed" onclick="switchOpenOrdersTab('confirmed')" style="background:none; border:none; padding:10px 10px; font-size:0.85rem; font-weight:800; color:var(--grey); border-bottom:2.5px solid transparent; cursor:pointer; font-family:'Inter',sans-serif; display:flex; align-items:center; gap:6px;">
             ✅ Confirmed
             <span id="open-orders-confirmed-badge" style="background:#2a9d50; color:#fff; font-size:0.65rem; font-weight:700; padding:2px 7px; border-radius:20px; display:none;"></span>
@@ -2662,10 +2666,12 @@
     const awaitBtn = document.getElementById('open-orders-subtab-awaiting');
     const confirmedBtn = document.getElementById('open-orders-subtab-confirmed');
     const shipBtn = document.getElementById('open-orders-subtab-toship');
+    const dispatchBtn = document.getElementById('open-orders-subtab-todispatch');
     if (allBtn) { allBtn.style.color = tab === 'all' ? 'var(--black)' : 'var(--grey)'; allBtn.style.borderBottomColor = tab === 'all' ? 'var(--gold)' : 'transparent'; }
     if (awaitBtn) { awaitBtn.style.color = tab === 'awaiting' ? 'var(--black)' : 'var(--grey)'; awaitBtn.style.borderBottomColor = tab === 'awaiting' ? 'var(--gold)' : 'transparent'; }
     if (confirmedBtn) { confirmedBtn.style.color = tab === 'confirmed' ? 'var(--black)' : 'var(--grey)'; confirmedBtn.style.borderBottomColor = tab === 'confirmed' ? 'var(--gold)' : 'transparent'; }
     if (shipBtn) { shipBtn.style.color = tab === 'toship' ? 'var(--black)' : 'var(--grey)'; shipBtn.style.borderBottomColor = tab === 'toship' ? 'var(--gold)' : 'transparent'; }
+    if (dispatchBtn) { dispatchBtn.style.color = tab === 'todispatch' ? 'var(--black)' : 'var(--grey)'; dispatchBtn.style.borderBottomColor = tab === 'todispatch' ? 'var(--gold)' : 'transparent'; }
     renderOpenOrders();
   }
   let myPanelPeriod = 'today';
@@ -3464,7 +3470,7 @@
                 `<button onclick="removeFromBodaBoard('${o.fbDocId}')" style="background:#fdecea; border:1.5px solid #f5c6c0; color:var(--red); padding:9px 11px; border-radius:8px; font-size:0.76rem; font-weight:700; cursor:pointer;">✕ Remove</button>` +
               '</div>';
             }
-            return `<button onclick="postToBodaBoard('${o.fbDocId}')" style="width:100%; margin-top:8px; background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:8px 10px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer;">📢 Post to Boda Board</button>`;
+            return (isReadyForDispatch(o) ? '<div style="width:100%; margin-top:8px; background:rgba(74,222,128,0.14); border:1.5px solid #4ade80; border-radius:8px; padding:8px 11px; font-size:0.78rem; color:#1a5c2e; font-weight:700;">✅ Fully paid — ready to dispatch. Post it to a rider below.</div>' : '') + `<button onclick="postToBodaBoard('${o.fbDocId}')" style="width:100%; margin-top:8px; background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:8px 10px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer;">📢 Post to Boda Board</button>`;
           })() : ''}
           ${!isClosed && o.status === 'confirmed' ? `
             <div style="width:100%; display:flex; gap:6px; margin-top:8px;">
@@ -3547,7 +3553,10 @@
     if (searchInput && searchQuery !== undefined && searchInput.value !== searchQuery) searchInput.value = searchQuery;
 
     let open = orders.filter(o => o.status === 'pending' || o.status === 'confirmed');
-    open = open.filter(o => isInPeriod(o.timestamp, openOrdersPeriod));
+    // To Dispatch is a to-do queue, not a historical view: an installment order
+    // placed weeks ago and only just paid off must still appear there, so it
+    // ignores the period filter (the same reason the badge counts do).
+    if (openOrdersSubTab !== 'todispatch') open = open.filter(o => isInPeriod(o.timestamp, openOrdersPeriod));
 
     // Both badge counts ignore the period filter — they're to-do counts, not a
     // historical view, so they should always reflect everything currently pending.
@@ -3570,7 +3579,15 @@
       else { confirmedBadge.style.display = 'none'; }
     }
 
+    const toDispatchAll = orders.filter(o => isReadyForDispatch(o));
+    const toDispatchBadge = document.getElementById('open-orders-todispatch-badge');
+    if (toDispatchBadge) {
+      if (toDispatchAll.length > 0) { toDispatchBadge.textContent = toDispatchAll.length; toDispatchBadge.style.display = 'inline-block'; }
+      else { toDispatchBadge.style.display = 'none'; }
+    }
+
     if (openOrdersSubTab === 'toship') open = open.filter(o => o.hasShippedItems);
+    if (openOrdersSubTab === 'todispatch') open = open.filter(o => isReadyForDispatch(o));
     if (openOrdersSubTab === 'awaiting') open = open.filter(o => o.status === 'pending' && requiresPaymentGate(o));
     if (openOrdersSubTab === 'confirmed') open = open.filter(o => o.status === 'confirmed');
 
@@ -3585,9 +3602,13 @@
       });
     }
 
-    const periodLabel = { today: 'today', week: 'this week', month: 'this month', all: 'all time' }[openOrdersPeriod];
+    const periodLabel = openOrdersSubTab === 'todispatch' ? 'waiting to dispatch' : { today: 'today', week: 'this week', month: 'this month', all: 'all time' }[openOrdersPeriod];
     document.getElementById('open-orders-count').textContent = open.length + ' order' + (open.length !== 1 ? 's' : '') + ' — ' + periodLabel + (q ? ' (filtered)' : '');
     if (open.length === 0) {
+      if (!q && openOrdersSubTab === 'todispatch') {
+        list.innerHTML = '<div class="orders-empty">🏍️ Nothing waiting to be dispatched — you\'re all caught up!</div>';
+        return;
+      }
       list.innerHTML = q
         ? '<div class="orders-empty">No orders match "' + searchQuery + '" ' + periodLabel + '.</div>'
         : (openOrdersSubTab === 'toship'
@@ -3905,7 +3926,9 @@
         // Waiting until closing left a real window where an item already sold
         // and out for delivery still showed as available, letting a second
         // customer buy the same last unit expecting it to be delivered too.
-        if (newStatus === 'confirmed' && !order.stockDeducted) {
+        // Also on a direct pending -> closed: otherwise an order closed without
+        // ever being confirmed would never take its stock out at all.
+        if ((newStatus === 'confirmed' || newStatus === 'closed') && !order.stockDeducted) {
           const { skipped, correctedCartItems } = await adjustStockForOrder(order, -1, currentEmployeeName || 'Unknown Employee');
           updates.stockDeducted = true;
           if (correctedCartItems) updates.cartItems = correctedCartItems;
@@ -3940,6 +3963,56 @@
   }
 
   // ── CLOSE ORDER — payment confirmation flow ──
+  // ── "READY TO DISPATCH" and "FINISHED ONCE PAID" ──
+  // Closing an order is the END of its life, not the moment it's paid. Before
+  // this, finishing off a balance (installments, or a part-payment topped up by
+  // hand) closed the order the instant it reached zero — before anyone had
+  // posted it to a rider or delivered it, so it vanished from Open Orders with
+  // the goods still sitting in the shop. These two helpers separate "paid"
+  // from "done".
+
+  // True once nothing is left to do for the order except being paid: it has
+  // already been delivered, or there's nothing to deliver at all because the
+  // customer collects it themselves.
+  function isOrderFinishedOncePaid(o) {
+    if (!o) return false;
+    if (o.deliveryStage === 'delivered') return true;
+    if (o.delivery && o.delivery.type === 'selfpick') return true;
+    return false;
+  }
+
+  // Fully paid, confirmed, and still waiting for someone to send it out. This
+  // is exactly the set of orders the "Post to Boda Board" button is for, minus
+  // anything already posted, claimed, or in motion.
+  function isReadyForDispatch(o) {
+    if (!o || o.status !== 'confirmed') return false;
+    if (o.paymentStatus !== 'paid' || (o.balanceDue || 0) > 0) return false;
+    if (o.delivery && o.delivery.type === 'selfpick') return false;
+    if (o.bodaClaimedBy || o.postedToBodaBoard) return false;
+    if (o.deliveryStage) return false; // handed / on the way / delivered = already moving
+    // Imported items that haven't reached the warehouse yet can't be sent anywhere.
+    if (o.hasShippedItems && (o.importStage || 'ordered') !== 'warehouse') return false;
+    return true;
+  }
+
+  // The one place an admin-recorded payment finishes off an order's balance.
+  async function finishFullPayment(docId, totalPaid) {
+    const o = orders.find(x => x.fbDocId === docId);
+    await window.fbFns.updateDoc(window.fbFns.doc(window.fbDb, 'orders', docId), { amountPaid: totalPaid, balanceDue: 0, paymentStatus: 'paid' });
+    if (isOrderFinishedOncePaid(o)) {
+      await updateOrderStatus(docId, 'closed');
+      showOrderCompletedToast();
+      return;
+    }
+    // Not delivered yet: keep it open. Full payment is what confirms an order
+    // that was still pending (this also takes the stock out at that moment).
+    if (o && o.status !== 'confirmed') await updateOrderStatus(docId, 'confirmed');
+    const readyNow = isReadyForDispatch(Object.assign({}, o, { status: 'confirmed', paymentStatus: 'paid', balanceDue: 0 }));
+    showSuccessToast(readyNow
+      ? '✅ Fully paid — moved to To Dispatch, ready to post to a rider.'
+      : '✅ Fully paid — it will show in To Dispatch once it\'s ready to send.');
+  }
+
   var closeOrderTargetDocId = null;
   var partialAmountTargetDocId = null;
 
@@ -4007,9 +4080,7 @@
 
     try {
       if (newBalance <= 0) {
-        await window.fbFns.updateDoc(window.fbFns.doc(window.fbDb, 'orders', docId), { amountPaid: newTotalPaid, balanceDue: 0, paymentStatus: 'paid' });
-        await updateOrderStatus(docId, 'closed');
-        showOrderCompletedToast();
+        await finishFullPayment(docId, newTotalPaid);
       } else {
         await window.fbFns.updateDoc(window.fbFns.doc(window.fbDb, 'orders', docId), { amountPaid: newTotalPaid, balanceDue: newBalance, paymentStatus: 'partial' });
         showInfoToast('ℹ️ Partial payment recorded — ' + fmt(newBalance) + ' still due.');
@@ -4020,14 +4091,12 @@
   async function markOrderBalancePaid(docId) {
     const o = orders.find(x => x.fbDocId === docId);
     if (!o) return;
-    showAppConfirm('Mark this order\'s outstanding balance of ' + fmt(o.balanceDue||0) + ' as fully paid? This will move it to Closed Orders.', async function(){
+    const closesNow = isOrderFinishedOncePaid(o);
+    showAppConfirm('Mark this order\'s outstanding balance of ' + fmt(o.balanceDue||0) + ' as fully paid? ' + (closesNow ? 'This will move it to Closed Orders.' : 'It will stay open and move to To Dispatch, so you can post it to a rider.'), async function(){
       if (!window.fbDb || !window.fbFns) return;
-      const { doc, updateDoc } = window.fbFns;
       const fullTotal = getOrderTotal(o);
       try {
-        await updateDoc(doc(window.fbDb, 'orders', docId), { amountPaid: fullTotal, balanceDue: 0, paymentStatus: 'paid' });
-        await updateOrderStatus(docId, 'closed');
-        showOrderCompletedToast();
+        await finishFullPayment(docId, fullTotal);
       } catch(e) { showAppAlert('Error updating order. Check your connection.'); console.error(e); }
     }, null, { icon: '💰', confirmText: 'Mark as Paid' });
   }
