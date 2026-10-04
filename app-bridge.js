@@ -196,13 +196,21 @@
             name: 'Order updates',
             description: 'Order status and payment updates'
           };
+          // A caller may also ask for extra channels (boda uses one for chat
+          // messages, so a message ping doesn't ring the long job tone). Anything
+          // that doesn't pass extraChannels behaves exactly as before.
+          var extraChannels = channelConfig.extraChannels || [];
+          var mainConfig = Object.assign({}, channelConfig);
+          delete mainConfig.extraChannels;
           var channelPromise;
           try {
-            channelPromise = Push.createChannel(Object.assign({
-              importance: 5,
-              visibility: 1,
-              vibration: true
-            }, channelConfig));
+            channelPromise = Promise.all([mainConfig].concat(extraChannels).map(function (cfg) {
+              return Promise.resolve(Push.createChannel(Object.assign({
+                importance: 5,
+                visibility: 1,
+                vibration: true
+              }, cfg))).catch(function () {});
+            }));
           } catch (e) {
             channelPromise = Promise.resolve();
           }
