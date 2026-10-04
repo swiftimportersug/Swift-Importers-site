@@ -24,7 +24,7 @@
   <script src="/app-bridge.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, collection, doc, getDoc, onSnapshot, query, where, getDocs, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, doc, getDoc, onSnapshot, query, where, getDocs, updateDoc, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDqOE4NDmp3xJrTf71MzlClTZ201Uhyk0Q",
@@ -37,7 +37,7 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     window.fbDb = db;
-    window.fbFns = { collection, doc, getDoc, onSnapshot, query, where, getDocs, updateDoc };
+    window.fbFns = { collection, doc, getDoc, onSnapshot, query, where, getDocs, updateDoc, addDoc };
     window.firebaseReady = true;
     window.dispatchEvent(new Event('firebaseReady'));
   </script>
@@ -102,6 +102,17 @@
     .track-again { display: block; text-align: center; margin-top: 16px; font-size: 0.82rem; color: var(--blue-gauge); cursor: pointer; }
 
     @keyframes orderStagePulse { 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.12); } }
+  
+    /* Message Rider panel — same dark/amber palette as the rest of the page. */
+    @keyframes rcPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255,92,92,0.55); } 50% { box-shadow: 0 0 0 7px rgba(255,92,92,0); } }
+    .rc-toggle { width: 100%; background: var(--panel-raised); border: 1.5px solid var(--chrome); color: var(--blue-gauge); padding: 12px; border-radius: 10px; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; font-family: inherit; }
+    .rc-toggle.unread { border-color: var(--led-red); animation: rcPulse 1.6s ease-in-out infinite; }
+    .rc-badge { background: var(--led-red); color: #fff; font-size: 0.68rem; font-weight: 800; padding: 2px 8px; border-radius: 20px; }
+    .rc-bubble { max-width: 82%; padding: 8px 12px; border-radius: 14px; font-size: 0.85rem; line-height: 1.4; word-wrap: break-word; }
+    .rc-bubble.me { align-self: flex-end; background: linear-gradient(180deg, #ffcf6e, var(--amber)); color: #1a1206; border-bottom-right-radius: 4px; }
+    .rc-bubble.them { align-self: flex-start; background: var(--panel-raised); color: var(--ink); border: 1px solid var(--chrome); border-bottom-left-radius: 4px; }
+    .rc-time { font-size: 0.6rem; opacity: 0.6; margin-top: 3px; }
+    .rc-quick { flex-shrink: 0; background: var(--panel-raised); color: var(--ink); border: 1px solid var(--chrome); padding: 6px 11px; border-radius: 15px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; cursor: pointer; font-family: inherit; }
   </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -130,6 +141,20 @@
       <div id="info-box" class="info-box" style="display:none;"></div>
       <div id="items-box" class="items-box"></div>
       <div id="payment-balance-box" style="display:none; background:#fff3d6; border:1px solid #e0c060; border-radius:10px; padding:12px 14px; font-size:0.85rem; margin-bottom:14px;"></div>
+      <div id="rider-chat-wrap" style="display:none; margin-top:14px;">
+        <button id="rider-chat-toggle" class="rc-toggle" onclick="toggleRiderChat()">💬 Message Rider <span id="rider-chat-badge" class="rc-badge" style="display:none;"></span></button>
+        <div id="rider-chat-panel" style="display:none; margin-top:10px; background:var(--bezel); border:1px solid var(--chrome); border-radius:12px; overflow:hidden;">
+          <div id="rider-chat-thread" style="max-height:290px; min-height:90px; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:8px;"></div>
+          <div id="rider-chat-compose">
+            <div id="rider-chat-quick" style="display:flex; gap:6px; padding:0 10px 8px; overflow-x:auto;"></div>
+            <div style="display:flex; gap:8px; padding:10px; border-top:1px solid var(--chrome);">
+              <input type="text" id="rider-chat-input" maxlength="500" placeholder="Message your rider..." onkeydown="if(event.key==='Enter'){sendRiderChat();}" style="flex:1; min-width:0; padding:11px 13px; border:1.5px solid var(--chrome); border-radius:20px; font-size:0.88rem; background:var(--panel); color:var(--ink); font-family:inherit;"/>
+              <button onclick="sendRiderChat()" style="background:linear-gradient(180deg, #ffcf6e, var(--amber)); color:#1a1206; border:none; width:42px; height:42px; border-radius:50%; font-size:1rem; font-weight:800; cursor:pointer; flex-shrink:0;">➤</button>
+            </div>
+          </div>
+          <div id="rider-chat-closed" style="display:none; padding:12px; border-top:1px solid var(--chrome); text-align:center; font-size:0.78rem; color:var(--ink-dim);">This delivery is finished, so messaging has ended.</div>
+        </div>
+      </div>
       <span class="track-again" onclick="resetLookup()">🔍 Track a different order</span>
     </div>
   </div>
@@ -307,14 +332,177 @@
       } else {
         balanceBox.style.display = 'none';
       }
+      syncRiderChat(o);
     }
 
     function resetLookup() {
+      stopRiderChat();
       if (unsubscribe) { unsubscribe(); unsubscribe = null; }
       document.getElementById('order-result').style.display = 'none';
       document.getElementById('lookup-section').style.display = 'block';
       document.getElementById('track-code-input').value = '';
       document.getElementById('status-msg').style.display = 'none';
+    }
+
+    // ── MESSAGE RIDER ──
+    // Works for guests too: the order code is what identifies the delivery, same
+    // as the tracking itself. Only shown once a rider has actually claimed the
+    // job. "Unread" is a per-order COUNT of rider messages seen on this device —
+    // counting, not comparing timestamps, so a wrong phone clock can't make a new
+    // message look already-read.
+    var NOTIFY_WORKER_URL = 'https://swift-order-alert.swiftimportersug.workers.dev';
+    var NOTIFY_SHARED_KEY = 'swiftorders2026alertkey93x7';
+    var TRACK_CHAT_SEEN_KEY = 'swift_track_chat_seen_v1';
+    var TRACK_QUICK_REPLIES = ['I\'m at the gate', 'Please call me', 'Where are you now?', 'I\'ll be there in 5 minutes'];
+    var chatOrderId = null;
+    var chatMsgs = [];
+    var unsubscribeChat = null;
+    var chatFirstSnapshot = false;
+    var chatPanelOpen = false;
+    var autoOpenChatDone = false;
+
+    function chatEsc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function(ch){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]; });
+    }
+    function loadTrackChatSeen() { try { return JSON.parse(localStorage.getItem(TRACK_CHAT_SEEN_KEY) || '{}'); } catch(e) { return {}; } }
+    function riderMsgCount() { return chatMsgs.filter(function(m){ return m.sender === 'rider'; }).length; }
+    function unreadRiderCount() { return Math.max(0, riderMsgCount() - (loadTrackChatSeen()[chatOrderId] || 0)); }
+    function markRiderChatSeen() {
+      if (!chatOrderId) return;
+      var s = loadTrackChatSeen();
+      s[chatOrderId] = riderMsgCount();
+      try { localStorage.setItem(TRACK_CHAT_SEEN_KEY, JSON.stringify(s)); } catch(e) {}
+    }
+
+    function updateRiderChatBadge() {
+      var badge = document.getElementById('rider-chat-badge');
+      var toggle = document.getElementById('rider-chat-toggle');
+      var n = chatPanelOpen ? 0 : unreadRiderCount();
+      if (badge) { badge.textContent = n + ' new'; badge.style.display = n > 0 ? 'inline-block' : 'none'; }
+      if (toggle) { if (n > 0) toggle.classList.add('unread'); else toggle.classList.remove('unread'); }
+    }
+
+    function fmtChatTime(ts) {
+      var d = new Date(ts);
+      if (isNaN(d.getTime())) return '';
+      var p = function(n){ return String(n).padStart(2, '0'); };
+      return p(d.getDate()) + '/' + p(d.getMonth() + 1) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+
+    function renderRiderChat() {
+      var thread = document.getElementById('rider-chat-thread');
+      if (!thread) return;
+      var o = currentTrackedOrder;
+      var riderName = (o && o.bodaClaimedBy && o.bodaClaimedBy.name) || 'your rider';
+      if (chatMsgs.length === 0) {
+        thread.innerHTML = '<div style="margin:auto; text-align:center; color:var(--ink-dim); font-size:0.8rem; padding:14px 6px;">No messages yet.<br/>Say hello to ' + chatEsc(riderName) + ' — tell them where to find you.</div>';
+        return;
+      }
+      thread.innerHTML = chatMsgs.map(function(m){
+        var mine = m.sender === 'customer';
+        return '<div class="rc-bubble ' + (mine ? 'me' : 'them') + '">' + chatEsc(m.text) +
+          '<div class="rc-time">' + (mine ? 'You' : chatEsc(m.riderName || riderName)) + ' · ' + fmtChatTime(m.timestamp) + '</div></div>';
+      }).join('');
+      thread.scrollTop = thread.scrollHeight;
+    }
+
+    function startRiderChat(o) {
+      // Tear down the previous listener WITHOUT hiding the section: the caller has
+      // just decided to show it, and hiding it here made the panel vanish on the
+      // very first render.
+      teardownRiderChat();
+      var panelEl = document.getElementById('rider-chat-panel');
+      if (panelEl) panelEl.style.display = 'none';
+      if (!window.fbDb || !window.fbFns) return;
+      chatOrderId = o.fbDocId;
+      chatFirstSnapshot = false;
+      var { collection, query, where, onSnapshot } = window.fbFns;
+      var q = query(collection(window.fbDb, 'rider_messages'), where('orderId', '==', o.fbDocId));
+      unsubscribeChat = onSnapshot(q, function(snap){
+        chatMsgs = snap.docs.map(function(d){ return Object.assign({ fbDocId: d.id }, d.data()); })
+          .sort(function(a, b){ return new Date(a.timestamp) - new Date(b.timestamp); });
+        chatFirstSnapshot = true;
+        if (chatPanelOpen) markRiderChatSeen();
+        renderRiderChat();
+        updateRiderChatBadge();
+      }, function(e){ console.error('[track] rider chat listener failed:', e); });
+    }
+
+    // Listener + state only — never touches what's on screen.
+    function teardownRiderChat() {
+      if (unsubscribeChat) { unsubscribeChat(); unsubscribeChat = null; }
+      chatOrderId = null; chatMsgs = []; chatFirstSnapshot = false; chatPanelOpen = false;
+    }
+
+    // Full stop: also hides the section (no rider, or leaving the order).
+    function stopRiderChat() {
+      teardownRiderChat();
+      var wrap = document.getElementById('rider-chat-wrap');
+      if (wrap) wrap.style.display = 'none';
+      var panel = document.getElementById('rider-chat-panel');
+      if (panel) panel.style.display = 'none';
+    }
+
+    function setRiderChatPanel(open) {
+      chatPanelOpen = !!open;
+      var panel = document.getElementById('rider-chat-panel');
+      if (panel) panel.style.display = chatPanelOpen ? 'block' : 'none';
+      if (chatPanelOpen) { markRiderChatSeen(); renderRiderChat(); }
+      updateRiderChatBadge();
+    }
+    function toggleRiderChat() { setRiderChatPanel(!chatPanelOpen); }
+
+    // Called every time the order re-renders — must be safe to repeat.
+    function syncRiderChat(o) {
+      var wrap = document.getElementById('rider-chat-wrap');
+      if (!wrap) return;
+      if (!o || !o.bodaClaimedBy || !o.bodaClaimedBy.riderId) { stopRiderChat(); return; }
+      wrap.style.display = 'block';
+      var over = o.status === 'closed' || o.status === 'cancelled';
+      document.getElementById('rider-chat-compose').style.display = over ? 'none' : 'block';
+      document.getElementById('rider-chat-closed').style.display = over ? 'block' : 'none';
+      document.getElementById('rider-chat-quick').innerHTML = TRACK_QUICK_REPLIES.map(function(t, i){
+        return '<button class="rc-quick" onclick="sendRiderQuick(' + i + ')">' + chatEsc(t) + '</button>';
+      }).join('');
+      if (chatOrderId !== o.fbDocId) startRiderChat(o);
+      // Opened from a "your rider messaged you" push: go straight to the conversation, once.
+      if (!autoOpenChatDone && new URLSearchParams(window.location.search).get('chat') === '1') {
+        autoOpenChatDone = true;
+        setRiderChatPanel(true);
+      }
+    }
+
+    function sendRiderQuick(i) { sendRiderChat(TRACK_QUICK_REPLIES[i]); }
+
+    async function sendRiderChat(presetText) {
+      var input = document.getElementById('rider-chat-input');
+      var text = String(presetText || (input && input.value) || '').trim().slice(0, 500);
+      var o = currentTrackedOrder;
+      if (!text || !o || !o.bodaClaimedBy || !o.bodaClaimedBy.riderId || !window.fbDb || !window.fbFns) return;
+      if (o.status === 'closed' || o.status === 'cancelled') return;
+      if (!presetText && input) input.value = '';
+      try {
+        await window.fbFns.addDoc(window.fbFns.collection(window.fbDb, 'rider_messages'), {
+          orderId: o.fbDocId,
+          orderRef: o.refCode || '',
+          riderId: o.bodaClaimedBy.riderId,
+          riderName: o.bodaClaimedBy.name || '',
+          customerId: o.accountId || null,
+          sender: 'customer',
+          text: text,
+          timestamp: new Date().toISOString()
+        });
+        // Wake the rider's phone — it goes only to THIS rider, on a gentle channel.
+        fetch(NOTIFY_WORKER_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Notify-Key': NOTIFY_SHARED_KEY },
+          body: JSON.stringify({ riderMessageAlert: true, riderId: o.bodaClaimedBy.riderId, title: '💬 ' + (o.customerName || 'Customer') + ' (order #' + (o.refCode || '') + ')', body: text.slice(0, 140), url: '/boda' })
+        }).catch(function(e){ console.error('[track] rider push failed:', e); });
+      } catch(e) {
+        console.error('[track] failed to send message:', e);
+        if (!presetText && input) input.value = text;
+        alert('Could not send your message — please check your connection and try again.');
+      }
     }
 
     // Deep-link support: track.html?code=GDRHHX opens straight to that order.
