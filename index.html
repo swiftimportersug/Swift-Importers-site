@@ -1090,6 +1090,7 @@
   </style>
   <!-- Firebase -->
   <script src="/app-bridge.js"></script>
+  <script src="/rider-map.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getFirestore, collection, doc, getDoc, updateDoc, addDoc, onSnapshot, getDocs, increment, query, where, arrayUnion, arrayRemove, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -1851,6 +1852,7 @@
         <div id="track-live-steps" style="background:linear-gradient(135deg,#1a1a1a,#2c2c2c); border-radius:12px; padding:16px; margin-bottom:14px;"></div>
         <div id="track-live-delivery" style="background:var(--light); border-radius:10px; padding:12px 14px; font-size:0.85rem; line-height:1.7; margin-bottom:14px; display:none;"></div>
         <div id="track-live-items" style="background:var(--light); border-radius:10px; padding:12px 14px; font-size:0.85rem; margin-bottom:14px;"></div>
+        <div id="mdl-map-wrap" style="display:none; margin-bottom:14px;"></div>
         <div id="mdl-chat-wrap" style="display:none; margin-bottom:14px;">
           <button id="mdl-chat-toggle" onclick="toggleModalRiderChat()" style="width:100%; background:var(--black); color:#fff; border:none; padding:12px; border-radius:10px; font-weight:800; font-size:0.88rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; font-family:'Inter',sans-serif;">💬 Message Rider <span id="mdl-chat-badge" style="background:var(--red); color:#fff; font-size:0.68rem; font-weight:800; padding:2px 8px; border-radius:20px; display:none;"></span></button>
           <div id="mdl-chat-panel" style="display:none; margin-top:10px; border:1.5px solid var(--border); border-radius:12px; overflow:hidden; background:#fff;">
@@ -6693,6 +6695,9 @@
   // Full stop: also hides the section (no rider, or the screen was closed).
   function stopModalRiderChat() {
     teardownModalRiderChat();
+    // The live map belongs to the same screen, so it stops whenever the chat does
+    // (screen closed, switched to another order, or no rider on this order).
+    if (mdlRiderMapCtl) mdlRiderMapCtl.destroy();
     mdlChatOrder = null;
     var wrap = document.getElementById('mdl-chat-wrap');
     if (wrap) wrap.style.display = 'none';
@@ -8766,7 +8771,16 @@
     }
 
     syncModalRiderChat(o);
+    syncModalRiderMap(o);
     foundEl.style.display = 'block';
+  }
+
+  // Live rider map (rider-map.js): shows itself only while the rider has the parcel.
+  var mdlRiderMapCtl = null;
+  function syncModalRiderMap(o) {
+    if (!window.SwiftRiderMap) return;
+    if (!mdlRiderMapCtl) mdlRiderMapCtl = window.SwiftRiderMap.create(document.getElementById('mdl-map-wrap'));
+    mdlRiderMapCtl.sync(o);
   }
 
   // Deep-link support: a notification click lands here as

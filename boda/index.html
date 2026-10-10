@@ -18,7 +18,7 @@
   <script src="/app-bridge.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, collection, doc, setDoc, getDocs, onSnapshot, updateDoc, query, where, arrayUnion, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, doc, setDoc, getDocs, onSnapshot, updateDoc, query, where, arrayUnion, addDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
 
@@ -43,7 +43,10 @@
     const messaging = getMessaging(app);
 
     window.fbDb = db;
-    window.fbFns = { collection, doc, setDoc, getDocs, onSnapshot, updateDoc, query, where, arrayUnion, addDoc };
+    window.fbFns = { collection, doc, setDoc, getDocs, onSnapshot, updateDoc, query, where, arrayUnion, addDoc, deleteDoc, serverTimestamp };
+    // What the native location service needs to upload on its own (it can't borrow the page's session).
+    window.fbConfig = firebaseConfig;
+    window.fbGetRefreshToken = function() { return (auth.currentUser && auth.currentUser.refreshToken) || ''; };
     window.fbAuthFns = { signInWithEmailAndPassword, signOut, onAuthStateChanged };
     window.fbMessaging = messaging;
     window.fbMessagingFns = { getToken };
@@ -282,6 +285,12 @@
     #boda-new-job-banner.shaking { animation: bodaBannerShake 1.6s ease-in-out infinite; }
 
     .phone-link { color: var(--amber); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
+    /* Live location sharing status on a job card */
+    .loc-chip { width: 100%; margin-bottom: 8px; border-radius: 9px; font-size: 0.8rem; font-weight: 800; font-family: inherit; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; }
+    .loc-chip.on { background: rgba(61,220,132,0.12); border: 1.5px solid rgba(61,220,132,0.45); color: var(--led-green); }
+    .loc-chip.off { justify-content: center; background: rgba(240,169,59,0.14); border: 1.5px solid var(--amber-dim); color: var(--amber); cursor: pointer; }
+    .loc-chip-link { background: none; border: 1px solid currentColor; color: inherit; border-radius: 14px; padding: 4px 12px; font-size: 0.72rem; font-weight: 800; font-family: inherit; cursor: pointer; }
+    .loc-hint { font-size: 0.74rem; color: var(--ink-dim); margin-bottom: 8px; }
     .chat-btn { width: 100%; margin-bottom: 8px; background: var(--panel-raised); color: var(--blue-gauge); border: 1.5px solid var(--chrome); padding: 11px; border-radius: 9px; font-size: 0.85rem; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; font-family: inherit; }
     .chat-badge { background: var(--led-red); color: #fff; font-size: 0.68rem; font-weight: 800; padding: 2px 7px; border-radius: 20px; }
     .chat-bubble { max-width: 80%; padding: 9px 13px; border-radius: 14px; font-size: 0.88rem; line-height: 1.4; word-wrap: break-word; }
@@ -459,6 +468,8 @@
     }
 
     function doBodaLogout() {
+      // First: tell the customer the rider is no longer being followed, and stop the background service.
+      if (typeof shutdownLocationSharing === 'function') shutdownLocationSharing();
       currentRider = null;
       if (unsubscribeBoard) { unsubscribeBoard(); unsubscribeBoard = null; }
       stopRiderMessagesListener();
@@ -980,7 +991,9 @@
         boardOrders = snapshot.docs.map(function(d){ return Object.assign({ fbDocId: d.id }, d.data()); });
         checkForNewAvailableJobs();
         renderBodaTabs();
+        syncLocationSharing();
       }, function(e){ console.error('[boda] board listener failed:', e); });
+      startLocationWatchdog();
     }
 
     function switchBodaTab(tab, fromHistory) {
@@ -1163,6 +1176,7 @@
         '<div class="customer">👤 ' + (o.customerName || 'Customer') + ' &middot; ' + phoneLinkHtml(o.phone) + '</div>' +
         (o.notes && o.notes.trim() ? '<div class="notes">💬 ' + o.notes.trim() + '</div>' : '') +
         chatButtonHtml(o) +
+        locationChipHtml(o) +
         '<div class="action-row" style="flex-direction:column;">' + actionsHtml + '</div>' +
       '</div>';
     }
@@ -1537,16 +1551,24 @@
     // to it ("swiftimporters.com says..."). Same tactile, dark-bezel look as
     // the rest of the app instead.
     var bodaDialogCallback = null;
-    function showBodaConfirm(message, onConfirm) {
+    var bodaDialogDeclineCallback = null;
+    // icon and onDecline are optional: the cash-received question keeps its 💰.
+    function showBodaConfirm(message, onConfirm, icon, onDecline) {
       document.getElementById('boda-dialog-message').textContent = message;
+      var iconEl = document.getElementById('boda-dialog-icon');
+      if (iconEl) iconEl.textContent = icon || '💰';
       bodaDialogCallback = onConfirm;
+      bodaDialogDeclineCallback = onDecline || null;
       document.getElementById('boda-dialog-overlay').classList.add('open');
     }
     function bodaDialogRespond(confirmed) {
       document.getElementById('boda-dialog-overlay').classList.remove('open');
       var cb = bodaDialogCallback;
+      var declineCb = bodaDialogDeclineCallback;
       bodaDialogCallback = null;
+      bodaDialogDeclineCallback = null;
       if (confirmed && typeof cb === 'function') cb();
+      else if (!confirmed && typeof declineCb === 'function') declineCb();
     }
 
     function completeBodaDeliveryWithPayment(docId, o) {
@@ -1585,12 +1607,314 @@
       });
     }
 
+    // ── LIVE LOCATION SHARING ──
+    // From the moment the rider picks a parcel up until they deliver it, the customer
+    // can watch the rider on a map. On the Android app a native background service
+    // does the uploading (so it keeps working with the app minimised); in a plain
+    // browser (or a boda build made before that service existed) the page does it
+    // itself, which only works while the app stays open.
+    //
+    // Privacy: sharing only runs for direct deliveries between pickup and delivery,
+    // needs the rider's one-time OK, shows a notification while it runs, and the
+    // rider can stop it at any time. The location record is deleted when it ends.
+    var LOC_CONSENT_KEY = 'swift_boda_loc_consent_v1';
+    var LOC_PAUSED_PREFIX = 'swift_boda_loc_paused_';
+    var locShare = {
+      ids: [],                 // orders we are currently sharing for
+      browserWatchId: null,
+      lastWrite: 0,
+      status: null,            // last status read from the native service
+      busy: false,
+      again: false,
+      asking: false,
+      declinedThisSession: false,
+      permissionDenied: false,
+      failedKey: '',           // the set of orders a start attempt already failed for
+      startedKey: '',          // the set of orders the native service was last asked to start for
+      startedAt: 0,
+      timer: null,
+      chipKey: ''
+    };
+
+    function locNative() {
+      var ls = window.SwiftApp && window.SwiftApp.locationShare;
+      return (ls && ls.available) ? ls : null;
+    }
+    function locPaused(id) { try { return localStorage.getItem(LOC_PAUSED_PREFIX + id) === '1'; } catch (e) { return false; } }
+    function setLocPaused(id, on) {
+      try { if (on) localStorage.setItem(LOC_PAUSED_PREFIX + id, '1'); else localStorage.removeItem(LOC_PAUSED_PREFIX + id); } catch (e) {}
+    }
+    function locConsentGiven() { try { return localStorage.getItem(LOC_CONSENT_KEY) === 'yes'; } catch (e) { return false; } }
+    function giveLocConsent() { try { localStorage.setItem(LOC_CONSENT_KEY, 'yes'); } catch (e) {} }
+
+    // Direct deliveries only: a taxi/bus hand-off isn't something the customer waits to see arrive.
+    function locationSharingApplies(o) {
+      var isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
+      return !isTaxiBus && o.status !== 'closed' && o.status !== 'cancelled';
+    }
+    function shareableOrders() {
+      if (!currentRider) return [];
+      return boardOrders.filter(function(o){
+        return o.bodaClaimedBy && o.bodaClaimedBy.riderId === currentRider.fbDocId
+          && locationSharingApplies(o)
+          && (o.deliveryStage === 'handed' || o.deliveryStage === 'on_the_way');
+      });
+    }
+    function isSharingOrder(id) {
+      if (locNative()) {
+        var st = locShare.status;
+        return !!(st && st.active && String(st.activeOrderId || '').split(',').indexOf(id) !== -1);
+      }
+      return locShare.browserWatchId != null && locShare.ids.indexOf(id) !== -1;
+    }
+
+    function deleteLocationDoc(id) {
+      var f = window.fbFns;
+      if (!window.fbDb || !f || !f.deleteDoc) return;
+      f.deleteDoc(f.doc(window.fbDb, 'rider_locations', id)).catch(function(){});
+    }
+
+    // ── browser fallback ──
+    function onBrowserFix(pos) {
+      var now = Date.now();
+      if (now - locShare.lastWrite < 10000) return;
+      locShare.lastWrite = now;
+      var f = window.fbFns;
+      if (!window.fbDb || !f || !currentRider) return;
+      locShare.ids.forEach(function(id){
+        var data = {
+          orderId: id, riderId: currentRider.fbDocId,
+          lat: pos.coords.latitude, lng: pos.coords.longitude,
+          updatedAt: f.serverTimestamp(), source: 'web'
+        };
+        if (typeof pos.coords.accuracy === 'number') data.accuracy = pos.coords.accuracy;
+        if (typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading)) data.heading = pos.coords.heading;
+        if (typeof pos.coords.speed === 'number' && !isNaN(pos.coords.speed)) data.speed = pos.coords.speed;
+        f.setDoc(f.doc(window.fbDb, 'rider_locations', id), data).catch(function(e){ console.error('[boda] location write failed:', e); });
+      });
+    }
+    function onBrowserError(err) {
+      if (err && err.code === 1) {
+        showToast('Allow Location for this app so the customer can see you.');
+        locShare.failedKey = locShare.ids.join(',');
+        stopSharingTransport();
+        locShare.ids = [];
+        refreshLocationChips();
+      }
+    }
+
+    function stopSharingTransport() {
+      var native = locNative();
+      if (native) native.stop().catch(function(){});
+      if (locShare.browserWatchId != null && navigator.geolocation) {
+        try { navigator.geolocation.clearWatch(locShare.browserWatchId); } catch (e) {}
+      }
+      locShare.browserWatchId = null;
+    }
+
+    function startSharingTransport(ids, orders) {
+      var key = ids.join(',');
+      if (locShare.failedKey === key) return Promise.resolve();
+      var native = locNative();
+
+      if (native) {
+        return native.getStatus().then(function(st){
+          if (st && st.hasPermission) return st;
+          return native.requestPermission();
+        }).then(function(st){
+          if (!st || !st.hasPermission) { var e = new Error('permission'); e.code = 'permission'; throw e; }
+          if (!st.locationEnabled) {
+            showToast('Turn on your phone\'s Location (GPS) so the customer can see you.');
+            native.openLocationSettings().catch(function(){});
+          }
+          var token = window.fbGetRefreshToken && window.fbGetRefreshToken();
+          var cfg = window.fbConfig || {};
+          if (!token || !cfg.apiKey || !cfg.projectId) { var e2 = new Error('signin'); e2.code = 'signin'; throw e2; }
+          return native.start({
+            orderId: key,
+            riderId: currentRider.fbDocId,
+            apiKey: cfg.apiKey,
+            projectId: cfg.projectId,
+            refreshToken: token,
+            orderLabel: orders.map(function(o){ return refCodeFor(o); }).join(', ')
+          });
+        }).then(function(){
+          locShare.ids = ids;
+          locShare.startedKey = key;
+          locShare.startedAt = Date.now();
+          locShare.failedKey = '';
+          locShare.permissionDenied = false;
+          showToast('📡 The customer can now see where you are.');
+          // The service takes a moment to start; read its real state shortly after.
+          setTimeout(syncLocationSharing, 1500);
+        }).catch(function(e){
+          locShare.failedKey = key;
+          var code = e && (e.code || e.message);
+          if (code === 'permission') {
+            locShare.permissionDenied = true;
+            showToast('Location permission is needed to share where you are.');
+          } else if (code === 'signin') {
+            showToast('Please log out and back in, then try sharing your location again.');
+          } else {
+            console.error('[boda] could not start location sharing:', e);
+            showToast('Could not start location sharing. Tap "Share my location" to try again.');
+          }
+        });
+      }
+
+      // Browser / older build
+      if (!navigator.geolocation) {
+        locShare.failedKey = key;
+        showToast('This phone can\'t share its location from here.');
+        return Promise.resolve();
+      }
+      locShare.ids = ids;
+      if (locShare.browserWatchId == null) {
+        locShare.browserWatchId = navigator.geolocation.watchPosition(onBrowserFix, onBrowserError, { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
+        showToast('📡 Sharing your location. Keep this app open while you ride.');
+      }
+      return Promise.resolve();
+    }
+
+    function askLocationConsent() {
+      if (locShare.asking || locShare.declinedThisSession) return;
+      locShare.asking = true;
+      showBodaConfirm(
+        'Let the customer see where you are on a map while you deliver? It starts after pickup and stops when you deliver. It uses very little data.',
+        function(){ locShare.asking = false; giveLocConsent(); syncLocationSharing(); },
+        '📍',
+        function(){ locShare.asking = false; locShare.declinedThisSession = true; refreshLocationChips(); }
+      );
+    }
+
+    // The one place that decides what should be happening, safe to call as often as
+    // needed (board updates, coming back to the app, a timer): it only acts when
+    // what is running differs from what should be.
+    function syncLocationSharing() {
+      if (!currentRider) return;
+      if (locShare.busy) { locShare.again = true; return; }
+      locShare.busy = true;
+      var native = locNative();
+      var statusP = native ? native.getStatus().catch(function(){ return null; }) : Promise.resolve(null);
+
+      statusP.then(function(st){
+        locShare.status = st;
+        // The rider tapped "Stop sharing" on the phone's notification: remember it per order.
+        if (st && st.userStoppedOrderId) {
+          String(st.userStoppedOrderId).split(',').forEach(function(id){ if (id) setLocPaused(id, true); });
+          native.stop().catch(function(){});
+          st.userStoppedOrderId = '';
+        }
+        var orders = shareableOrders().filter(function(o){ return !locPaused(o.fbDocId); });
+        var wanted = orders.map(function(o){ return o.fbDocId; }).sort();
+
+        // Anything we were sharing that no longer should be (delivered, paused, cancelled) is cleaned up.
+        locShare.ids.filter(function(id){ return wanted.indexOf(id) === -1; }).forEach(deleteLocationDoc);
+
+        if (!wanted.length) {
+          if (locShare.ids.length || (st && st.active) || locShare.browserWatchId != null) stopSharingTransport();
+          locShare.ids = [];
+          return;
+        }
+        if (!locConsentGiven()) { askLocationConsent(); return; }
+
+        var key = wanted.join(',');
+        var running = native ? !!(st && st.active && st.activeOrderId === key) : (locShare.browserWatchId != null && locShare.ids.join(',') === key);
+        if (running) { locShare.ids = wanted; locShare.startedKey = ''; return; }
+
+        // Already asked the service to start for exactly these orders: give it a moment,
+        // and if it still isn't running, say so once instead of restarting it forever.
+        if (native && locShare.startedKey === key) {
+          if (Date.now() - locShare.startedAt < 15000) return;
+          locShare.startedKey = '';
+          locShare.failedKey = key;
+          showToast('Location sharing isn\'t running' + (st && st.lastError ? ' (' + st.lastError + ')' : '') + '. Tap "Share my location" to try again.');
+          return;
+        }
+        return startSharingTransport(wanted, orders);
+      }).catch(function(e){
+        console.error('[boda] location sync failed:', e);
+      }).then(function(){
+        locShare.busy = false;
+        refreshLocationChips();
+        if (locShare.again) { locShare.again = false; syncLocationSharing(); }
+      });
+    }
+
+    // Re-draw the job cards only when something the chip shows has actually changed.
+    function refreshLocationChips() {
+      var key = JSON.stringify(shareableOrders().map(function(o){ return [o.fbDocId, isSharingOrder(o.fbDocId), locPaused(o.fbDocId)]; })) + locShare.declinedThisSession;
+      if (key === locShare.chipKey) return;
+      locShare.chipKey = key;
+      renderBodaTabs();
+    }
+
+    function startLocationWatchdog() {
+      if (locShare.timer) clearInterval(locShare.timer);
+      locShare.timer = setInterval(syncLocationSharing, 20000);
+    }
+
+    function shutdownLocationSharing() {
+      if (locShare.timer) { clearInterval(locShare.timer); locShare.timer = null; }
+      locShare.ids.forEach(deleteLocationDoc);
+      stopSharingTransport();
+      locShare.ids = [];
+      locShare.status = null;
+      locShare.failedKey = '';
+      locShare.chipKey = '';
+    }
+
+    // Buttons on the job card
+    function turnOnLocationSharing() {
+      giveLocConsent();
+      locShare.declinedThisSession = false;
+      locShare.failedKey = '';
+      shareableOrders().forEach(function(o){ setLocPaused(o.fbDocId, false); });
+      var native = locNative();
+      if (locShare.permissionDenied && native) {
+        // Android won't ask again once refused: send the rider to the settings screen.
+        locShare.permissionDenied = false;
+        showToast('Allow Location for this app, then come back.');
+        native.openAppSettings().catch(function(){});
+        return;
+      }
+      syncLocationSharing();
+    }
+    function stopLocationSharingByRider() {
+      shareableOrders().forEach(function(o){ setLocPaused(o.fbDocId, true); });
+      showToast('Location sharing stopped.');
+      syncLocationSharing();
+    }
+
+    function locationChipHtml(o) {
+      if (!locationSharingApplies(o)) return '';
+      var stage = o.deliveryStage || null;
+      if (stage !== 'handed' && stage !== 'on_the_way') {
+        if (stage) return '';
+        return '<div class="loc-hint">📍 When you pick it up, the customer can follow you on a map.</div>';
+      }
+      if (isSharingOrder(o.fbDocId)) {
+        return '<div class="loc-chip on"><span>📡 Customer can see your location</span>' +
+          '<button type="button" class="loc-chip-link" onclick="stopLocationSharingByRider()">Stop</button></div>';
+      }
+      return '<button type="button" class="loc-chip off" onclick="turnOnLocationSharing()">📍 Share my location with the customer</button>';
+    }
+
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible' && currentRider) {
+        // Coming back to the app is a good moment to retry a failed start, unless the
+        // rider already refused permission (asking again every time would be nagging).
+        if (!locShare.permissionDenied) locShare.failedKey = '';
+        syncLocationSharing();
+      }
+    });
+
     document.addEventListener('DOMContentLoaded', function(){
       renderRiderPickList();
     });
   </script>  <div class="boda-dialog-overlay" id="boda-dialog-overlay">
     <div class="boda-dialog-box">
-      <div class="boda-dialog-icon">💰</div>
+      <div class="boda-dialog-icon" id="boda-dialog-icon">💰</div>
       <div class="boda-dialog-message" id="boda-dialog-message"></div>
       <div class="boda-dialog-buttons">
         <button class="boda-dialog-btn-no" onclick="bodaDialogRespond(false)">No</button>

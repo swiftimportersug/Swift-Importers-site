@@ -239,4 +239,21 @@
       return JobAlertPlugin.consumePendingAction().then(function (r) { return (r && r.action) || ''; });
     }
   } : { available: false };
+
+  // ── 5. Native live location sharing (boda build only) ──
+  // A foreground service uploads the rider's position even while the app is
+  // minimised. Absent everywhere else, and in boda builds made before it existed.
+  var LocationSharePlugin = null;
+  try {
+    if (typeof cap.isPluginAvailable === 'function' && cap.isPluginAvailable('LocationShare')) LocationSharePlugin = getPlugin('LocationShare');
+  } catch (e) { LocationSharePlugin = null; }
+  window.SwiftApp.locationShare = LocationSharePlugin ? {
+    available: true,
+    getStatus: function () { return LocationSharePlugin.getStatus(); },
+    requestPermission: function () { return LocationSharePlugin.requestLocationPermission(); },
+    start: function (opts) { return LocationSharePlugin.start(opts); },
+    stop: function () { return LocationSharePlugin.stop(); },
+    openLocationSettings: function () { return LocationSharePlugin.openLocationSettings(); },
+    openAppSettings: function () { return LocationSharePlugin.openAppSettings(); }
+  } : { available: false };
 })();
