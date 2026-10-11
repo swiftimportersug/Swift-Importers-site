@@ -23,7 +23,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
   <script src="/app-bridge.js"></script>
-  <script src="/rider-map.js?v=20261011"></script>
+  <script src="/rider-map.js?v=20261011c"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getFirestore, collection, doc, getDoc, onSnapshot, query, where, getDocs, updateDoc, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -345,7 +345,7 @@
     function syncRiderMap(o) {
       showMapDebug(o);
       if (!window.SwiftRiderMap) return;
-      if (!riderMapCtl) riderMapCtl = window.SwiftRiderMap.create(document.getElementById('rider-map-wrap'));
+      if (!riderMapCtl) riderMapCtl = window.SwiftRiderMap.create(document.getElementById('rider-map-wrap'), { arrivalBeep: true });
       riderMapCtl.sync(o);
     }
 

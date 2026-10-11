@@ -18,7 +18,7 @@
   <script src="/app-bridge.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, collection, doc, setDoc, getDocs, onSnapshot, updateDoc, query, where, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, doc, setDoc, getDocs, onSnapshot, updateDoc, query, where, arrayUnion, addDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
 
@@ -43,7 +43,10 @@
     const messaging = getMessaging(app);
 
     window.fbDb = db;
-    window.fbFns = { collection, doc, setDoc, getDocs, onSnapshot, updateDoc, query, where, arrayUnion };
+    window.fbFns = { collection, doc, setDoc, getDocs, onSnapshot, updateDoc, query, where, arrayUnion, addDoc, deleteDoc, serverTimestamp };
+    // What the native location service needs to upload on its own (it can't borrow the page's session).
+    window.fbConfig = firebaseConfig;
+    window.fbGetRefreshToken = function() { return (auth.currentUser && auth.currentUser.refreshToken) || ''; };
     window.fbAuthFns = { signInWithEmailAndPassword, signOut, onAuthStateChanged };
     window.fbMessaging = messaging;
     window.fbMessagingFns = { getToken };
@@ -266,6 +269,30 @@
       padding: 12px 20px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; z-index: 999;
       display: none; box-shadow: 0 8px 24px rgba(0,0,0,0.5); max-width: 90%; text-align: center;
     }
+  
+    /* New-job banner: shakes in short bursts with a rest in between, so it grabs
+       attention for the whole 30s+ it stays up without being a constant wobble. */
+    @keyframes bodaBannerShake {
+      0%, 55%, 100% { transform: translateX(0) rotate(0); }
+      6%  { transform: translateX(-9px) rotate(-0.7deg); }
+      13% { transform: translateX(9px)  rotate(0.7deg); }
+      20% { transform: translateX(-8px) rotate(-0.6deg); }
+      27% { transform: translateX(8px)  rotate(0.6deg); }
+      34% { transform: translateX(-5px) rotate(-0.4deg); }
+      41% { transform: translateX(5px)  rotate(0.4deg); }
+      48% { transform: translateX(-2px); }
+    }
+    #boda-new-job-banner.shaking { animation: bodaBannerShake 1.6s ease-in-out infinite; }
+
+    .phone-link { color: var(--amber); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
+    /* Live location sharing status on a job card */
+    .chat-btn { width: 100%; margin-bottom: 8px; background: var(--panel-raised); color: var(--blue-gauge); border: 1.5px solid var(--chrome); padding: 11px; border-radius: 9px; font-size: 0.85rem; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; font-family: inherit; }
+    .chat-badge { background: var(--led-red); color: #fff; font-size: 0.68rem; font-weight: 800; padding: 2px 7px; border-radius: 20px; }
+    .chat-bubble { max-width: 80%; padding: 9px 13px; border-radius: 14px; font-size: 0.88rem; line-height: 1.4; word-wrap: break-word; }
+    .chat-bubble.me { align-self: flex-end; background: linear-gradient(180deg, #ffcf6e, var(--amber)); color: #1a1206; border-bottom-right-radius: 4px; }
+    .chat-bubble.them { align-self: flex-start; background: var(--panel-raised); color: var(--ink); border: 1px solid var(--chrome); border-bottom-left-radius: 4px; }
+    .chat-time { font-size: 0.6rem; opacity: 0.6; margin-top: 3px; }
+    .chat-quick { flex-shrink: 0; background: var(--panel-raised); color: var(--ink); border: 1px solid var(--chrome); padding: 7px 12px; border-radius: 16px; font-size: 0.74rem; font-weight: 700; white-space: nowrap; font-family: inherit; }
   </style>
 </head>
 <body>
@@ -310,7 +337,7 @@
          no matter which tab the rider is currently looking at, and urgent enough
          to actually get noticed alongside the chime, not just another line of text
          buried wherever they happen to be scrolled to. -->
-    <div id="boda-new-job-banner" style="display:none; position:fixed; top:0; left:0; right:0; z-index:900; background:linear-gradient(180deg, #3a2d10, #241a08); border-bottom:2px solid var(--amber); padding:14px 16px; align-items:center; gap:12px; justify-content:space-between; box-shadow:0 6px 20px rgba(0,0,0,0.5);">
+    <div id="boda-new-job-banner" style="display:none; position:fixed; top:0; left:-12px; right:-12px; z-index:900; background:linear-gradient(180deg, #3a2d10, #241a08); border-bottom:2px solid var(--amber); padding:14px 28px; align-items:center; gap:12px; justify-content:space-between; box-shadow:0 6px 20px rgba(0,0,0,0.5);">
       <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
         <span style="font-size:1.6rem; flex-shrink:0;">🆕</span>
         <div style="min-width:0;">
@@ -321,6 +348,25 @@
       <div style="display:flex; gap:8px; flex-shrink:0;">
         <button onclick="viewBodaNewJobFromBanner()" style="background:var(--amber); color:#1a1206; border:none; padding:9px 14px; border-radius:8px; font-weight:800; font-size:0.8rem;">View</button>
         <button onclick="dismissBodaNewJobBanner()" style="background:none; border:none; color:var(--ink-dim); font-size:1.1rem; padding:4px 8px;">✕</button>
+      </div>
+    </div>
+    <!-- Chat with the customer about one delivery. A full-screen sheet rather than
+         a small popup: riders type with one thumb, often outdoors, and need the
+         keyboard, thread and quick-replies to all stay comfortably in view. -->
+    <div id="boda-chat-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; z-index:950; background:var(--bezel); flex-direction:column;">
+      <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; background:linear-gradient(180deg, #2a2118, #1c150e); border-bottom:1px solid var(--chrome); flex-shrink:0;">
+        <button onclick="closeBodaChat()" style="background:var(--panel-raised); border:1px solid var(--chrome); color:var(--ink); width:38px; height:38px; border-radius:10px; font-size:1.1rem; flex-shrink:0;">←</button>
+        <div style="flex:1; min-width:0;">
+          <div id="boda-chat-title" style="font-weight:800; font-size:0.95rem; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Customer</div>
+          <div id="boda-chat-sub" style="font-size:0.72rem; color:var(--ink-dim);"></div>
+        </div>
+        <a id="boda-chat-call" href="#" style="display:none; align-items:center; gap:5px; background:rgba(74,222,128,0.14); border:1.5px solid rgba(74,222,128,0.45); color:var(--led-green); padding:9px 12px; border-radius:10px; font-size:0.8rem; font-weight:800; text-decoration:none; flex-shrink:0;">📞 Call</a>
+      </div>
+      <div id="boda-chat-thread" style="flex:1; overflow-y:auto; padding:14px 16px; display:flex; flex-direction:column; gap:8px;"></div>
+      <div id="boda-chat-quick" style="display:flex; gap:6px; padding:8px 12px 0; overflow-x:auto; flex-shrink:0;"></div>
+      <div style="display:flex; gap:8px; padding:10px 12px; padding-bottom:calc(10px + env(safe-area-inset-bottom, 0px)); background:var(--panel); border-top:1px solid var(--chrome); flex-shrink:0;">
+        <input type="text" id="boda-chat-input" maxlength="500" placeholder="Type a message..." onkeydown="if(event.key==='Enter'){sendBodaChat();}" style="flex:1; min-width:0; padding:12px 14px; border:1.5px solid var(--chrome); border-radius:22px; font-size:0.9rem; background:var(--bezel); color:var(--ink); font-family:inherit;"/>
+        <button onclick="sendBodaChat()" style="background:linear-gradient(180deg, #ffcf6e, var(--amber)); color:#1a1206; border:none; width:46px; height:46px; border-radius:50%; font-size:1.1rem; font-weight:800; flex-shrink:0;">➤</button>
       </div>
     </div>
     <div class="topbar">
@@ -352,12 +398,18 @@
       <div style="font-size:0.8rem; color:#1a4a7a; font-weight:700; flex:1; min-width:180px;">👆 Sign in faster next time with your fingerprint or face.</div>
       <button onclick="enableBodaBiometricLogin(currentRider)" style="background:#4a9eff; color:#fff; border:none; padding:9px 16px; border-radius:8px; font-weight:800; font-size:0.8rem; white-space:nowrap;">Enable</button>
     </div>
+    <!-- Full-screen job alerts: only shown in the installed app, only once its native
+         part is present, and only while an Android permission is still missing. -->
+    <div id="boda-fullscreen-banner" style="display:none; background:linear-gradient(180deg, #2a2118, #1c150e); border-bottom:1.5px solid var(--amber); padding:12px 16px; align-items:center; gap:10px; justify-content:space-between; flex-wrap:wrap;">
+      <div id="boda-fullscreen-text" style="font-size:0.8rem; color:var(--amber); font-weight:700; flex:1; min-width:180px;"></div>
+      <button id="boda-fullscreen-btn" onclick="bodaFullScreenAction()" style="background:linear-gradient(180deg, #ffcf6e, var(--amber)); color:#1a1206; border:none; padding:9px 16px; border-radius:8px; font-weight:800; font-size:0.8rem; white-space:nowrap;">Set up</button>
+    </div>
     <div class="tabs">
       <button class="active" id="tab-btn-available" onclick="switchBodaTab('available')">
         📦 Available <span class="tab-badge" id="available-count-badge" style="display:none;"></span>
       </button>
       <button id="tab-btn-mine" onclick="switchBodaTab('mine')">
-        🚴 My Jobs <span class="tab-badge" id="mine-count-badge" style="display:none;"></span>
+        🚴 My Jobs <span class="tab-badge" id="mine-count-badge" style="display:none;"></span><span class="tab-badge" id="mine-chat-badge" style="display:none; background:var(--led-red); color:#fff;"></span>
       </button>
       <button id="tab-btn-completed" onclick="switchBodaTab('completed')">
         ✅ Completed
@@ -411,8 +463,11 @@
     }
 
     function doBodaLogout() {
+      // First: tell the customer the rider is no longer being followed, and stop the background service.
+      if (typeof shutdownLocationSharing === 'function') shutdownLocationSharing();
       currentRider = null;
       if (unsubscribeBoard) { unsubscribeBoard(); unsubscribeBoard = null; }
+      stopRiderMessagesListener();
       window.bodaSignOut().catch(function(e){ console.error(e); });
       showScreen('screen-pin');
       renderRiderPickList();
@@ -593,7 +648,7 @@
         }
         showScreen('screen-app');
         history.pushState({ bodaTab: 'available' }, '');
-        startBoardListener();
+        startBoardListener(); startRiderMessagesListener(); initJobAlertSetup();
         registerBodaServiceWorker();
         updateBodaNotifyBannerVisibility();
         updateBodaOnlineToggleUI();
@@ -636,7 +691,7 @@
       // already the default active tab in the static markup, so this just gives
       // the back button somewhere real to land after stepping back through tabs.
       history.pushState({ bodaTab: 'available' }, '');
-      startBoardListener();
+      startBoardListener(); startRiderMessagesListener(); initJobAlertSetup();
       registerBodaServiceWorker();
       updateBodaNotifyBannerVisibility();
       updateBodaOnlineToggleUI();
@@ -696,9 +751,26 @@
       var banner = document.getElementById('boda-notify-banner');
       if (!banner) return;
       if (window.SwiftApp && window.SwiftApp.isNative) {
-        window.SwiftApp.pushPermissionGranted().then(function(granted) {
-          banner.style.display = granted ? 'none' : 'flex';
-          if (granted) registerNativeBodaPush(false);
+        window.SwiftApp.pushPermissionStatus().then(function(status) {
+          if (status === 'granted') {
+            banner.style.display = 'none';
+            registerNativeBodaPush(false);
+          } else if (status === 'prompt' || status === 'prompt-with-rationale') {
+            // Genuinely never asked before — ask right now, automatically, the
+            // same moment a rider first logs in. This is the one time asking
+            // without a separate tap is the RIGHT call: it's this rider's own
+            // installed app asking its own mandatory Android 13+ question, not
+            // an unrelated website angling for a popup. Every ride-hailing app
+            // (SafeBoda, Bolt...) does exactly this during first login.
+            banner.style.display = 'none';
+            registerNativeBodaPush(false);
+          } else {
+            // Explicitly denied previously — never auto-re-prompt (Android
+            // itself won't show the system dialog again here anyway). The
+            // banner stays as a manual fallback in case they want to try again
+            // after changing it in phone Settings.
+            banner.style.display = 'flex';
+          }
         });
         return;
       }
@@ -749,12 +821,28 @@
 
     function registerNativeBodaPush(showToastOnSuccess) {
       if (!currentRider || !window.fbDb || !window.fbFns) return;
-      window.SwiftApp.registerForPush().then(function(token) {
+      // A dedicated channel, distinct from the shared 'swift-orders' one the
+      // other three apps use — needed both so this tone doesn't collide with
+      // theirs, and because a channel's sound is locked the moment Android
+      // creates it, so reusing an existing channel id would never actually
+      // pick up this custom tone on a phone that already has it.
+      window.SwiftApp.registerForPush({
+        id: 'boda-job-alerts',
+        name: 'New delivery jobs',
+        description: 'Alerts when a new delivery is posted',
+        sound: 'rider_alert',
+        // A second, gentler channel for customer chat messages (default sound) so a
+        // chat ping never rings the long new-job tone.
+        extraChannels: [{ id: 'boda-messages', name: 'Customer messages', description: 'Messages from customers about a delivery' }]
+      }).then(function(token) {
         var { doc, setDoc } = window.fbFns;
         return setDoc(doc(window.fbDb, 'boda_fcm_tokens', token), {
           riderId: currentRider.fbDocId,
           name: currentRider.name,
           phone: currentRider.phone,
+          // Only a build that actually contains the native full-screen alert may be sent
+          // the "data-only" job message — an older build has no code to show it.
+          fullScreenAlerts: bodaFullScreenCapable(),
           updatedAt: new Date().toISOString()
         });
       }).then(function() {
@@ -791,7 +879,10 @@
     // directly via Web Audio, same proven technique already used in the admin
     // and employee panels — this one WILL make sound, guaranteed, whenever the
     // app is open, since it doesn't go through the Notifications API at all.
-    var bodaSoundTimeout = null;
+    // (bodaSoundTimeout removed — the new tone uses an <audio> element, stopped directly)
+    // Stays up at least 30 seconds (33s, matching the tone's own length) unless the
+    // rider reacts: taps View/✕, switches tab, or opens the app.
+    var BODA_BANNER_MS = 33000;
     var bodaNewJobBannerTimeout = null;
     var bodaNewJobBannerLatestId = null;
 
@@ -802,15 +893,18 @@
       bodaNewJobBannerLatestId = job ? job.fbDocId : null;
       if (detail) detail.textContent = (job && (job.itemsSummary || job.products)) || 'Tap View to see the details';
       banner.style.display = 'flex';
+      banner.classList.add('shaking');
       // Matches the chime's own ring length — long enough to actually notice,
       // short enough not to sit there forever once the moment's passed.
       if (bodaNewJobBannerTimeout) clearTimeout(bodaNewJobBannerTimeout);
-      bodaNewJobBannerTimeout = setTimeout(dismissBodaNewJobBanner, 22000);
+      // Matches the new rider tone's actual length (33s) — was tuned to the
+      // old synthetic chime's 22s ring before the tone was replaced.
+      bodaNewJobBannerTimeout = setTimeout(dismissBodaNewJobBanner, BODA_BANNER_MS);
     }
 
     function dismissBodaNewJobBanner() {
       var banner = document.getElementById('boda-new-job-banner');
-      if (banner) banner.style.display = 'none';
+      if (banner) { banner.style.display = 'none'; banner.classList.remove('shaking'); }
       if (bodaNewJobBannerTimeout) { clearTimeout(bodaNewJobBannerTimeout); bodaNewJobBannerTimeout = null; }
     }
 
@@ -820,50 +914,40 @@
       switchBodaTab('available');
     }
 
+    var bodaAlertAudio = null;
+
     function playBodaAlertSound() {
-      if (bodaSoundTimeout) { clearTimeout(bodaSoundTimeout); bodaSoundTimeout = null; }
+      // Android throttles/mutes audio played from a WebView the moment it's not
+      // the app actually in front of the user — even just minimized counts. That's
+      // exactly the "plays for half a second then goes silent" glitch. Rather than
+      // fight that restriction, this only ever attempts playback while genuinely
+      // visible; every other state (minimized, closed, phone restarted) is instead
+      // handled reliably by the system notification itself, via the dedicated
+      // 'boda-job-alerts' channel now configured with this same tone — Android
+      // plays that one correctly in every state, since it owns it directly rather
+      // than asking a backgrounded WebView to do it.
+      if (document.visibilityState !== 'visible') return;
+      stopBodaAlertSound();
       try {
-        var ctx = new (window.AudioContext || window.webkitAudioContext)();
-        var notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
-        var chimeDuration = 0.4;
-        var chimeSpacing = 0.18;
-        var totalChimeLength = notes.length * chimeSpacing + chimeDuration;
-        var repeatInterval = totalChimeLength + 0.3;
-        var totalDuration = 22; // rings for 22 seconds — a job up for grabs is time-sensitive
-
-        function playChime(startOffset) {
-          notes.forEach(function(freq, i){
-            var osc = ctx.createOscillator();
-            var gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.type = 'sine';
-            osc.frequency.value = freq;
-            var start = ctx.currentTime + startOffset + i * chimeSpacing;
-            gain.gain.setValueAtTime(0, start);
-            gain.gain.linearRampToValueAtTime(0.5, start + 0.05);
-            gain.gain.linearRampToValueAtTime(0, start + chimeDuration);
-            osc.start(start);
-            osc.stop(start + chimeDuration + 0.05);
-          });
-        }
-
-        var offset = 0;
-        while (offset < totalDuration) {
-          playChime(offset);
-          offset += repeatInterval;
-        }
-
-        bodaSoundTimeout = setTimeout(function(){
-          try { ctx.close(); } catch(e) {}
-          bodaSoundTimeout = null;
-        }, 23000);
+        bodaAlertAudio = new Audio('/sounds/rider-alert.m4a');
+        bodaAlertAudio.volume = 1.0;
+        bodaAlertAudio.play().catch(function(e) { console.log('[boda] audio play failed:', e); });
       } catch(e) { console.log('[boda] Audio not available:', e); }
     }
     function stopBodaAlertSound() {
-      if (bodaSoundTimeout) { clearTimeout(bodaSoundTimeout); bodaSoundTimeout = null; }
+      if (bodaAlertAudio) {
+        try { bodaAlertAudio.pause(); bodaAlertAudio.currentTime = 0; } catch(e) {}
+        bodaAlertAudio = null;
+      }
       dismissBodaNewJobBanner();
     }
+
+    // Opening/returning to the app counts as reacting, same as tapping the
+    // banner or switching tabs — the ring shouldn't keep going once the rider
+    // is actually looking at the screen again.
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible') stopBodaAlertSound();
+    });
 
     // Tracks which job IDs were already visible, so the chime only fires for
     // GENUINELY NEW jobs — not on first load (which would otherwise ring for
@@ -902,7 +986,9 @@
         boardOrders = snapshot.docs.map(function(d){ return Object.assign({ fbDocId: d.id }, d.data()); });
         checkForNewAvailableJobs();
         renderBodaTabs();
+        syncLocationSharing();
       }, function(e){ console.error('[boda] board listener failed:', e); });
+      startLocationWatchdog();
     }
 
     function switchBodaTab(tab, fromHistory) {
@@ -924,6 +1010,8 @@
     }
 
     window.appHandleBack = function() {
+      var chat = document.getElementById('boda-chat-modal');
+      if (chat && chat.style.display === 'flex') { closeBodaChat(); return true; }
       var dlg = document.getElementById('boda-dialog-overlay');
       if (dlg && dlg.classList.contains('open')) { dlg.classList.remove('open'); return true; }
       return false;
@@ -1042,7 +1130,7 @@
         '<div class="items">' + itemsSummaryFor(o) + '</div>' +
         '<div class="loc">📍 ' + locationText + '</div>' +
         (mapsLink ? '<a href="' + mapsLink + '" target="_blank" style="display:block; text-align:center; background:var(--panel-raised); border:1.5px solid var(--chrome); color:var(--blue-gauge); padding:9px; border-radius:8px; font-size:0.78rem; font-weight:700; text-decoration:none; margin:8px 0;">🗺️ Open in Google Maps</a>' : '') +
-        '<div class="customer">👤 ' + (o.customerName || 'Customer') + ' &middot; ' + (o.phone || '') + '</div>' +
+        '<div class="customer">👤 ' + (o.customerName || 'Customer') + ' &middot; ' + phoneLinkHtml(o.phone) + '</div>' +
         (o.notes && o.notes.trim() ? '<div class="notes">💬 ' + o.notes.trim() + '</div>' : '') +
         '<button class="claim-btn" onclick="claimJob(\'' + o.fbDocId + '\')">✅ I\'ll Take This</button>' +
       '</div>';
@@ -1080,11 +1168,308 @@
         '<div class="items">' + itemsSummaryFor(o) + '</div>' +
         '<div class="loc">📍 ' + locationText + '</div>' +
         (mapsLink ? '<a href="' + mapsLink + '" target="_blank" style="display:block; text-align:center; background:var(--panel-raised); border:1.5px solid var(--chrome); color:var(--blue-gauge); padding:9px; border-radius:8px; font-size:0.78rem; font-weight:700; text-decoration:none; margin:8px 0;">🗺️ Open in Google Maps</a>' : '') +
-        '<div class="customer">👤 ' + (o.customerName || 'Customer') + ' &middot; ' + (o.phone || '') + '</div>' +
+        '<div class="customer">👤 ' + (o.customerName || 'Customer') + ' &middot; ' + phoneLinkHtml(o.phone) + '</div>' +
         (o.notes && o.notes.trim() ? '<div class="notes">💬 ' + o.notes.trim() + '</div>' : '') +
+        chatButtonHtml(o) +
         '<div class="action-row" style="flex-direction:column;">' + actionsHtml + '</div>' +
       '</div>';
     }
+
+    // ── PHONE LINKS ──
+    function bodaEsc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function(ch){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]; });
+    }
+    // Digits (and a leading +) only, so numbers typed with spaces or dashes still dial.
+    function telHref(p) {
+      var s = String(p == null ? '' : p).trim();
+      var digits = s.replace(/[^0-9]/g, '');
+      if (!digits) return '';
+      return 'tel:' + (s.charAt(0) === '+' ? '+' : '') + digits;
+    }
+    function phoneLinkHtml(p) {
+      var href = telHref(p);
+      if (!href) return '';
+      return '<a class="phone-link" href="' + href + '">📞 ' + bodaEsc(String(p).trim()) + '</a>';
+    }
+
+    // ── RIDER <-> CUSTOMER CHAT ──
+    // One live listener for every message on THIS rider's jobs. "Unread" is a
+    // per-order count of customer messages seen, kept on this phone — counting
+    // (rather than comparing timestamps) so a customer phone with a wrong clock
+    // can never make a new message look already-read.
+    var ORDER_ALERT_WORKER_URL = 'https://swift-order-alert.swiftimportersug.workers.dev';
+    var ORDER_ALERT_SHARED_KEY = 'swiftorders2026alertkey93x7';
+    var BODA_CHAT_SEEN_KEY = 'swift_boda_chat_seen_v1';
+    var BODA_QUICK_REPLIES = ['On my way 🏍️', 'I\'ve arrived — please come out', 'Please call me', 'I\'m outside'];
+    var riderMessages = [];
+    var unsubscribeRiderMsgs = null;
+    var riderMsgsFirstSnapshot = false;
+    var openChatOrderId = null;
+
+    function loadChatSeen() { try { return JSON.parse(localStorage.getItem(BODA_CHAT_SEEN_KEY) || '{}'); } catch(e) { return {}; } }
+    function customerMsgCount(orderId) {
+      return riderMessages.filter(function(m){ return m.orderId === orderId && m.sender === 'customer'; }).length;
+    }
+    function unreadChatCount(orderId) {
+      return Math.max(0, customerMsgCount(orderId) - (loadChatSeen()[orderId] || 0));
+    }
+    function markChatSeen(orderId) {
+      var s = loadChatSeen();
+      s[orderId] = customerMsgCount(orderId);
+      try { localStorage.setItem(BODA_CHAT_SEEN_KEY, JSON.stringify(s)); } catch(e) {}
+    }
+
+    function chatButtonHtml(o) {
+      var unread = unreadChatCount(o.fbDocId);
+      return '<button class="chat-btn" onclick="openBodaChat(\'' + o.fbDocId + '\')">💬 Message Customer' +
+        (unread > 0 ? ' <span class="chat-badge">' + unread + ' new</span>' : '') + '</button>';
+    }
+
+    function refreshChatBadges() {
+      var total = 0;
+      boardOrders.forEach(function(o){
+        if (o.bodaClaimedBy && currentRider && o.bodaClaimedBy.riderId === currentRider.fbDocId) total += unreadChatCount(o.fbDocId);
+      });
+      var badge = document.getElementById('mine-chat-badge');
+      if (badge) {
+        if (total > 0) { badge.textContent = '💬 ' + total; badge.style.display = 'inline-block'; }
+        else badge.style.display = 'none';
+      }
+      renderBodaTabs();
+    }
+
+    // A short two-tone ding, deliberately nothing like the long new-job tone. Only
+    // while the app is in front of the rider: when it isn't, the push notification
+    // (on its own gentler channel) makes the sound instead.
+    function playBodaMessageSound() {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        var ctx = new (window.AudioContext || window.webkitAudioContext)();
+        [659.25, 987.77].forEach(function(freq, i){
+          var osc = ctx.createOscillator(), gain = ctx.createGain();
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.type = 'sine'; osc.frequency.value = freq;
+          var t = ctx.currentTime + i * 0.16;
+          gain.gain.setValueAtTime(0, t);
+          gain.gain.linearRampToValueAtTime(0.35, t + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+          osc.start(t); osc.stop(t + 0.34);
+        });
+        setTimeout(function(){ try { ctx.close(); } catch(e) {} }, 900);
+      } catch(e) { console.log('[boda] message sound unavailable:', e); }
+    }
+
+    function startRiderMessagesListener() {
+      if (!currentRider || !window.fbDb || !window.fbFns) return;
+      if (unsubscribeRiderMsgs) { unsubscribeRiderMsgs(); unsubscribeRiderMsgs = null; }
+      riderMsgsFirstSnapshot = false;
+      var { collection, query, where, onSnapshot } = window.fbFns;
+      var q = query(collection(window.fbDb, 'rider_messages'), where('riderId', '==', currentRider.fbDocId));
+      unsubscribeRiderMsgs = onSnapshot(q, function(snap){
+        var knownIds = {};
+        riderMessages.forEach(function(m){ knownIds[m.fbDocId] = true; });
+        riderMessages = snap.docs.map(function(d){ return Object.assign({ fbDocId: d.id }, d.data()); })
+          .sort(function(a, b){ return new Date(a.timestamp) - new Date(b.timestamp); });
+        // Only genuinely NEW customer messages react — never the backlog on first load.
+        var fresh = riderMsgsFirstSnapshot
+          ? riderMessages.filter(function(m){ return !knownIds[m.fbDocId] && m.sender === 'customer'; })
+          : [];
+        riderMsgsFirstSnapshot = true;
+
+        var watching = openChatOrderId && document.visibilityState === 'visible';
+        fresh.forEach(function(m){
+          if (watching && m.orderId === openChatOrderId) return; // reading it right now
+          playBodaMessageSound();
+          var o = boardOrders.find(function(x){ return x.fbDocId === m.orderId; });
+          showToast('💬 ' + ((o && o.customerName) || 'Customer') + ': ' + String(m.text).slice(0, 60));
+        });
+        if (watching) markChatSeen(openChatOrderId);
+        refreshChatBadges();
+        if (openChatOrderId) renderBodaChat();
+      }, function(e){ console.error('[boda] rider messages listener failed:', e); });
+    }
+
+    function stopRiderMessagesListener() {
+      if (unsubscribeRiderMsgs) { unsubscribeRiderMsgs(); unsubscribeRiderMsgs = null; }
+      riderMessages = [];
+      riderMsgsFirstSnapshot = false;
+      openChatOrderId = null;
+      var modal = document.getElementById('boda-chat-modal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function fmtChatTime(ts) {
+      var d = new Date(ts);
+      if (isNaN(d.getTime())) return '';
+      var p = function(n){ return String(n).padStart(2, '0'); };
+      return p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+
+    function renderBodaChat() {
+      var thread = document.getElementById('boda-chat-thread');
+      if (!thread || !openChatOrderId) return;
+      var msgs = riderMessages.filter(function(m){ return m.orderId === openChatOrderId; });
+      if (msgs.length === 0) {
+        thread.innerHTML = '<div class="empty-state" style="margin:auto;">No messages yet.<br/>Say hello, or tap a quick reply below 👇</div>';
+        return;
+      }
+      thread.innerHTML = msgs.map(function(m){
+        var mine = m.sender === 'rider';
+        return '<div class="chat-bubble ' + (mine ? 'me' : 'them') + '">' + bodaEsc(m.text) +
+          '<div class="chat-time">' + (mine ? 'You' : 'Customer') + ' · ' + fmtChatTime(m.timestamp) + '</div></div>';
+      }).join('');
+      thread.scrollTop = thread.scrollHeight;
+    }
+
+    function openBodaChat(orderId) {
+      var o = boardOrders.find(function(x){ return x.fbDocId === orderId; });
+      if (!o) return;
+      openChatOrderId = orderId;
+      document.getElementById('boda-chat-title').textContent = o.customerName || 'Customer';
+      document.getElementById('boda-chat-sub').textContent = 'Order #' + refCodeFor(o);
+      var call = document.getElementById('boda-chat-call');
+      var href = telHref(o.phone);
+      if (href) { call.href = href; call.style.display = 'inline-flex'; } else { call.style.display = 'none'; }
+      document.getElementById('boda-chat-quick').innerHTML = BODA_QUICK_REPLIES.map(function(t, i){
+        return '<button class="chat-quick" onclick="sendBodaQuick(' + i + ')">' + bodaEsc(t) + '</button>';
+      }).join('');
+      document.getElementById('boda-chat-modal').style.display = 'flex';
+      renderBodaChat();
+      markChatSeen(orderId);
+      refreshChatBadges();
+    }
+
+    function closeBodaChat() {
+      openChatOrderId = null;
+      var modal = document.getElementById('boda-chat-modal');
+      if (modal) modal.style.display = 'none';
+      refreshChatBadges();
+    }
+
+    function sendBodaQuick(i) { return sendBodaChat(BODA_QUICK_REPLIES[i]); }
+
+    async function sendBodaChat(presetText) {
+      var input = document.getElementById('boda-chat-input');
+      var text = String(presetText || (input && input.value) || '').trim().slice(0, 500);
+      if (!text || !openChatOrderId || !currentRider || !window.fbDb || !window.fbFns) return;
+      var o = boardOrders.find(function(x){ return x.fbDocId === openChatOrderId; });
+      if (!o) return;
+      if (!presetText && input) input.value = '';
+      try {
+        await window.fbFns.addDoc(window.fbFns.collection(window.fbDb, 'rider_messages'), {
+          orderId: o.fbDocId,
+          orderRef: refCodeFor(o),
+          riderId: currentRider.fbDocId,
+          riderName: currentRider.name || '',
+          customerId: o.accountId || null,
+          sender: 'rider',
+          text: text,
+          timestamp: new Date().toISOString()
+        });
+        notifyCustomerOfRiderMessage(o, text);
+      } catch(e) {
+        console.error('[boda] failed to send chat message:', e);
+        showToast('Could not send — check your connection.');
+        if (!presetText && input) input.value = text;
+      }
+    }
+
+    // Asks the Worker to alert the customer, and the WORKER finds their phone: it
+    // checks the order's own notification token AND the customer's account token.
+    // (Before, this only worked if the order itself happened to carry a token —
+    // and many don't, so messages arrived silently.) The reply says how many
+    // devices it actually reached, so the rider can be told honestly when it
+    // reached none and phone the customer instead.
+    function notifyCustomerOfRiderMessage(o, text) {
+      fetch(ORDER_ALERT_WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Notify-Key': ORDER_ALERT_SHARED_KEY },
+        body: JSON.stringify({
+          customerMessageAlert: true,
+          orderId: o.fbDocId,
+          title: '🏍️ ' + (currentRider && currentRider.name ? currentRider.name : 'Your rider') + ' (your rider)',
+          body: text.slice(0, 140),
+          // Opens the app's own tracking screen with the conversation already open.
+          url: '/?trackOrder=' + encodeURIComponent(o.fbDocId) + '&chat=1'
+        })
+      }).then(function(res){ return res.json(); }).then(function(result){
+        if (result && result.sentTo === 0) {
+          showToast('Message sent — but this customer has notifications off. Call them if it\'s urgent.');
+        }
+      }).catch(function(e){ console.error('[boda] customer push failed:', e); });
+    }
+
+    // ── FULL-SCREEN JOB ALERTS (installed app only) ──
+    // The native half (a request screen that wakes the phone and takes over the
+    // display) lives in the Android project; this is just the one-time setup prompt,
+    // shown only while a permission is still missing.
+    function bodaJobAlert() {
+      var ja = window.SwiftApp && window.SwiftApp.jobAlert;
+      return ja && ja.available ? ja : null;
+    }
+    function bodaFullScreenCapable() { return !!bodaJobAlert(); }
+    var bodaFullScreenReady = false;
+
+    function refreshFullScreenBanner() {
+      var banner = document.getElementById('boda-fullscreen-banner');
+      if (!banner) return;
+      var ja = bodaJobAlert();
+      if (!ja) { banner.style.display = 'none'; return; }
+      ja.getStatus().then(function(st){
+        var ready = !!(st && st.canOverlay && st.canFullScreen && st.notificationsEnabled);
+        bodaFullScreenReady = ready;
+        // Once everything is on there is nothing to show: the banner only appears
+        // while a permission is still missing, and goes away by itself when done.
+        if (ready) { banner.style.display = 'none'; return; }
+        var text = document.getElementById('boda-fullscreen-text');
+        var btn = document.getElementById('boda-fullscreen-btn');
+        text.textContent = '⚡ Turn on full-screen job alerts, so a new request takes over your screen even when your phone is locked or you\'re in another app.';
+        text.style.color = 'var(--amber)';
+        btn.textContent = 'Set up';
+        banner.style.display = 'flex';
+      }).catch(function(){ banner.style.display = 'none'; });
+    }
+
+    // One tap does the next thing that's missing: each Android permission needs a
+    // visit to a system screen, so explain it first (a toast would vanish the
+    // instant Settings opens), then take them there. Once everything's on, the
+    // same button sends a test alert.
+    function bodaFullScreenAction() {
+      var ja = bodaJobAlert();
+      if (!ja) return;
+      ja.getStatus().then(function(st){
+        if (!st.notificationsEnabled) {
+          showToast('Turn on notifications for Swift Boda first.');
+          return;
+        }
+        if (!st.canOverlay) {
+          showBodaConfirm('Android needs your OK to show requests over other apps. Open that screen now? Find "Swift Boda", switch it ON, then come back.', function(){ ja.openOverlaySettings(); });
+          return;
+        }
+        if (!st.canFullScreen) {
+          showBodaConfirm('One more: allow full-screen notifications for Swift Boda. Open that screen now? Switch it ON, then come back.', function(){ ja.openFullScreenSettings(); });
+          return;
+        }
+        // Everything is already on: nothing left to set up.
+        refreshFullScreenBanner();
+      }).catch(function(e){ console.error('[boda] full-screen setup failed:', e); });
+    }
+
+    // Tapping "View Job" on the native alert opens the app; this lands the rider
+    // on the Available tab instead of wherever they last were.
+    function applyPendingJobAlertAction() {
+      var ja = bodaJobAlert();
+      if (!ja || !currentRider) return;
+      ja.consumePendingAction().then(function(action){
+        if (action === 'view_jobs') switchBodaTab('available');
+      }).catch(function(){});
+    }
+    function initJobAlertSetup() { refreshFullScreenBanner(); applyPendingJobAlertAction(); }
+
+    // Coming back from Android's settings screen (or from the alert) re-checks everything.
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible' && currentRider) initJobAlertSetup();
+    });
 
     // ── CLAIMING — first tap wins, enforced by Firestore rules themselves ──
     function claimJob(docId) {
@@ -1158,34 +1543,79 @@
     // to it ("swiftimporters.com says..."). Same tactile, dark-bezel look as
     // the rest of the app instead.
     var bodaDialogCallback = null;
-    function showBodaConfirm(message, onConfirm) {
+    var bodaDialogDeclineCallback = null;
+    // icon and onDecline are optional: the cash-received question keeps its 💰.
+    function showBodaConfirm(message, onConfirm, icon, onDecline) {
       document.getElementById('boda-dialog-message').textContent = message;
+      var iconEl = document.getElementById('boda-dialog-icon');
+      if (iconEl) iconEl.textContent = icon || '💰';
       bodaDialogCallback = onConfirm;
+      bodaDialogDeclineCallback = onDecline || null;
       document.getElementById('boda-dialog-overlay').classList.add('open');
     }
     function bodaDialogRespond(confirmed) {
       document.getElementById('boda-dialog-overlay').classList.remove('open');
       var cb = bodaDialogCallback;
+      var declineCb = bodaDialogDeclineCallback;
       bodaDialogCallback = null;
+      bodaDialogDeclineCallback = null;
       if (confirmed && typeof cb === 'function') cb();
+      else if (!confirmed && typeof declineCb === 'function') declineCb();
     }
 
-    function completeBodaDeliveryWithPayment(docId, o) {
+    // A delivery the rider confirms is FINAL: the order is marked delivered and, when nothing
+    // is left to settle (already paid, or the rider has just collected the cash) and its
+    // stock was already taken out when it was confirmed, it is also moved to Closed in the
+    // same save. Anything else (a balance still owed, stock not yet deducted) is only marked
+    // delivered and is closed by admin as before.
+    function deliveryUpdatesFor(o, collectedCash) {
+      var updates = { deliveryStage: 'delivered' };
+      if (collectedCash) {
+        updates.paymentStatus = 'paid';
+        updates.amountPaid = (o && (o.orderTotal || o.subtotal)) || 0;
+      }
+      var paid = collectedCash || (o && o.paymentStatus === 'paid');
+      var isTaxiBus = o && o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
+      if (o && paid && !isTaxiBus && o.status === 'confirmed' && o.stockDeducted === true) {
+        updates.status = 'closed';
+        updates.completedAt = new Date().toISOString();
+      }
+      return updates;
+    }
+
+    // Writes the delivery and reports honestly. A save that never reaches the server (weak
+    // connection, or the rules refusing it) used to look like a success on the rider's phone
+    // while the customer kept seeing a live rider; now the rider is told.
+    function saveDelivery(docId, o, collectedCash) {
       if (!window.fbDb || !window.fbFns) return;
       var { doc, updateDoc } = window.fbFns;
-      var total = (o && (o.orderTotal || o.subtotal)) || 0;
-      updateDoc(doc(window.fbDb, 'orders', docId), {
-        deliveryStage: 'delivered', paymentStatus: 'paid', amountPaid: total
-      }).then(function(){
-        showToast('✅ Delivered & payment confirmed!');
+      var updates = deliveryUpdatesFor(o, collectedCash);
+      var settled = false;
+      var slowTimer = setTimeout(function(){
+        if (!settled) showToast('Still saving the delivery… keep the app open and connected.');
+      }, 8000);
+      updateDoc(doc(window.fbDb, 'orders', docId), updates).then(function(){
+        settled = true; clearTimeout(slowTimer);
+        showToast(updates.status === 'closed' ? '✅ Delivered — order completed!' : (collectedCash ? '✅ Delivered & payment confirmed!' : '✅ Delivered!'));
+        // The customer must stop seeing the rider straight away, not at the next sync.
+        deleteLocationDoc(docId);
+        setTimeout(function(){ deleteLocationDoc(docId); }, 6000);   // in case the background service sent one last update
+        syncLocationSharing();
         if (o) notifyCustomerOrderUpdate(o, '🎉 Delivered!', 'Your order has been delivered. Thank you for shopping with Swift Importers!');
       }).catch(function(e){
-        console.error('[boda] completeBodaDeliveryWithPayment failed:', e);
-        showToast('Could not update — check your connection and try again.');
+        settled = true; clearTimeout(slowTimer);
+        console.error('[boda] saveDelivery failed:', e);
+        var code = e && e.code ? ' (' + e.code + ')' : '';
+        showToast('⚠️ Delivery NOT saved' + code + '. Check your data and tap Delivered again.');
       });
     }
 
+    function completeBodaDeliveryWithPayment(docId, o) {
+      saveDelivery(docId, o, true);
+    }
+
     function completeBodaStageUpdate(docId, stage, o) {
+      if (stage === 'delivered') { saveDelivery(docId, o, false); return; }
       if (!window.fbDb || !window.fbFns) return;
       var { doc, updateDoc } = window.fbFns;
       updateDoc(doc(window.fbDb, 'orders', docId), { deliveryStage: stage }).then(function(){
@@ -1194,24 +1624,386 @@
           var isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
           var messages = {
             handed: { title: '📦 Picked Up', body: isTaxiBus ? 'Your order has been picked up and is on its way to the bus/taxi station.' : 'Your order has been handed to the boda rider for delivery.' },
-            at_station: { title: '🚏 At the Station', body: 'Your order has arrived at the bus/taxi station and will depart shortly.' },
-            delivered: { title: '🎉 Delivered!', body: 'Your order has been delivered. Thank you for shopping with Swift Importers!' }
+            at_station: { title: '🚏 At the Station', body: 'Your order has arrived at the bus/taxi station and will depart shortly.' }
           };
           var msg = messages[stage];
           if (msg) notifyCustomerOrderUpdate(o, msg.title, msg.body);
         }
       }).catch(function(e){
         console.error('[boda] markBodaStage failed:', e);
-        showToast('Could not update — check your connection and try again.');
+        var code = e && e.code ? ' (' + e.code + ')' : '';
+        showToast('Could not update' + code + ' — check your connection and try again.');
       });
     }
+
+    // ── LIVE LOCATION SHARING ──
+    // From the moment the rider picks a parcel up until they deliver it, the customer
+    // can watch the rider on a map. It is automatic: there is nothing for the rider to
+    // switch on or off. On the Android app a native background service does the
+    // uploading (so it keeps working with the app minimised) and an ongoing notification
+    // shows while it runs; in a plain browser (or a boda build made before that service
+    // existed) the page does it itself, which only works while the app stays open.
+    // The location record is deleted the moment the delivery ends.
+    var locShare = {
+      ids: [],                 // orders we are currently sharing for
+      browserWatchId: null,
+      lastWrite: 0,
+      status: null,            // last status read from the native service
+      busy: false,
+      again: false,
+      permissionDenied: false,
+      permissionPromptedKey: '',
+      failedKey: '',           // the set of orders a start attempt already failed for
+      startedKey: '',          // the set of orders the native service was last asked to start for
+      startedAt: 0,
+      timer: null,
+      filter: null             // browser-fallback GPS cleaner
+    };
+
+    function locNative() {
+      var ls = window.SwiftApp && window.SwiftApp.locationShare;
+      return (ls && ls.available) ? ls : null;
+    }
+
+    // ── arrival beep ──
+    // When the rider gets within ARRIVAL_RANGE_M of the customer's pinned location, the phone beeps
+    // loudly for 3 seconds and the customer is alerted. The Android service does this itself (so it
+    // works with the screen off); the browser version below only works while the page is open.
+    var ARRIVAL_RANGE_M = 150;
+    function orderDestination(o) {
+      var m = o.exactLocation && String(o.exactLocation).match(/GPS:\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+      return m ? [parseFloat(m[1]), parseFloat(m[2])] : null;
+    }
+    // "orderId|lat|lng;orderId|lat|lng" for the orders that have a pinned location.
+    function destinationsParam(orders) {
+      return orders.map(function(o){
+        var d = orderDestination(o);
+        return d ? (o.fbDocId + '|' + d[0] + '|' + d[1]) : null;
+      }).filter(Boolean).join(';');
+    }
+    var arrivalAudio = null;
+    function playBrowserArrivalBeep() {
+      try { if (navigator.vibrate) navigator.vibrate([300, 200, 300, 200, 300, 200, 300, 200, 300]); } catch (e) {}
+      try {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        if (!arrivalAudio) arrivalAudio = new AC();
+        if (arrivalAudio.state === 'suspended') arrivalAudio.resume();
+        var t0 = arrivalAudio.currentTime + 0.05;
+        for (var i = 0; i < 6; i++) {
+          var on = t0 + i * 0.5;
+          var osc = arrivalAudio.createOscillator(), g = arrivalAudio.createGain();
+          osc.type = 'square'; osc.frequency.value = 1900;
+          g.gain.setValueAtTime(0.0001, on);
+          g.gain.linearRampToValueAtTime(0.9, on + 0.01);
+          g.gain.setValueAtTime(0.9, on + 0.28);
+          g.gain.linearRampToValueAtTime(0.0001, on + 0.3);
+          osc.connect(g); g.connect(arrivalAudio.destination);
+          osc.start(on); osc.stop(on + 0.31);
+        }
+      } catch (e) {}
+    }
+    function notifyCustomerArrival(id) {
+      fetch(ORDER_ALERT_WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Notify-Key': ORDER_ALERT_SHARED_KEY },
+        body: JSON.stringify({
+          customerMessageAlert: true,
+          orderId: id,
+          title: '🏍️ Your rider is almost there!',
+          body: 'Your order is about to arrive. Please be ready to receive it.',
+          url: '/?trackOrder=' + encodeURIComponent(id)
+        })
+      }).catch(function(e){ console.error('[boda] arrival alert failed:', e); });
+    }
+    function checkBrowserArrival(lat, lng) {
+      var dests = locShare.dests || {};
+      Object.keys(dests).forEach(function(id){
+        var seenKey = 'swift_boda_arrived_' + id;
+        var already = false;
+        try { already = !!localStorage.getItem(seenKey); } catch (e) {}
+        if (already) return;
+        var d = locMetres(lat, lng, dests[id][0], dests[id][1]);
+        locShare.arriveStreak = locShare.arriveStreak || {};
+        locShare.arriveStreak[id] = d <= ARRIVAL_RANGE_M ? (locShare.arriveStreak[id] || 0) + 1 : 0;
+        if (locShare.arriveStreak[id] >= 2) {
+          try { localStorage.setItem(seenKey, String(Date.now())); } catch (e) {}
+          playBrowserArrivalBeep();
+          notifyCustomerArrival(id);
+        }
+      });
+    }
+
+    // Direct deliveries only: a taxi/bus hand-off isn't something the customer waits to see arrive.
+    function locationSharingApplies(o) {
+      var isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
+      return !isTaxiBus && o.status !== 'closed' && o.status !== 'cancelled';
+    }
+    function shareableOrders() {
+      if (!currentRider) return [];
+      return boardOrders.filter(function(o){
+        return o.bodaClaimedBy && o.bodaClaimedBy.riderId === currentRider.fbDocId
+          && locationSharingApplies(o)
+          && (o.deliveryStage === 'handed' || o.deliveryStage === 'on_the_way');
+      });
+    }
+
+    function deleteLocationDoc(id) {
+      var f = window.fbFns;
+      if (!window.fbDb || !f || !f.deleteDoc) return;
+      f.deleteDoc(f.doc(window.fbDb, 'rider_locations', id)).catch(function(){});
+    }
+
+    // ── browser fallback ──
+    // The same clean-up the Android service does (see GpsSmoother.java), in short:
+    // drop inaccurate fixes, drop impossible jumps, smooth what is left, and hold
+    // still while parked. Without it the dot hops around with every noisy GPS reading.
+    function newLocFilter() {
+      return { has: false, lat: 0, lng: 0, variance: 0, t: 0, outLat: 0, outLng: 0, outAcc: 0, lastGood: -1e12, rejects: 0 };
+    }
+    function locMetres(a1, o1, a2, o2) {
+      var dLat = (a2 - a1) * 111320;
+      var dLng = (o2 - o1) * 111320 * Math.cos(((a1 + a2) / 2) * Math.PI / 180);
+      return Math.sqrt(dLat * dLat + dLng * dLng);
+    }
+    function cleanBrowserFix(F, c, now) {
+      var acc = (typeof c.accuracy === 'number' && c.accuracy > 0) ? c.accuracy : 60;
+      var good = acc <= 35;
+      var silent = !F.has || now - F.lastGood > 25000;
+      if (!good && (!silent || acc > 150)) return null;
+      if (F.has) {
+        var dt = Math.max(0.5, (now - F.t) / 1000);
+        if (locMetres(F.outLat, F.outLng, c.latitude, c.longitude) > 30 * dt + acc + F.outAcc && F.rejects < 4) { F.rejects++; return null; }
+      }
+      F.rejects = 0;
+      if (good) F.lastGood = now;
+      var speed = (typeof c.speed === 'number' && !isNaN(c.speed)) ? c.speed : -1;
+      if (!F.has) {
+        F.has = true; F.lat = c.latitude; F.lng = c.longitude; F.variance = acc * acc; F.t = now;
+        F.outLat = c.latitude; F.outLng = c.longitude; F.outAcc = acc;
+        return { lat: F.outLat, lng: F.outLng, acc: acc, speed: speed };
+      }
+      var q = (speed >= 0 && speed < 0.8) ? 0.4 : (speed >= 0 ? Math.max(3, speed * 1.2 + 2) : 6);
+      F.variance += ((now - F.t) / 1000) * q * q;
+      F.t = now;
+      var k = F.variance / (F.variance + acc * acc);
+      F.lat += k * (c.latitude - F.lat);
+      F.lng += k * (c.longitude - F.lng);
+      F.variance = (1 - k) * F.variance;
+      var drift = locMetres(F.outLat, F.outLng, F.lat, F.lng);
+      var still = speed >= 0 ? (speed < 0.8 && drift < Math.max(10, acc)) : drift < Math.max(6, acc * 0.5);
+      if (!still) { F.outLat = F.lat; F.outLng = F.lng; }
+      F.outAcc = Math.sqrt(F.variance);
+      return { lat: F.outLat, lng: F.outLng, acc: F.outAcc, speed: speed };
+    }
+
+    function onBrowserFix(pos) {
+      var now = Date.now();
+      if (!locShare.filter) locShare.filter = newLocFilter();
+      var clean = cleanBrowserFix(locShare.filter, pos.coords, now);
+      if (!clean) return;
+      if (clean.acc <= 60) checkBrowserArrival(clean.lat, clean.lng);
+      if (now - locShare.lastWrite < 3000) return;
+      locShare.lastWrite = now;
+      var f = window.fbFns;
+      if (!window.fbDb || !f || !currentRider) return;
+      locShare.ids.forEach(function(id){
+        var data = {
+          orderId: id, riderId: currentRider.fbDocId,
+          lat: clean.lat, lng: clean.lng,
+          accuracy: clean.acc,
+          updatedAt: f.serverTimestamp(), source: 'web'
+        };
+        if (typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading) && clean.speed >= 1.5) data.heading = pos.coords.heading;
+        if (clean.speed >= 0) data.speed = clean.speed;
+        f.setDoc(f.doc(window.fbDb, 'rider_locations', id), data).catch(function(e){ console.error('[boda] location write failed:', e); });
+      });
+    }
+    function onBrowserError(err) {
+      if (err && err.code === 1) {
+        showToast('Allow Location for this app so the customer can see you.');
+        locShare.failedKey = locShare.ids.join(',');
+        stopSharingTransport();
+        locShare.ids = [];
+      }
+    }
+
+    function stopSharingTransport() {
+      var native = locNative();
+      if (native) native.stop().catch(function(){});
+      if (locShare.browserWatchId != null && navigator.geolocation) {
+        try { navigator.geolocation.clearWatch(locShare.browserWatchId); } catch (e) {}
+      }
+      locShare.browserWatchId = null;
+      locShare.filter = null;
+    }
+
+    // Android won't show its permission prompt again once a rider has refused it, so
+    // the only way back is the app's settings screen. Explain, then take them there.
+    function offerLocationSettings(key) {
+      if (locShare.permissionPromptedKey === key) return;
+      locShare.permissionPromptedKey = key;
+      var native = locNative();
+      if (!native) return;
+      showBodaConfirm(
+        'Customers can\'t follow your delivery until Swift Boda may use your location. Open settings now? Tap Permissions → Location → Allow all the time (or While using the app), then come back.',
+        function(){ native.openAppSettings().catch(function(){}); },
+        '📍'
+      );
+    }
+
+    function startSharingTransport(ids, orders) {
+      var key = ids.join(',');
+      if (locShare.failedKey === key) return Promise.resolve();
+      var native = locNative();
+
+      if (native) {
+        return native.getStatus().then(function(st){
+          if (st && st.hasPermission) return st;
+          return native.requestPermission();
+        }).then(function(st){
+          if (!st || !st.hasPermission) { var e = new Error('permission'); e.code = 'permission'; throw e; }
+          if (!st.locationEnabled) {
+            showToast('Turn on your phone\'s Location (GPS) so the customer can see you.');
+            native.openLocationSettings().catch(function(){});
+          }
+          var token = window.fbGetRefreshToken && window.fbGetRefreshToken();
+          var cfg = window.fbConfig || {};
+          if (!token || !cfg.apiKey || !cfg.projectId) { var e2 = new Error('signin'); e2.code = 'signin'; throw e2; }
+          return native.start({
+            orderId: key,
+            riderId: currentRider.fbDocId,
+            apiKey: cfg.apiKey,
+            projectId: cfg.projectId,
+            refreshToken: token,
+            orderLabel: orders.map(function(o){ return refCodeFor(o); }).join(', '),
+            destinations: destinationsParam(orders),
+            alertUrl: ORDER_ALERT_WORKER_URL,
+            alertKey: ORDER_ALERT_SHARED_KEY,
+            arrivalM: ARRIVAL_RANGE_M
+          });
+        }).then(function(){
+          locShare.ids = ids;
+          locShare.startedKey = key;
+          locShare.startedAt = Date.now();
+          locShare.failedKey = '';
+          locShare.permissionDenied = false;
+          // The service takes a moment to start; read its real state shortly after.
+          setTimeout(syncLocationSharing, 1500);
+        }).catch(function(e){
+          locShare.failedKey = key;
+          var code = e && (e.code || e.message);
+          if (code === 'permission') {
+            locShare.permissionDenied = true;
+            offerLocationSettings(key);
+          } else if (code === 'signin') {
+            showToast('Please log out and back in so customers can follow your delivery.');
+          } else {
+            console.error('[boda] could not start location sharing:', e);
+            // The watchdog below tries again by itself shortly.
+            setTimeout(function(){ if (locShare.failedKey === key) locShare.failedKey = ''; }, 20000);
+          }
+        });
+      }
+
+      // Browser / older build
+      if (!navigator.geolocation) {
+        locShare.failedKey = key;
+        return Promise.resolve();
+      }
+      locShare.ids = ids;
+      locShare.dests = {};
+      (orders || []).forEach(function(o){ var d = orderDestination(o); if (d) locShare.dests[o.fbDocId] = d; });
+      if (locShare.browserWatchId == null) {
+        locShare.filter = newLocFilter();
+        locShare.browserWatchId = navigator.geolocation.watchPosition(onBrowserFix, onBrowserError, { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
+      }
+      return Promise.resolve();
+    }
+
+    // The one place that decides what should be happening, safe to call as often as
+    // needed (board updates, coming back to the app, a timer): it only acts when
+    // what is running differs from what should be.
+    function syncLocationSharing() {
+      if (!currentRider) return;
+      if (locShare.busy) { locShare.again = true; return; }
+      locShare.busy = true;
+      var native = locNative();
+      var statusP = native ? native.getStatus().catch(function(){ return null; }) : Promise.resolve(null);
+
+      statusP.then(function(st){
+        locShare.status = st;
+        var orders = shareableOrders();
+        var wanted = orders.map(function(o){ return o.fbDocId; }).sort();
+
+        // Anything we were sharing that no longer should be (delivered, cancelled) is cleaned up.
+        locShare.ids.filter(function(id){ return wanted.indexOf(id) === -1; }).forEach(deleteLocationDoc);
+
+        if (!wanted.length) {
+          if (locShare.ids.length || (st && st.active) || locShare.browserWatchId != null) stopSharingTransport();
+          locShare.ids = [];
+          return;
+        }
+
+        var key = wanted.join(',');
+        var running = native ? !!(st && st.active && st.activeOrderId === key) : (locShare.browserWatchId != null && locShare.ids.join(',') === key);
+        if (running) { locShare.ids = wanted; locShare.startedKey = ''; return; }
+
+        // Already asked the service to start for exactly these orders: give it a moment,
+        // and if it still isn't running, retry a little later instead of restarting it forever.
+        if (native && locShare.startedKey === key) {
+          if (Date.now() - locShare.startedAt < 15000) return;
+          locShare.startedKey = '';
+          locShare.failedKey = key;
+          setTimeout(function(){ if (locShare.failedKey === key) locShare.failedKey = ''; }, 20000);
+          return;
+        }
+        return startSharingTransport(wanted, orders);
+      }).catch(function(e){
+        console.error('[boda] location sync failed:', e);
+      }).then(function(){
+        locShare.busy = false;
+        if (locShare.again) { locShare.again = false; syncLocationSharing(); }
+      });
+    }
+
+    function startLocationWatchdog() {
+      if (locShare.timer) clearInterval(locShare.timer);
+      locShare.timer = setInterval(syncLocationSharing, 20000);
+    }
+
+    function shutdownLocationSharing() {
+      if (locShare.timer) { clearInterval(locShare.timer); locShare.timer = null; }
+      locShare.ids.forEach(deleteLocationDoc);
+      stopSharingTransport();
+      locShare.ids = [];
+      locShare.status = null;
+      locShare.failedKey = '';
+      locShare.permissionDenied = false;
+      locShare.permissionPromptedKey = '';
+    }
+
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState !== 'visible' || !currentRider) return;
+      var native = locNative();
+      if (locShare.permissionDenied && native) {
+        // They may have just granted it in Settings: check before deciding to nag or retry.
+        native.getStatus().then(function(st){
+          if (st && st.hasPermission) { locShare.permissionDenied = false; locShare.failedKey = ''; locShare.permissionPromptedKey = ''; }
+          syncLocationSharing();
+        }).catch(function(){ syncLocationSharing(); });
+        return;
+      }
+      locShare.failedKey = '';
+      syncLocationSharing();
+    });
 
     document.addEventListener('DOMContentLoaded', function(){
       renderRiderPickList();
     });
   </script>  <div class="boda-dialog-overlay" id="boda-dialog-overlay">
     <div class="boda-dialog-box">
-      <div class="boda-dialog-icon">💰</div>
+      <div class="boda-dialog-icon" id="boda-dialog-icon">💰</div>
       <div class="boda-dialog-message" id="boda-dialog-message"></div>
       <div class="boda-dialog-buttons">
         <button class="boda-dialog-btn-no" onclick="bodaDialogRespond(false)">No</button>

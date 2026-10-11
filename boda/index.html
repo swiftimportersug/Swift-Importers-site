@@ -1563,22 +1563,59 @@
       else if (!confirmed && typeof declineCb === 'function') declineCb();
     }
 
-    function completeBodaDeliveryWithPayment(docId, o) {
+    // A delivery the rider confirms is FINAL: the order is marked delivered and, when nothing
+    // is left to settle (already paid, or the rider has just collected the cash) and its
+    // stock was already taken out when it was confirmed, it is also moved to Closed in the
+    // same save. Anything else (a balance still owed, stock not yet deducted) is only marked
+    // delivered and is closed by admin as before.
+    function deliveryUpdatesFor(o, collectedCash) {
+      var updates = { deliveryStage: 'delivered' };
+      if (collectedCash) {
+        updates.paymentStatus = 'paid';
+        updates.amountPaid = (o && (o.orderTotal || o.subtotal)) || 0;
+      }
+      var paid = collectedCash || (o && o.paymentStatus === 'paid');
+      var isTaxiBus = o && o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
+      if (o && paid && !isTaxiBus && o.status === 'confirmed' && o.stockDeducted === true) {
+        updates.status = 'closed';
+        updates.completedAt = new Date().toISOString();
+      }
+      return updates;
+    }
+
+    // Writes the delivery and reports honestly. A save that never reaches the server (weak
+    // connection, or the rules refusing it) used to look like a success on the rider's phone
+    // while the customer kept seeing a live rider; now the rider is told.
+    function saveDelivery(docId, o, collectedCash) {
       if (!window.fbDb || !window.fbFns) return;
       var { doc, updateDoc } = window.fbFns;
-      var total = (o && (o.orderTotal || o.subtotal)) || 0;
-      updateDoc(doc(window.fbDb, 'orders', docId), {
-        deliveryStage: 'delivered', paymentStatus: 'paid', amountPaid: total
-      }).then(function(){
-        showToast('✅ Delivered & payment confirmed!');
+      var updates = deliveryUpdatesFor(o, collectedCash);
+      var settled = false;
+      var slowTimer = setTimeout(function(){
+        if (!settled) showToast('Still saving the delivery… keep the app open and connected.');
+      }, 8000);
+      updateDoc(doc(window.fbDb, 'orders', docId), updates).then(function(){
+        settled = true; clearTimeout(slowTimer);
+        showToast(updates.status === 'closed' ? '✅ Delivered — order completed!' : (collectedCash ? '✅ Delivered & payment confirmed!' : '✅ Delivered!'));
+        // The customer must stop seeing the rider straight away, not at the next sync.
+        deleteLocationDoc(docId);
+        setTimeout(function(){ deleteLocationDoc(docId); }, 6000);   // in case the background service sent one last update
+        syncLocationSharing();
         if (o) notifyCustomerOrderUpdate(o, '🎉 Delivered!', 'Your order has been delivered. Thank you for shopping with Swift Importers!');
       }).catch(function(e){
-        console.error('[boda] completeBodaDeliveryWithPayment failed:', e);
-        showToast('Could not update — check your connection and try again.');
+        settled = true; clearTimeout(slowTimer);
+        console.error('[boda] saveDelivery failed:', e);
+        var code = e && e.code ? ' (' + e.code + ')' : '';
+        showToast('⚠️ Delivery NOT saved' + code + '. Check your data and tap Delivered again.');
       });
     }
 
+    function completeBodaDeliveryWithPayment(docId, o) {
+      saveDelivery(docId, o, true);
+    }
+
     function completeBodaStageUpdate(docId, stage, o) {
+      if (stage === 'delivered') { saveDelivery(docId, o, false); return; }
       if (!window.fbDb || !window.fbFns) return;
       var { doc, updateDoc } = window.fbFns;
       updateDoc(doc(window.fbDb, 'orders', docId), { deliveryStage: stage }).then(function(){
@@ -1587,15 +1624,15 @@
           var isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
           var messages = {
             handed: { title: '📦 Picked Up', body: isTaxiBus ? 'Your order has been picked up and is on its way to the bus/taxi station.' : 'Your order has been handed to the boda rider for delivery.' },
-            at_station: { title: '🚏 At the Station', body: 'Your order has arrived at the bus/taxi station and will depart shortly.' },
-            delivered: { title: '🎉 Delivered!', body: 'Your order has been delivered. Thank you for shopping with Swift Importers!' }
+            at_station: { title: '🚏 At the Station', body: 'Your order has arrived at the bus/taxi station and will depart shortly.' }
           };
           var msg = messages[stage];
           if (msg) notifyCustomerOrderUpdate(o, msg.title, msg.body);
         }
       }).catch(function(e){
         console.error('[boda] markBodaStage failed:', e);
-        showToast('Could not update — check your connection and try again.');
+        var code = e && e.code ? ' (' + e.code + ')' : '';
+        showToast('Could not update' + code + ' — check your connection and try again.');
       });
     }
 

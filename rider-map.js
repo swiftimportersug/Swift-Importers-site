@@ -86,10 +86,9 @@
       '.srm-wait{padding:0 14px 14px;font-size:0.8rem;color:#A69C8C;line-height:1.4;}' +
       '.srm-pin{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;font-size:18px;box-shadow:0 2px 8px rgba(0,0,0,.45);border:2px solid #fff;}' +
       '.srm-pin.rider{background:#F0A93B;}.srm-pin.dest{background:#ff5c5c;}' +
-      '.srm-rider{position:relative;width:52px;height:52px;display:flex;align-items:center;justify-content:center;}' +
-      '.srm-arrow{position:absolute;left:0;top:0;width:52px;height:52px;opacity:0;transition:opacity .3s;will-change:transform;}' +
-      '.srm-arrow.on{opacity:1;}' +
-      '.srm-arrow::before{content:"";position:absolute;left:50%;top:-1px;margin-left:-8px;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:14px solid #F0A93B;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));}' +
+      '.srm-rider{position:relative;width:48px;height:48px;display:flex;align-items:center;justify-content:center;}' +
+      '.srm-bike{width:40px;height:60px;will-change:transform;filter:drop-shadow(0 1px 2px rgba(0,0,0,.55));}' +
+      '.srm-bike svg{display:block;width:100%;height:100%;}' +
       '.srm-mapbox{position:relative;}' +
       '.srm-follow{position:absolute;right:10px;bottom:10px;z-index:1000;background:#F0A93B;color:#1a1206;border:none;border-radius:18px;padding:8px 13px;font-size:0.74rem;font-weight:800;font-family:inherit;box-shadow:0 2px 8px rgba(0,0,0,.5);cursor:pointer;display:none;}' +
       '.srm-card .leaflet-container{font-family:inherit;}';
@@ -261,6 +260,7 @@
     var targetHeading = null;
     var glideMs = 3000;          // typical gap between updates, learned as they arrive
     var rafId = null;
+    var lastRouteDrawAt = 0;
     var route = null;            // road route from the rider to the delivery point (null = none yet / unavailable)
     var routeFetchedAt = 0, routeFetching = false, routeFailUntil = 0;
     var routedFrom = null;       // where the rider was when the route was fetched
@@ -320,11 +320,21 @@
     function makeIcon(cls, emoji) {
       return L.divIcon({ className: '', html: '<div class="srm-pin ' + cls + '">' + emoji + '</div>', iconSize: [34, 34], iconAnchor: [17, 17] });
     }
+    // A bike seen from above, nose pointing up. The whole drawing is turned to face the way the
+    // rider is travelling. Dark outline, no white backing, so it stays clear on pale roads.
+    var BIKE_SVG = '<svg viewBox="0 0 40 60" xmlns="http://www.w3.org/2000/svg">' +
+      '<rect x="16.5" y="40" width="7" height="17" rx="3.5" fill="#1a1206"/>' +
+      '<rect x="17" y="3" width="6" height="14" rx="3" fill="#1a1206"/>' +
+      '<path d="M20 12 C28 16 29 31 25.5 45 L14.5 45 C11 31 12 16 20 12 Z" fill="#F0A93B" stroke="#1a1206" stroke-width="2" stroke-linejoin="round"/>' +
+      '<rect x="7" y="17" width="26" height="3.6" rx="1.8" fill="#1a1206"/>' +
+      '<ellipse cx="20" cy="34" rx="7.5" ry="8.5" fill="#1a1206"/>' +
+      '<circle cx="20" cy="30" r="5" fill="#F0A93B" stroke="#1a1206" stroke-width="1.6"/>' +
+      '</svg>';
     function makeRiderIcon() {
       return L.divIcon({
         className: '',
-        html: '<div class="srm-rider"><div class="srm-arrow"></div><div class="srm-pin rider">🏍️</div></div>',
-        iconSize: [52, 52], iconAnchor: [26, 26]
+        html: '<div class="srm-rider"><div class="srm-bike">' + BIKE_SVG + '</div></div>',
+        iconSize: [48, 48], iconAnchor: [24, 24]
       });
     }
 
@@ -373,11 +383,8 @@
       if (!riderMarker) riderMarker = L.marker(pos, { icon: makeRiderIcon(), keyboard: false, zIndexOffset: 500 }).addTo(map);
       else riderMarker.setLatLng(pos);
       var el = riderMarker.getElement();
-      var arrow = el && el.querySelector('.srm-arrow');
-      if (arrow) {
-        if (heading == null) arrow.classList.remove('on');
-        else { arrow.classList.add('on'); arrow.style.transform = 'rotate(' + heading.toFixed(1) + 'deg)'; }
-      }
+      var bike = el && el.querySelector('.srm-bike');
+      if (bike) bike.style.transform = 'rotate(' + (heading == null ? 0 : heading).toFixed(1) + 'deg)';
       // With a road route the line is drawn by drawRoute() when a fix arrives; without one,
       // fall back to a dashed straight line that follows the dot.
       if (!route && destLatLng) {
@@ -393,7 +400,7 @@
     // One animation frame: move the dot a little further along its glide, turn it a little, nudge the camera.
     function frame(ts) {
       rafId = null;
-      var busy = false;
+      var busy = false, routeFollow = false, finishedGlide = false;
       if (anim) {
         var p = Math.min(1, (performance.now() - anim.t0) / anim.dur);
         if (anim.route && anim.route === route) {
@@ -404,11 +411,18 @@
         } else {
           shown = { lat: anim.from.lat + (anim.to.lat - anim.from.lat) * p, lng: anim.from.lng + (anim.to.lng - anim.from.lng) * p };
         }
-        if (p >= 1) anim = null; else busy = true;
+        if (p >= 1) { anim = null; routeFollow = true; finishedGlide = true; } else { busy = true; routeFollow = true; }
+      }
+      // On the road: face the way the road runs at the bike's own position, and redraw the
+      // yellow line from the bike (not from where the newest reading was), so the two never drift apart.
+      if (route && shownS != null && routeFollow) {
+        var ahead = pointAtRoute(route, Math.min(route.total, shownS + 12));
+        if (ahead && shown && metresBetween([shown.lat, shown.lng], ahead) > 3 && !finishedGlide) targetHeading = bearingBetween([shown.lat, shown.lng], ahead);
+        if (finishedGlide || performance.now() - lastRouteDrawAt > 90) { lastRouteDrawAt = performance.now(); drawRoute(shownS); }
       }
       if (heading != null && targetHeading != null) {
         var d = angleDiff(heading, targetHeading);
-        if (Math.abs(d) > 0.5) { heading = (heading + d * 0.18 + 360) % 360; busy = true; }
+        if (Math.abs(d) > 0.5) { heading = (heading + d * 0.3 + 360) % 360; busy = true; }
       }
       place();
       // Camera: while following, only move when the rider nears the edge, so the map doesn't shake.
@@ -605,8 +619,12 @@
           if (pr && pr.dist <= SNAP_MAX_M) {
             offRouteCount = 0;
             rerouteGapMs = REROUTE_MIN_GAP_MS;
-            onRoad = { route: route, s: pr.s };
-            at = pr.point;
+            // The dot glides to each new reading, so on its own it always trails the real bike by one
+            // update. While moving, aim a short way ahead (about 2 s of travel, at most 20 m) so it keeps up.
+            var lead = (moving && typeof d.speed === 'number') ? Math.min(20, d.speed * 2) : 0;
+            var sAim = Math.min(route.total, pr.s + lead);
+            onRoad = { route: route, s: sAim };
+            at = lead > 0 ? pointAtRoute(route, sAim) : pr.point;
             remainingM = Math.max(0, route.total - pr.s);
             if (moving) {
               var a = route.coords[pr.seg], b = route.coords[pr.seg + 1];
@@ -618,7 +636,7 @@
           }
         }
         moveTo(at[0], at[1], brg, onRoad);
-        if (route) drawRoute(onRoad ? onRoad.s : 0);
+        if (route) drawRoute(shownS != null ? shownS : (onRoad ? onRoad.s : 0));
         render();
         checkArrival();
         maybeFetchRoute(false);
