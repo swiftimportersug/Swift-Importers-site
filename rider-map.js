@@ -36,6 +36,8 @@
   var CLOCK_SANITY_MS = 6 * 60 * 60 * 1000; // an "age" bigger than this means a wrong phone clock, not a stale rider
   var MIN_GLIDE_MS = 1200;                // the dot takes at least this long to travel to a new position...
   var MAX_GLIDE_MS = 6000;                // ...and at most this long (about one update interval)
+  var ARRIVAL_M = 150;                    // the rider is "in delivery range" inside this distance (metres)
+  var ARRIVAL_BEEP_MS = 3000;             // how long the arrival beep lasts
   var MAX_ACCEPTED_ACCURACY_M = 150;      // ignore (rare) very rough fixes once we already know where the rider is
   var ROUTE_API = 'https://swift-route.swiftimportersug.workers.dev/route';   // see route-worker.js
   var SNAP_MAX_M = 35;                    // within this of the route = "on the road": the dot is placed on it
@@ -189,7 +191,65 @@
     return '≈ ' + min + ' min · ' + dist + ' by road';
   }
 
-  function create(wrap) {
+
+  // ── arrival beep (customer side) ──
+  // A loud 3-second beep, once per order on this device, when the rider comes within
+  // ARRIVAL_M of the delivery point. Only for customer pages (create(wrap, {arrivalBeep:true})).
+  var audioCtx = null;
+  function getAudioCtx() {
+    if (audioCtx) return audioCtx;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    try { audioCtx = new AC(); } catch (e) { audioCtx = null; }
+    return audioCtx;
+  }
+  // Browsers only allow sound after the customer has touched the page once, so get ready on the first touch.
+  var audioUnlockArmed = false;
+  function armAudioUnlock() {
+    if (audioUnlockArmed) return;
+    audioUnlockArmed = true;
+    var unlock = function () {
+      var ctx = getAudioCtx();
+      if (ctx && ctx.state === 'suspended') { try { ctx.resume(); } catch (e) {} }
+      ['touchstart', 'click', 'keydown'].forEach(function (ev) { document.removeEventListener(ev, unlock, true); });
+    };
+    ['touchstart', 'click', 'keydown'].forEach(function (ev) { document.addEventListener(ev, unlock, true); });
+  }
+  function playArrivalBeep() {
+    try { if (navigator.vibrate) navigator.vibrate([400, 150, 400, 150, 400, 150, 400, 150, 400]); } catch (e) {}
+    var ctx = getAudioCtx();
+    if (!ctx) return false;
+    try { if (ctx.state === 'suspended') ctx.resume(); } catch (e) {}
+    try {
+      var t0 = ctx.currentTime + 0.05;
+      var master = ctx.createGain();
+      master.gain.value = 1;
+      master.connect(ctx.destination);
+      // Six sharp beeps (0.3 s on, 0.2 s off) = 3 seconds. A square wave at 1900 Hz cuts through street noise.
+      for (var i = 0; i < 6; i++) {
+        var on = t0 + i * 0.5;
+        var osc = ctx.createOscillator();
+        var g = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.value = 1900;
+        g.gain.setValueAtTime(0.0001, on);
+        g.gain.linearRampToValueAtTime(0.9, on + 0.01);
+        g.gain.setValueAtTime(0.9, on + 0.28);
+        g.gain.linearRampToValueAtTime(0.0001, on + 0.3);
+        osc.connect(g); g.connect(master);
+        osc.start(on); osc.stop(on + 0.31);
+      }
+      return true;
+    } catch (e) { return false; }
+  }
+  function arrivalKey(id) { return 'swift_arrival_beep_' + id; }
+  function alreadyBeeped(id) { try { return !!localStorage.getItem(arrivalKey(id)); } catch (e) { return false; } }
+  function markBeeped(id) { try { localStorage.setItem(arrivalKey(id), String(Date.now())); } catch (e) {} }
+
+  function create(wrap, opts) {
+    opts = opts || {};
+    var arrivalStreak = 0, beepedThisSession = false;
+    if (opts.arrivalBeep) armAudioUnlock();
     var orderId = null;
     var unsubscribe = null;
     var map = null, riderMarker = null, destMarker = null, accCircle = null, routeLine = null, L = null;
@@ -227,7 +287,7 @@
       loc = null; shown = null; anim = null; heading = null; targetHeading = null; glideMs = 3000;
       route = null; routeFetchedAt = 0; routeFetching = false; routeFailUntil = 0; routedFrom = null; offRouteCount = 0; rerouteGapMs = REROUTE_MIN_GAP_MS; shownS = null; remainingM = null;
       followOn = true; camBusyUntil = 0; didFit = false; mapStarted = false; els = {};
-      orderId = null; destLatLng = null;
+      orderId = null; destLatLng = null; arrivalStreak = 0; beepedThisSession = false;
       if (hide && wrap) { wrap.style.display = 'none'; wrap.innerHTML = ''; }
     }
 
@@ -496,6 +556,21 @@
       }
     }
 
+    // Beeps once when the rider is within ARRIVAL_M. Needs two fresh readings in a row, so one stray fix can't set it off.
+    function checkArrival() {
+      if (!opts.arrivalBeep || !loc || !destLatLng || !orderId) return;
+      if (beepedThisSession || alreadyBeeped(orderId)) return;
+      if (Date.now() - loc.updatedMs > 120000) { arrivalStreak = 0; return; }           // an old position doesn't count
+      var straight = metresBetween([loc.lat, loc.lng], destLatLng);
+      var d = (remainingM != null) ? Math.min(straight, remainingM) : straight;
+      if (d <= ARRIVAL_M) arrivalStreak++; else arrivalStreak = 0;
+      if (arrivalStreak >= 2) {
+        beepedThisSession = true;
+        markBeeped(orderId);
+        playArrivalBeep();
+      }
+    }
+
     function subscribe() {
       var f = window.fbFns;
       if (!window.fbDb || !f || !f.onSnapshot || !f.doc) return;
@@ -545,6 +620,7 @@
         moveTo(at[0], at[1], brg, onRoad);
         if (route) drawRoute(onRoad ? onRoad.s : 0);
         render();
+        checkArrival();
         maybeFetchRoute(false);
       }, function (e) { console.error('[rider-map] location listener failed:', e); });
       // Keeps "updated 12s ago" honest between updates.
@@ -570,7 +646,7 @@
       }
     }
 
-    return { sync: sync, destroy: function () { teardown(true); } };
+    return { sync: sync, destroy: function () { teardown(true); }, testBeep: playArrivalBeep };
   }
 
   window.SwiftRiderMap = { create: create };

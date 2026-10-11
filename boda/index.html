@@ -1628,6 +1628,75 @@
       return (ls && ls.available) ? ls : null;
     }
 
+    // ── arrival beep ──
+    // When the rider gets within ARRIVAL_RANGE_M of the customer's pinned location, the phone beeps
+    // loudly for 3 seconds and the customer is alerted. The Android service does this itself (so it
+    // works with the screen off); the browser version below only works while the page is open.
+    var ARRIVAL_RANGE_M = 150;
+    function orderDestination(o) {
+      var m = o.exactLocation && String(o.exactLocation).match(/GPS:\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+      return m ? [parseFloat(m[1]), parseFloat(m[2])] : null;
+    }
+    // "orderId|lat|lng;orderId|lat|lng" for the orders that have a pinned location.
+    function destinationsParam(orders) {
+      return orders.map(function(o){
+        var d = orderDestination(o);
+        return d ? (o.fbDocId + '|' + d[0] + '|' + d[1]) : null;
+      }).filter(Boolean).join(';');
+    }
+    var arrivalAudio = null;
+    function playBrowserArrivalBeep() {
+      try { if (navigator.vibrate) navigator.vibrate([300, 200, 300, 200, 300, 200, 300, 200, 300]); } catch (e) {}
+      try {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        if (!arrivalAudio) arrivalAudio = new AC();
+        if (arrivalAudio.state === 'suspended') arrivalAudio.resume();
+        var t0 = arrivalAudio.currentTime + 0.05;
+        for (var i = 0; i < 6; i++) {
+          var on = t0 + i * 0.5;
+          var osc = arrivalAudio.createOscillator(), g = arrivalAudio.createGain();
+          osc.type = 'square'; osc.frequency.value = 1900;
+          g.gain.setValueAtTime(0.0001, on);
+          g.gain.linearRampToValueAtTime(0.9, on + 0.01);
+          g.gain.setValueAtTime(0.9, on + 0.28);
+          g.gain.linearRampToValueAtTime(0.0001, on + 0.3);
+          osc.connect(g); g.connect(arrivalAudio.destination);
+          osc.start(on); osc.stop(on + 0.31);
+        }
+      } catch (e) {}
+    }
+    function notifyCustomerArrival(id) {
+      fetch(ORDER_ALERT_WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Notify-Key': ORDER_ALERT_SHARED_KEY },
+        body: JSON.stringify({
+          customerMessageAlert: true,
+          orderId: id,
+          title: '🏍️ Your rider is almost there!',
+          body: 'Your order is about to arrive. Please be ready to receive it.',
+          url: '/?trackOrder=' + encodeURIComponent(id)
+        })
+      }).catch(function(e){ console.error('[boda] arrival alert failed:', e); });
+    }
+    function checkBrowserArrival(lat, lng) {
+      var dests = locShare.dests || {};
+      Object.keys(dests).forEach(function(id){
+        var seenKey = 'swift_boda_arrived_' + id;
+        var already = false;
+        try { already = !!localStorage.getItem(seenKey); } catch (e) {}
+        if (already) return;
+        var d = locMetres(lat, lng, dests[id][0], dests[id][1]);
+        locShare.arriveStreak = locShare.arriveStreak || {};
+        locShare.arriveStreak[id] = d <= ARRIVAL_RANGE_M ? (locShare.arriveStreak[id] || 0) + 1 : 0;
+        if (locShare.arriveStreak[id] >= 2) {
+          try { localStorage.setItem(seenKey, String(Date.now())); } catch (e) {}
+          playBrowserArrivalBeep();
+          notifyCustomerArrival(id);
+        }
+      });
+    }
+
     // Direct deliveries only: a taxi/bus hand-off isn't something the customer waits to see arrive.
     function locationSharingApplies(o) {
       var isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
@@ -1696,6 +1765,7 @@
       if (!locShare.filter) locShare.filter = newLocFilter();
       var clean = cleanBrowserFix(locShare.filter, pos.coords, now);
       if (!clean) return;
+      if (clean.acc <= 60) checkBrowserArrival(clean.lat, clean.lng);
       if (now - locShare.lastWrite < 3000) return;
       locShare.lastWrite = now;
       var f = window.fbFns;
@@ -1769,7 +1839,11 @@
             apiKey: cfg.apiKey,
             projectId: cfg.projectId,
             refreshToken: token,
-            orderLabel: orders.map(function(o){ return refCodeFor(o); }).join(', ')
+            orderLabel: orders.map(function(o){ return refCodeFor(o); }).join(', '),
+            destinations: destinationsParam(orders),
+            alertUrl: ORDER_ALERT_WORKER_URL,
+            alertKey: ORDER_ALERT_SHARED_KEY,
+            arrivalM: ARRIVAL_RANGE_M
           });
         }).then(function(){
           locShare.ids = ids;
@@ -1801,6 +1875,8 @@
         return Promise.resolve();
       }
       locShare.ids = ids;
+      locShare.dests = {};
+      (orders || []).forEach(function(o){ var d = orderDestination(o); if (d) locShare.dests[o.fbDocId] = d; });
       if (locShare.browserWatchId == null) {
         locShare.filter = newLocFilter();
         locShare.browserWatchId = navigator.geolocation.watchPosition(onBrowserFix, onBrowserError, { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
