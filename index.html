@@ -6087,8 +6087,8 @@
   function updateOrderLocationViaGps(docId) {
     if (!navigator.geolocation) { showAppAlert('Your browser doesn\'t support location pinning — please share your location by text or WhatsApp instead.'); return; }
     if (!window.fbDb || !window.fbFns) return;
-    showToastMessage('📍 Getting your location...', '#4a9eff');
-    navigator.geolocation.getCurrentPosition(function(pos){
+    showToastMessage('📍 Getting your exact location… hold still for a few seconds', '#4a9eff');
+    swiftBestPosition(function(pos){
       var lat = pos.coords.latitude.toFixed(6);
       var lng = pos.coords.longitude.toFixed(6);
       var { doc, getDoc, updateDoc } = window.fbFns;
@@ -6111,7 +6111,7 @@
       else if (err.code === 3) msg = 'Getting your location took too long — this often happens indoors with a weak GPS signal. Try again near a window.';
       else msg = 'Could not determine your location right now. Please try again.';
       showAppAlert(msg);
-    }, { enableHighAccuracy: true, timeout: 25000, maximumAge: 60000 });
+    }, { timeout: 20000 });
   }
 
   function buildOrderStageBadgeHtml(o) {
@@ -8207,6 +8207,43 @@
     if(wrap&&!wrap.contains(e.target)){ document.getElementById('cat-dropdown-menu').classList.remove('open'); document.getElementById('cat-arrow').classList.remove('open'); }
   });
 
+  // PRECISE LOCATION: a single GPS reading is often a rough first guess (or an old cached
+  // one), which can put the pin on the wrong street. Instead we listen for a few seconds
+  // and keep the most accurate reading, stopping as soon as one is good enough. Works as a
+  // drop-in for navigator.geolocation.getCurrentPosition(success, error, options).
+  function swiftBestPosition(onOk, onErr, opts) {
+    opts = opts || {};
+    if (!navigator.geolocation) { if (onErr) onErr({ code: 2 }); return; }
+    var best = null, done = false, watchId = null, timer = null;
+    var started = Date.now(), lastImproved = Date.now();
+    var GOOD_ENOUGH_M = opts.goodEnough || 20;
+    var TIMEOUT_MS = opts.timeout || 20000;
+    function stopWatching() {
+      clearTimeout(timer);
+      if (watchId != null) { try { navigator.geolocation.clearWatch(watchId); } catch (e) {} }
+    }
+    function finish() {
+      if (done) return;
+      done = true; stopWatching();
+      if (best) onOk(best); else if (onErr) onErr({ code: 3 });
+    }
+    watchId = navigator.geolocation.watchPosition(function (pos) {
+      if (done) return;
+      var acc = pos.coords.accuracy || 99999;
+      if (!best || acc < (best.coords.accuracy || 99999)) { best = pos; lastImproved = Date.now(); }
+      var bestAcc = best.coords.accuracy || 99999;
+      if (opts.onProgress) { try { opts.onProgress(bestAcc); } catch (e) {} }
+      var waited = Date.now() - started;
+      if (bestAcc <= GOOD_ENOUGH_M && waited >= 1500) finish();                          // precise enough
+      else if (bestAcc <= 50 && Date.now() - lastImproved > 6000) finish();             // stopped getting better
+    }, function (err) {
+      if (done) return;
+      if (err && err.code === 1) { done = true; stopWatching(); if (onErr) onErr(err); } // permission refused
+      // any other hiccup: keep listening until the time limit, then use the best reading we got
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: TIMEOUT_MS });
+    timer = setTimeout(finish, TIMEOUT_MS);
+  }
+
   // GEOLOCATION
   function getLocation() {
     var btn=document.getElementById('pin-btn-text');
@@ -8214,9 +8251,12 @@
     var field=document.getElementById('exact-location');
     if(!navigator.geolocation){ result.className='location-result location-error'; result.style.display='block'; result.innerHTML='Browser does not support location.'; return; }
     btn.textContent='Getting your location...';
-    navigator.geolocation.getCurrentPosition(
+    swiftBestPosition(
       function(pos){
         var lat=pos.coords.latitude.toFixed(6); var lng=pos.coords.longitude.toFixed(6);
+        var acc=Math.round(pos.coords.accuracy||0);
+        var accNote = acc ? ' <span style="opacity:.85;">(accurate to about '+acc+' m)</span>' : '';
+        if (acc > 100) accNote += '<br/>⚠️ Weak GPS signal, so this pin may be off. For a more exact one, step outside or next to a window, then unlock below and tap again.';
         var link='https://www.google.com/maps?q='+lat+','+lng;
         if(!field.value){field.value='GPS: '+lat+', '+lng;}else{field.value+=' | GPS: '+lat+', '+lng;}
         // Locking prevents an accidental keystroke from corrupting exact
@@ -8224,7 +8264,7 @@
         // escape hatch for when a real change is actually needed.
         field.readOnly = true;
         result.className='location-result'; result.style.display='block';
-        result.innerHTML='📍 Location pinned and locked! <a href="'+link+'" target="_blank">View on Google Maps</a><br/><button type="button" onclick="unlockLocationField()" style="margin-top:6px; background:none; border:none; color:#4a9eff; text-decoration:underline; cursor:pointer; font-size:0.78rem; padding:0;">✏️ Need to change this? Tap to unlock</button>';
+        result.innerHTML='📍 Location pinned and locked!'+accNote+' <a href="'+link+'" target="_blank">View on Google Maps</a><br/><button type="button" onclick="unlockLocationField()" style="margin-top:6px; background:none; border:none; color:#4a9eff; text-decoration:underline; cursor:pointer; font-size:0.78rem; padding:0;">✏️ Need to change this? Tap to unlock</button>';
         btn.textContent='Location Pinned!';
       },
       function(err){
@@ -8244,7 +8284,7 @@
       // use a recent cached position instead of always demanding a brand new
       // fix, which is usually still accurate enough for a delivery address and
       // returns near-instantly when available.
-      {enableHighAccuracy:true,timeout:25000,maximumAge:60000}
+      {timeout:20000,onProgress:function(a){ btn.textContent='Locking on… (±'+Math.round(a)+' m)'; }}
     );
   }
 
