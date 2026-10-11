@@ -7,6 +7,7 @@
   <meta name="description" content="Track your Swift Importers order in real time — see live delivery status and rider details."/>
   <!-- Tracking pages are private/user-specific — never meant to show up in search results -->
   <meta name="robots" content="noindex, nofollow"/>
+  <meta name="swift-build" content="track-2026-10-11-a"/>
 
   <meta property="og:type" content="website"/>
   <meta property="og:site_name" content="Swift Importers"/>
@@ -22,7 +23,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
   <script src="/app-bridge.js"></script>
-  <script src="/rider-map.js"></script>
+  <script src="/rider-map.js?v=20261011"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getFirestore, collection, doc, getDoc, onSnapshot, query, where, getDocs, updateDoc, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -340,10 +341,37 @@
 
     // Live rider map (rider-map.js): shows itself only while the rider has the parcel.
     var riderMapCtl = null;
+    var TRACK_BUILD = 'track-2026-10-11-a';
     function syncRiderMap(o) {
+      showMapDebug(o);
       if (!window.SwiftRiderMap) return;
       if (!riderMapCtl) riderMapCtl = window.SwiftRiderMap.create(document.getElementById('rider-map-wrap'));
       riderMapCtl.sync(o);
+    }
+
+    // Add ?mapdebug=1 to the tracking address to see why the live map is (or isn't) showing.
+    function showMapDebug(o) {
+      if (new URLSearchParams(window.location.search).get('mapdebug') !== '1') return;
+      var el = document.getElementById('map-debug');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'map-debug';
+        el.style.cssText = 'margin-top:10px; padding:10px 12px; border:1px dashed #F0A93B; border-radius:8px; color:#F0A93B; font-size:0.72rem; line-height:1.6; font-family:monospace; word-break:break-all;';
+        var wrap = document.getElementById('rider-map-wrap');
+        wrap.parentNode.insertBefore(el, wrap.nextSibling);
+      }
+      var type = o.delivery && o.delivery.type;
+      var why = [];
+      if (!window.SwiftRiderMap) why.push('map script did not load');
+      if (!o.bodaClaimedBy || !o.bodaClaimedBy.riderId) why.push('no rider has claimed it');
+      if (type === 'taxi' || type === 'bus') why.push('taxi/bus orders have no live map');
+      if (o.deliveryStage !== 'handed' && o.deliveryStage !== 'on_the_way') why.push('rider has not picked it up yet (stage: ' + (o.deliveryStage || 'none') + ')');
+      if (o.status === 'closed' || o.status === 'cancelled') why.push('order is ' + o.status);
+      el.innerHTML = 'MAP CHECK<br/>page build: ' + TRACK_BUILD +
+        '<br/>map script loaded: ' + (window.SwiftRiderMap ? 'yes' : 'NO') +
+        '<br/>claimed by rider: ' + ((o.bodaClaimedBy && o.bodaClaimedBy.riderId) ? 'yes' : 'no') +
+        '<br/>delivery type: ' + (type || 'none') + ' &middot; stage: ' + (o.deliveryStage || 'none') +
+        '<br/>result: ' + (why.length ? 'hidden because ' + why.join('; ') : 'map should be showing');
     }
 
     function resetLookup() {
