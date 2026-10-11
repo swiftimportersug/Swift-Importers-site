@@ -19,6 +19,12 @@
  * turns to face the way they are travelling, and the map keeps them in view until the
  * customer drags it. A "Follow rider" button brings the view back.
  *
+ * Roads: the page asks the route Worker (route-worker.js) for the road route from the
+ * rider to the delivery point. The dot is then placed on that road (so it follows the
+ * street instead of wandering a few metres either side), the arrow follows the road's
+ * direction, the line shows the way still to go, and the card shows a travel time. If the
+ * Worker can't be reached, everything above quietly falls back to the plain moving dot.
+ *
  * Map: Leaflet + OpenStreetMap, loaded only when a map is actually needed.
  */
 (function () {
@@ -31,6 +37,12 @@
   var MIN_GLIDE_MS = 1200;                // the dot takes at least this long to travel to a new position...
   var MAX_GLIDE_MS = 6000;                // ...and at most this long (about one update interval)
   var MAX_ACCEPTED_ACCURACY_M = 150;      // ignore (rare) very rough fixes once we already know where the rider is
+  var ROUTE_API = 'https://swift-route.swiftimportersug.workers.dev/route';   // see route-worker.js
+  var SNAP_MAX_M = 35;                    // within this of the route = "on the road": the dot is placed on it
+  var ROUTE_REFRESH_MS = 45 * 1000;       // re-ask for the route at most this often while the rider is moving...
+  var ROUTE_REFRESH_MOVE_M = 120;         // ...and only after they have moved at least this far
+  var REROUTE_MIN_GAP_MS = 15 * 1000;     // when the rider leaves the route, wait at least this long between new routes
+  var ROUTE_FAIL_PAUSE_MS = 90 * 1000;    // after a failure, leave the service alone for a while
   var SNAP_DISTANCE_M = 600;              // farther than this, jump rather than glide (e.g. coming back to the tab)
 
   // ── Leaflet, loaded once on demand ──
@@ -132,6 +144,51 @@
   // Signed shortest turn from angle a to angle b, in degrees.
   function angleDiff(a, b) { return ((b - a + 540) % 360) - 180; }
 
+  // ── road route helpers ──
+  // A route is { coords:[[lat,lng],...], cum:[metres from start at each point], total, distance, duration }.
+  function buildRoute(coords, distance, duration) {
+    var cum = [0];
+    for (var i = 1; i < coords.length; i++) cum.push(cum[i - 1] + metresBetween(coords[i - 1], coords[i]));
+    return { coords: coords, cum: cum, total: cum[cum.length - 1] || distance || 0, distance: distance, duration: duration };
+  }
+  // The closest point on the route to p: { dist (m from p to the road), s (m along the route), point, seg }.
+  function projectOnRoute(route, p) {
+    var best = null, kx = 111320 * Math.cos(p[0] * Math.PI / 180), ky = 111320;
+    for (var i = 0; i < route.coords.length - 1; i++) {
+      var a = route.coords[i], b = route.coords[i + 1];
+      var ax = (a[1] - p[1]) * kx, ay = (a[0] - p[0]) * ky;
+      var bx = (b[1] - p[1]) * kx, by = (b[0] - p[0]) * ky;
+      var dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy;
+      var t = len2 > 0 ? Math.max(0, Math.min(1, (-ax * dx - ay * dy) / len2)) : 0;
+      var qx = ax + t * dx, qy = ay + t * dy, d = Math.sqrt(qx * qx + qy * qy);
+      if (!best || d < best.dist) best = { dist: d, seg: i, t: t, s: route.cum[i] + t * Math.sqrt(len2), point: [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])] };
+    }
+    return best;
+  }
+  // The point s metres along the route.
+  function pointAtRoute(route, s) {
+    var c = route.cum, n = c.length;
+    if (s <= 0) return route.coords[0];
+    if (s >= c[n - 1]) return route.coords[n - 1];
+    var lo = 0, hi = n - 1;
+    while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (c[mid] <= s) lo = mid; else hi = mid; }
+    var seg = c[hi] - c[lo], t = seg > 0 ? (s - c[lo]) / seg : 0;
+    var a = route.coords[lo], b = route.coords[hi];
+    return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
+  }
+  // The part of the route still to travel, starting at s.
+  function routeFrom(route, s) {
+    var pts = [pointAtRoute(route, s)];
+    for (var i = 0; i < route.coords.length; i++) if (route.cum[i] > s) pts.push(route.coords[i]);
+    return pts;
+  }
+  function fmtEta(seconds, metres) {
+    if (metres < 150) return 'Your rider is very close!';
+    var min = Math.max(1, Math.round(seconds / 60));
+    var dist = metres < 1000 ? (Math.round(metres / 10) * 10) + ' m' : (metres / 1000).toFixed(1) + ' km';
+    return '≈ ' + min + ' min · ' + dist + ' by road';
+  }
+
   function create(wrap) {
     var orderId = null;
     var unsubscribe = null;
@@ -144,6 +201,13 @@
     var targetHeading = null;
     var glideMs = 3000;          // typical gap between updates, learned as they arrive
     var rafId = null;
+    var route = null;            // road route from the rider to the delivery point (null = none yet / unavailable)
+    var routeFetchedAt = 0, routeFetching = false, routeFailUntil = 0;
+    var routedFrom = null;       // where the rider was when the route was fetched
+    var offRouteCount = 0;
+    var rerouteGapMs = REROUTE_MIN_GAP_MS;   // grows if the rider keeps being off every route we find (e.g. a road missing from the map)
+    var shownS = null;           // how far along the route the dot is (m), when it is on the road
+    var remainingM = null;       // road distance still to go, when known
     var followOn = true;
     var camBusyUntil = 0;
     var didFit = false;
@@ -161,6 +225,7 @@
       if (map) { try { map.remove(); } catch (e) {} map = null; }
       riderMarker = null; destMarker = null; accCircle = null; routeLine = null;
       loc = null; shown = null; anim = null; heading = null; targetHeading = null; glideMs = 3000;
+      route = null; routeFetchedAt = 0; routeFetching = false; routeFailUntil = 0; routedFrom = null; offRouteCount = 0; rerouteGapMs = REROUTE_MIN_GAP_MS; shownS = null; remainingM = null;
       followOn = true; camBusyUntil = 0; didFit = false; mapStarted = false; els = {};
       orderId = null; destLatLng = null;
       if (hide && wrap) { wrap.style.display = 'none'; wrap.innerHTML = ''; }
@@ -253,9 +318,14 @@
         if (heading == null) arrow.classList.remove('on');
         else { arrow.classList.add('on'); arrow.style.transform = 'rotate(' + heading.toFixed(1) + 'deg)'; }
       }
-      if (destLatLng) {
-        if (!routeLine) routeLine = L.polyline([pos, destLatLng], { color: '#F0A93B', weight: 3, opacity: 0.55, dashArray: '2 8', lineCap: 'round' }).addTo(map);
-        else routeLine.setLatLngs([pos, destLatLng]);
+      // With a road route the line is drawn by drawRoute() when a fix arrives; without one,
+      // fall back to a dashed straight line that follows the dot.
+      if (!route && destLatLng) {
+        if (!routeLine || routeLine.__road) {
+          if (routeLine) map.removeLayer(routeLine);
+          routeLine = L.polyline([pos, destLatLng], { color: '#F0A93B', weight: 3, opacity: 0.55, dashArray: '2 8', lineCap: 'round' }).addTo(map);
+          routeLine.__road = false;
+        } else routeLine.setLatLngs([pos, destLatLng]);
       }
       if (accCircle) accCircle.setLatLng(pos);
     }
@@ -266,7 +336,14 @@
       var busy = false;
       if (anim) {
         var p = Math.min(1, (performance.now() - anim.t0) / anim.dur);
-        shown = { lat: anim.from.lat + (anim.to.lat - anim.from.lat) * p, lng: anim.from.lng + (anim.to.lng - anim.from.lng) * p };
+        if (anim.route && anim.route === route) {
+          // Along the road, so bends are followed instead of cut across.
+          shownS = anim.s0 + (anim.s1 - anim.s0) * p;
+          var rp = pointAtRoute(route, shownS);
+          shown = { lat: rp[0], lng: rp[1] };
+        } else {
+          shown = { lat: anim.from.lat + (anim.to.lat - anim.from.lat) * p, lng: anim.from.lng + (anim.to.lng - anim.from.lng) * p };
+        }
         if (p >= 1) anim = null; else busy = true;
       }
       if (heading != null && targetHeading != null) {
@@ -284,21 +361,86 @@
     function ensureLoop() { if (!rafId) rafId = requestAnimationFrame(frame); }
 
     // A new position arrived: glide to it over about one update interval.
-    function moveTo(lat, lng, brgFromServer) {
+    // onRoad (optional) = { route, s }: the position is on the road route, s metres along it.
+    function moveTo(lat, lng, brgFromServer, onRoad) {
       var target = { lat: lat, lng: lng };
-      if (!shown) { shown = target; anim = null; }
+      if (!shown) { shown = target; anim = null; shownS = onRoad ? onRoad.s : null; }
       else {
         var gap = metresBetween([shown.lat, shown.lng], [lat, lng]);
-        // Direction: the one the rider's phone reported, else the one they just moved in.
+        // Direction: the one given, else the one they just moved in.
         if (brgFromServer == null && gap >= 6) brgFromServer = bearingBetween([shown.lat, shown.lng], [lat, lng]);
-        if (gap > SNAP_DISTANCE_M || document.hidden) { shown = target; anim = null; }
-        else if (gap > 0.3) anim = { from: { lat: shown.lat, lng: shown.lng }, to: target, t0: performance.now(), dur: glideMs };
+        if (gap > SNAP_DISTANCE_M || document.hidden) { shown = target; anim = null; shownS = onRoad ? onRoad.s : null; }
+        else if (gap > 0.3) {
+          if (onRoad && onRoad.route === route && shownS != null) {
+            var s1 = onRoad.s;
+            if (s1 < shownS && shownS - s1 < 25) s1 = shownS;       // ignore small backward wobble
+            anim = { route: route, s0: shownS, s1: s1, from: { lat: shown.lat, lng: shown.lng }, to: target, t0: performance.now(), dur: glideMs };
+          } else {
+            anim = { from: { lat: shown.lat, lng: shown.lng }, to: target, t0: performance.now(), dur: glideMs };
+            shownS = onRoad ? onRoad.s : null;
+          }
+        }
       }
       if (brgFromServer != null) {
         targetHeading = brgFromServer;
         if (heading == null) heading = brgFromServer;
       }
       ensureLoop();
+    }
+
+    // ── road route ──
+    function drawRoute(fromS) {
+      if (!map || !L || !route) return;
+      var pts = routeFrom(route, fromS || 0);
+      if (routeLine && !routeLine.__road) { map.removeLayer(routeLine); routeLine = null; }
+      if (!routeLine) {
+        routeLine = L.polyline(pts, { color: '#F0A93B', weight: 5, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+        routeLine.__road = true;
+        if (riderMarker) riderMarker.setZIndexOffset(500);
+      } else routeLine.setLatLngs(pts);
+    }
+
+    function maybeFetchRoute(force) {
+      if (routeFetching || !loc || !destLatLng || !orderId) return;
+      var now = Date.now();
+      if (now < routeFailUntil) return;
+      var moved = routedFrom ? metresBetween(routedFrom, [loc.lat, loc.lng]) : 1e9;
+      var due = false;
+      if (!route) due = true;                                                                            // first route
+      else if (offRouteCount >= 2 && now - routeFetchedAt > rerouteGapMs) { due = true; rerouteGapMs = Math.min(rerouteGapMs * 2, 120000); }   // rider left the route
+      else if (now - routeFetchedAt > ROUTE_REFRESH_MS && moved > ROUTE_REFRESH_MOVE_M) due = true;      // keep time/distance fresh
+      if (!due && !force) return;
+
+      var forOrder = orderId, from = [loc.lat, loc.lng];
+      routeFetching = true;
+      var ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+      var killer = setTimeout(function () { if (ctl) ctl.abort(); }, 9000);
+      fetch(ROUTE_API + '?from=' + from[0].toFixed(5) + ',' + from[1].toFixed(5) + '&to=' + destLatLng[0].toFixed(5) + ',' + destLatLng[1].toFixed(5), ctl ? { signal: ctl.signal } : undefined)
+        .then(function (r) { if (!r.ok) throw new Error('route ' + r.status); return r.json(); })
+        .then(function (data) {
+          clearTimeout(killer);
+          routeFetching = false;
+          if (orderId !== forOrder) return;
+          if (!data || !data.coords || data.coords.length < 2) throw new Error('empty route');
+          route = buildRoute(data.coords, data.distance, data.duration);
+          routeFetchedAt = Date.now();
+          routedFrom = from;
+          offRouteCount = 0;
+          // Put the dot onto the new road straight away.
+          if (loc) {
+            var pr = projectOnRoute(route, [loc.lat, loc.lng]);
+            if (pr && pr.dist <= SNAP_MAX_M) { shownS = pr.s; remainingM = Math.max(0, route.total - pr.s); }
+            else { shownS = null; remainingM = null; }
+            drawRoute(shownS || 0);
+          }
+          render();
+        })
+        .catch(function (e) {
+          clearTimeout(killer);
+          routeFetching = false;
+          routeFailUntil = Date.now() + ROUTE_FAIL_PAUSE_MS;    // no road service: carry on without it
+          console.warn('[rider-map] road route unavailable:', e && e.message);
+        });
     }
 
     function render() {
@@ -319,7 +461,11 @@
         els.wait.style.display = stale ? 'block' : 'none';
         els.wait.textContent = stale ? 'No fresh update from your rider for a few minutes. Their connection may be weak. You can still call or message them.' : '';
         els.meta.style.display = 'flex';
-        els.dist.textContent = destLatLng ? fmtDistance(distanceKm([loc.lat, loc.lng], destLatLng)) : '';
+        if (route && remainingM != null && route.total > 0) {
+          els.dist.textContent = fmtEta(route.duration * Math.min(1, remainingM / route.total), remainingM);
+        } else {
+          els.dist.textContent = destLatLng ? fmtDistance(distanceKm([loc.lat, loc.lng], destLatLng)) : '';
+        }
         els.age.textContent = fmtAge(age);
       }
 
@@ -375,8 +521,31 @@
         loc = { lat: d.lat, lng: d.lng, accuracy: accuracy, updatedMs: ms, receivedMs: now };
 
         var moving = (typeof d.speed !== 'number') || d.speed >= 1.5;
-        moveTo(d.lat, d.lng, (typeof d.heading === 'number' && moving) ? d.heading : null);
+        var brg = (typeof d.heading === 'number' && moving) ? d.heading : null;
+
+        // On the road? Then place the dot on it and face along it.
+        var onRoad = null, at = [d.lat, d.lng];
+        if (route) {
+          var pr = projectOnRoute(route, at);
+          if (pr && pr.dist <= SNAP_MAX_M) {
+            offRouteCount = 0;
+            rerouteGapMs = REROUTE_MIN_GAP_MS;
+            onRoad = { route: route, s: pr.s };
+            at = pr.point;
+            remainingM = Math.max(0, route.total - pr.s);
+            if (moving) {
+              var a = route.coords[pr.seg], b = route.coords[pr.seg + 1];
+              brg = bearingBetween(a, b);
+            }
+          } else {
+            offRouteCount++;
+            remainingM = null;
+          }
+        }
+        moveTo(at[0], at[1], brg, onRoad);
+        if (route) drawRoute(onRoad ? onRoad.s : 0);
         render();
+        maybeFetchRoute(false);
       }, function (e) { console.error('[rider-map] location listener failed:', e); });
       // Keeps "updated 12s ago" honest between updates.
       ageTimer = setInterval(function () { if (loc) render(); }, 5000);
