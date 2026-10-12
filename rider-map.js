@@ -91,7 +91,9 @@
       '.srm-bike svg{display:block;width:100%;height:100%;}' +
       '.srm-mapbox{position:relative;}' +
       '.srm-follow{position:absolute;right:10px;bottom:10px;z-index:1000;background:#F0A93B;color:#1a1206;border:none;border-radius:18px;padding:8px 13px;font-size:0.74rem;font-weight:800;font-family:inherit;box-shadow:0 2px 8px rgba(0,0,0,.5);cursor:pointer;display:none;}' +
-      '.srm-card .leaflet-container{font-family:inherit;}';
+      '.srm-card .leaflet-container{font-family:inherit;}' +
+      // Some pages set max-width:100% on everything, which squashes map markers to nothing.
+      '.srm-card .leaflet-container *{max-width:none;}';
     document.head.appendChild(s);
   }
 

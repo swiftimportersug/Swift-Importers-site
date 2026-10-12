@@ -44,6 +44,14 @@
     return leafletPromise;
   }
 
+  // How far in to start: close enough to see the street and the gate.
+  function zoomFor(acc) {
+    if (!(acc > 0)) return 18;
+    if (acc <= 60) return 18;
+    if (acc <= 200) return 17;
+    return 16;
+  }
+
   function metres(a1, o1, a2, o2) {
     var dLat = (a2 - a1) * 111320;
     var dLng = (o2 - o1) * 111320 * Math.cos(((a1 + a2) / 2) * Math.PI / 180);
@@ -58,15 +66,16 @@
     css.textContent =
       '.swpp{position:fixed;inset:0;z-index:100000;display:none;flex-direction:column;background:#0f1218;color:#f2f2f2;font-family:inherit;}' +
       '.swpp.open{display:flex;}' +
+      '.swpp *{max-width:none;}' +
       '.swpp-head{padding:14px 16px 10px;background:#161a22;border-bottom:1px solid rgba(255,255,255,.08);}' +
       '.swpp-title{font-size:1.02rem;font-weight:700;}' +
       '.swpp-sub{font-size:.8rem;opacity:.75;margin-top:3px;line-height:1.35;}' +
       '.swpp-mapwrap{position:relative;flex:1;min-height:0;}' +
       '.swpp-map{position:absolute;inset:0;background:#1b2029;}' +
-      '.swpp-pin{position:absolute;left:50%;top:50%;width:0;height:0;z-index:1000;pointer-events:none;}' +
-      '.swpp-pin svg{position:absolute;left:-17px;top:-46px;width:34px;height:46px;filter:drop-shadow(0 3px 3px rgba(0,0,0,.45));transition:transform .15s ease;}' +
+      '.swpp-pin{position:absolute;left:calc(50% - 17px);top:calc(50% - 46px);width:34px;height:46px;z-index:1000;pointer-events:none;}' +
+      '.swpp-pin svg{position:absolute;left:0;top:0;width:34px;height:46px;display:block;filter:drop-shadow(0 3px 3px rgba(0,0,0,.45));transition:transform .15s ease;}' +
       '.swpp.moving .swpp-pin svg{transform:translateY(-8px);}' +
-      '.swpp-pin i{position:absolute;left:-5px;top:-3px;width:10px;height:6px;border-radius:50%;background:rgba(0,0,0,.35);transition:transform .15s ease,opacity .15s;}' +
+      '.swpp-pin i{position:absolute;left:12px;top:43px;width:10px;height:6px;border-radius:50%;background:rgba(0,0,0,.4);transition:transform .15s ease,opacity .15s;}' +
       '.swpp.moving .swpp-pin i{transform:scale(.6);opacity:.6;}' +
       '.swpp-fab{position:absolute;right:12px;z-index:1000;border:none;border-radius:12px;background:#fff;color:#222;font-weight:700;font-size:.78rem;padding:9px 11px;box-shadow:0 2px 8px rgba(0,0,0,.35);cursor:pointer;}' +
       '.swpp-sat{top:12px;}.swpp-me{top:56px;}' +
@@ -74,6 +83,7 @@
       '.swpp-foot{padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));background:#161a22;border-top:1px solid rgba(255,255,255,.08);}' +
       '.swpp-info{font-size:.78rem;min-height:1.1em;margin-bottom:9px;opacity:.85;}' +
       '.swpp-info.warn{color:#ffb454;opacity:1;}' +
+      '.swpp-you{background:#2b7fff;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 1px rgba(0,0,0,.25);}' +
       '.swpp-row{display:flex;gap:10px;}' +
       '.swpp-btn{flex:1;border-radius:12px;padding:13px;font-size:.95rem;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.25);background:transparent;color:#f2f2f2;}' +
       '.swpp-btn.go{flex:2;background:#F0A93B;border-color:#F0A93B;color:#1a1305;}' +
@@ -110,7 +120,7 @@
     if (active) return;
     var hasStart = typeof o.lat === 'number' && typeof o.lng === 'number' && isFinite(o.lat) && isFinite(o.lng);
     var start = hasStart ? [o.lat, o.lng] : KAMPALA;
-    var startZoom = hasStart ? 18 : 13;
+    var startZoom = hasStart ? zoomFor(o.accuracy) : 12;
 
     loadLeaflet().then(function (L) {
       if (active) return;
@@ -120,7 +130,42 @@
       var satBtn = root.querySelector('[data-a="sat"]');
       var meBtn = root.querySelector('[data-a="me"]');
       var confirmed = false, closed = false, satellite = false;
-      var map = null, street = null, sat = null, ring = null;
+      var map = null, street = null, sat = null, ring = null, youDot = null;
+      var locating = false, userMoved = false;
+
+      // The blue dot: where the phone says the customer is right now.
+      function showYou(lat, lng, acc) {
+        if (!map) return;
+        if (youDot) youDot.setLatLng([lat, lng]);
+        else youDot = L.marker([lat, lng], { icon: L.divIcon({ className: '', html: '<div class="swpp-you" style="width:18px;height:18px;"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: false, keyboard: false, zIndexOffset: -100 }).addTo(map);
+        if (ring) { map.removeLayer(ring); ring = null; }
+        if (acc > 0 && acc < 400) ring = L.circle([lat, lng], { radius: acc, color: '#2b7fff', weight: 1, opacity: 0.6, fillColor: '#2b7fff', fillOpacity: 0.1, interactive: false }).addTo(map);
+      }
+
+      // Finds the customer and zooms in on them. Used when there was no starting point, and by "My spot".
+      function locateMe(centre) {
+        if (!navigator.geolocation || locating) return;
+        locating = true; readout();
+        var done = false;
+        function got(pos, final) {
+          if (!map) return;
+          var lat = pos.coords.latitude, lng = pos.coords.longitude, acc = Math.round(pos.coords.accuracy || 0);
+          o.lat = lat; o.lng = lng; o.accuracy = acc; hasStart = true; start = [lat, lng];
+          meBtn.style.display = '';
+          showYou(lat, lng, acc);
+          if (centre && !userMoved) { map.setView(start, zoomFor(acc), { animate: true }); }
+          if (final) { locating = false; done = true; }
+          readout();
+        }
+        // A quick rough fix first (so the map jumps to the right neighbourhood at once), then a precise one.
+        navigator.geolocation.getCurrentPosition(function (pos) { got(pos, false); fine(); }, function () { fine(); }, { enableHighAccuracy: false, maximumAge: 120000, timeout: 6000 });
+        function fine() {
+          navigator.geolocation.getCurrentPosition(function (pos) { got(pos, true); }, function () {
+            locating = false; readout();
+            if (!hasStart) info.textContent = 'Could not find your location. Move the map to your spot, or allow Location for this site.';
+          }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+        }
+      }
 
       function cleanup() {
         if (closed) return;
@@ -139,7 +184,11 @@
 
       function readout() {
         var c = map.getCenter();
-        if (!hasStart) { info.className = 'swpp-info'; info.textContent = 'Move the map until the pin is on your exact spot.'; return; }
+        if (!hasStart) {
+          info.className = 'swpp-info';
+          info.textContent = locating ? 'Finding where you are…' : 'Move the map until the pin is on your exact spot.';
+          return;
+        }
         var d = metres(o.lat, o.lng, c.lat, c.lng);
         if (d > FAR_WARNING_M) {
           info.className = 'swpp-info warn';
@@ -169,11 +218,11 @@
           satBtn.textContent = satellite ? '🗺️ Streets' : '🛰️ Satellite';
           return;
         }
-        if (a === 'me' && hasStart) { map.setView(start, Math.max(map.getZoom(), 18), { animate: true }); }
+        if (a === 'me') { userMoved = false; if (hasStart) map.setView(start, Math.max(map.getZoom(), zoomFor(o.accuracy)), { animate: true }); locateMe(true); }
       }
       function onKey(e) { if (e.key === 'Escape') { e.stopPropagation(); close(); } }
 
-      meBtn.style.display = hasStart ? '' : 'none';
+      meBtn.style.display = '';
 
       // Show it first (through the page's own overlay handling when given, so the phone's
       // Back button closes just this map), because Leaflet needs a visible box to measure.
@@ -182,13 +231,15 @@
       street = L.tileLayer(STREET_TILES, { maxZoom: 19, subdomains: 'abc', attribution: '© OpenStreetMap' }).addTo(map);
       sat = L.tileLayer(SAT_TILES, { maxZoom: 19, attribution: 'Imagery © Esri' });
       L.control.zoom({ position: 'bottomright' }).addTo(map);
-      if (hasStart && o.accuracy > 0 && o.accuracy < 400) {
-        ring = L.circle(start, { radius: o.accuracy, color: '#4a9eff', weight: 1, opacity: 0.7, fillColor: '#4a9eff', fillOpacity: 0.1, interactive: false }).addTo(map);
-      }
+      if (hasStart) showYou(o.lat, o.lng, o.accuracy);
+      map.on('dragstart', function () { userMoved = true; });
+      // Any touch on the map also means "I'm placing it myself": don't re-centre on a later, more precise reading.
+      ['touchstart', 'mousedown', 'wheel'].forEach(function (ev) { mapDiv.addEventListener(ev, function () { userMoved = true; }, { passive: true }); });
       map.on('movestart', function () { root.classList.add('moving'); });
       map.on('moveend', function () { root.classList.remove('moving'); readout(); });
       readout();
       setTimeout(function () { if (map) { map.invalidateSize(); map.setView(start, startZoom); readout(); } }, 80);
+      if (!hasStart) locateMe(true);
 
       root.addEventListener('click', onClick);
       document.addEventListener('keydown', onKey, true);

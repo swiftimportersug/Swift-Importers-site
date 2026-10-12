@@ -6108,6 +6108,7 @@
                 : '<div style="font-size:0.72rem; color:#999; margin-top:5px;">Set delivery info below once this reaches the warehouse.</div>') +
             '</div>';
           })() : ''}
+          ${deliveryTimesHtml(o)}
           ${!isClosed && o.status === 'confirmed' && (!o.delivery || o.delivery.type !== 'selfpick') ? (function(){
             if (o.bodaClaimedBy) {
               return '<div style="width:100%; margin-top:8px; background:rgba(74,222,128,0.14); border:1.5px solid #4ade80; border-radius:8px; padding:9px 11px; font-size:0.78rem; color:#1a5c2e; font-weight:700;">🏍️ Claimed by ' + o.bodaClaimedBy.name + ' — ' + o.bodaClaimedBy.phone + '</div>' +
@@ -6463,11 +6464,39 @@
     }
   }
 
+
+  // When the rider collected the parcel and when the delivery was confirmed (shown on open AND closed orders).
+  function fmtDeliveryTime(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true });
+  }
+  function deliveryTimesHtml(o) {
+    if (!o || (!o.pickedUpAt && !o.deliveredAt)) return '';
+    var parts = [];
+    if (o.pickedUpAt) parts.push('📦 Picked up by rider: <strong>' + fmtDeliveryTime(o.pickedUpAt) + '</strong>');
+    if (o.deliveredAt) parts.push('✅ Delivered: <strong>' + fmtDeliveryTime(o.deliveredAt) + '</strong>');
+    var dur = '';
+    if (o.pickedUpAt && o.deliveredAt) {
+      var mins = Math.round((new Date(o.deliveredAt) - new Date(o.pickedUpAt)) / 60000);
+      if (isFinite(mins) && mins >= 0) dur = ' <span style="opacity:.8;">(' + (mins >= 60 ? Math.floor(mins / 60) + ' h ' + (mins % 60) + ' min' : mins + ' min') + ' on the road)</span>';
+    }
+    return '<div style="width:100%; margin-top:8px; background:#f1f7ff; border:1.5px solid #bcd6f5; border-radius:8px; padding:9px 11px; font-size:0.78rem; color:#1f3f66; line-height:1.6;">' + parts.join('<br/>') + dur + '</div>';
+  }
+
   async function updateDeliveryStage(docId, stage) {
     if (!docId || !window.fbDb || !window.fbFns) return;
     try {
       const { doc, updateDoc } = window.fbFns;
-      await updateDoc(doc(window.fbDb, 'orders', docId), { deliveryStage: stage });
+      const stageUpdate = { deliveryStage: stage };
+      {
+        // Record when the parcel left and when it arrived, unless the rider's app already did.
+        const prev = orders.find(x => x.fbDocId === docId) || {};
+        const nowIso = new Date().toISOString();
+        if (stage === 'handed' && !prev.pickedUpAt) stageUpdate.pickedUpAt = nowIso;
+        if (stage === 'delivered' && !prev.deliveredAt) stageUpdate.deliveredAt = nowIso;
+      }
+      await updateDoc(doc(window.fbDb, 'orders', docId), stageUpdate);
       showSuccessToast('✅ Updated — the customer will see this live.');
 
       const o = orders.find(x => x.fbDocId === docId);

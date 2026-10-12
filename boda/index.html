@@ -1569,7 +1569,7 @@
     // same save. Anything else (a balance still owed, stock not yet deducted) is only marked
     // delivered and is closed by admin as before.
     function deliveryUpdatesFor(o, collectedCash) {
-      var updates = { deliveryStage: 'delivered' };
+      var updates = { deliveryStage: 'delivered', deliveredAt: new Date().toISOString() };
       if (collectedCash) {
         updates.paymentStatus = 'paid';
         updates.amountPaid = (o && (o.orderTotal || o.subtotal)) || 0;
@@ -1581,6 +1581,31 @@
         updates.completedAt = new Date().toISOString();
       }
       return updates;
+    }
+
+    // Big green confirmation bubble, shown for 3 seconds when a delivery is saved.
+    var deliveredBubbleTimer = null;
+    function showDeliveredBubble() {
+      var el = document.getElementById('delivered-bubble');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'delivered-bubble';
+        el.setAttribute('role', 'status');
+        el.style.cssText = 'position:fixed;left:50%;top:42%;transform:translate(-50%,-50%) scale(.9);z-index:2147483000;' +
+          'background:#1fa24a;color:#fff;border-radius:22px;padding:22px 28px;text-align:center;max-width:82vw;' +
+          'box-shadow:0 10px 34px rgba(0,0,0,.45);font-weight:800;font-size:1.15rem;line-height:1.35;' +
+          'opacity:0;pointer-events:none;transition:opacity .25s ease,transform .25s ease;';
+        el.innerHTML = '<div style="font-size:2.4rem;line-height:1;margin-bottom:8px;">✅</div>Order Delivered.<br/>Thank You!';
+        document.body.appendChild(el);
+      }
+      clearTimeout(deliveredBubbleTimer);
+      void el.offsetWidth;                      // restart the fade if it is already showing
+      el.style.opacity = '1';
+      el.style.transform = 'translate(-50%,-50%) scale(1)';
+      deliveredBubbleTimer = setTimeout(function(){
+        el.style.opacity = '0';
+        el.style.transform = 'translate(-50%,-50%) scale(.9)';
+      }, 3000);
     }
 
     // Writes the delivery and reports honestly. A save that never reaches the server (weak
@@ -1596,7 +1621,7 @@
       }, 8000);
       updateDoc(doc(window.fbDb, 'orders', docId), updates).then(function(){
         settled = true; clearTimeout(slowTimer);
-        showToast(updates.status === 'closed' ? '✅ Delivered — order completed!' : (collectedCash ? '✅ Delivered & payment confirmed!' : '✅ Delivered!'));
+        showDeliveredBubble();
         // The customer must stop seeing the rider straight away, not at the next sync.
         deleteLocationDoc(docId);
         setTimeout(function(){ deleteLocationDoc(docId); }, 6000);   // in case the background service sent one last update
@@ -1618,7 +1643,9 @@
       if (stage === 'delivered') { saveDelivery(docId, o, false); return; }
       if (!window.fbDb || !window.fbFns) return;
       var { doc, updateDoc } = window.fbFns;
-      updateDoc(doc(window.fbDb, 'orders', docId), { deliveryStage: stage }).then(function(){
+      var stageUpdate = { deliveryStage: stage };
+      if (stage === 'handed') stageUpdate.pickedUpAt = new Date().toISOString();     // when the rider collected it
+      updateDoc(doc(window.fbDb, 'orders', docId), stageUpdate).then(function(){
         showToast('✅ Updated!');
         if (o) {
           var isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
