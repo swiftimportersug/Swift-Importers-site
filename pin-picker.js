@@ -15,33 +15,26 @@
  *     openOverlay(el, cleanup), closeOverlay(el)   // optional: lets the page's own back-button handling manage it
  *   });
  *
- * Map: Leaflet + OpenStreetMap streets, with a satellite view (Esri imagery) so a customer
- * can recognise their own roof or gate. Loaded only when the picker is opened.
+ * Map: drawn through swift-map.js (MapLibre vector map when the phone supports it, Leaflet otherwise),
+ * with a satellite view so a customer can recognise their own roof or gate. Loaded only when opened.
  */
 (function () {
-  var LEAFLET_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
-  var LEAFLET_JS = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
-  var STREET_TILES = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-  var SAT_TILES = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
   var KAMPALA = [0.3476, 32.5825];
   var FAR_WARNING_M = 300;       // gently warn if the chosen spot is this far from where the phone says it is
 
-  var leafletPromise = null;
-  function loadLeaflet() {
-    if (window.L && window.L.map) return Promise.resolve(window.L);
-    if (leafletPromise) return leafletPromise;
-    leafletPromise = new Promise(function (resolve, reject) {
-      var css = document.createElement('link');
-      css.rel = 'stylesheet';
-      css.href = LEAFLET_CSS;
-      document.head.appendChild(css);
+  // The shared map layer. Normally already on the page; loaded here if the page forgot it.
+  var mapLayerPromise = null;
+  function ensureMapLayer() {
+    if (window.SwiftMap) return Promise.resolve(window.SwiftMap);
+    if (mapLayerPromise) return mapLayerPromise;
+    mapLayerPromise = new Promise(function (resolve, reject) {
       var js = document.createElement('script');
-      js.src = LEAFLET_JS;
-      js.onload = function () { window.L && window.L.map ? resolve(window.L) : reject(new Error('Leaflet did not load')); };
-      js.onerror = function () { leafletPromise = null; reject(new Error('Leaflet failed to load')); };
+      js.src = '/swift-map.js?v=1';
+      js.onload = function () { window.SwiftMap ? resolve(window.SwiftMap) : reject(new Error('swift-map.js did not load')); };
+      js.onerror = function () { mapLayerPromise = null; reject(new Error('swift-map.js failed to load')); };
       document.head.appendChild(js);
     });
-    return leafletPromise;
+    return mapLayerPromise;
   }
 
   // How far in to start: close enough to see the street and the gate.
@@ -66,7 +59,7 @@
     css.textContent =
       '.swpp{position:fixed;inset:0;z-index:100000;display:none;flex-direction:column;background:#0f1218;color:#f2f2f2;font-family:inherit;}' +
       '.swpp.open{display:flex;}' +
-      '.swpp *{max-width:none;}' +
+      '.swpp *, .swpp .maplibregl-map *{max-width:none;}' +
       '.swpp-head{padding:14px 16px 10px;background:#161a22;border-bottom:1px solid rgba(255,255,255,.08);}' +
       '.swpp-title{font-size:1.02rem;font-weight:700;}' +
       '.swpp-sub{font-size:.8rem;opacity:.75;margin-top:3px;line-height:1.35;}' +
@@ -87,7 +80,7 @@
       '.swpp-row{display:flex;gap:10px;}' +
       '.swpp-btn{flex:1;border-radius:12px;padding:13px;font-size:.95rem;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.25);background:transparent;color:#f2f2f2;}' +
       '.swpp-btn.go{flex:2;background:#F0A93B;border-color:#F0A93B;color:#1a1305;}' +
-      '.swpp .leaflet-container{font-family:inherit;background:#1b2029;}';
+      '.swpp .leaflet-container, .swpp .maplibregl-map{font-family:inherit;background:#1b2029;}';
     document.head.appendChild(css);
   }
 
@@ -121,32 +114,31 @@
     var hasStart = typeof o.lat === 'number' && typeof o.lng === 'number' && isFinite(o.lat) && isFinite(o.lng);
     var start = hasStart ? [o.lat, o.lng] : KAMPALA;
     var startZoom = hasStart ? zoomFor(o.accuracy) : 12;
+    active = { pending: true };
 
-    loadLeaflet().then(function (L) {
-      if (active) return;
+    ensureMapLayer().then(function (SM) {
       var root = buildDom();
       var mapDiv = root.querySelector('.swpp-map');
       var info = root.querySelector('.swpp-info');
       var satBtn = root.querySelector('[data-a="sat"]');
       var meBtn = root.querySelector('[data-a="me"]');
       var confirmed = false, closed = false, satellite = false;
-      var map = null, street = null, sat = null, ring = null, youDot = null;
+      var map = null, ring = null, youDot = null;
       var locating = false, userMoved = false;
 
       // The blue dot: where the phone says the customer is right now.
       function showYou(lat, lng, acc) {
         if (!map) return;
         if (youDot) youDot.setLatLng([lat, lng]);
-        else youDot = L.marker([lat, lng], { icon: L.divIcon({ className: '', html: '<div class="swpp-you" style="width:18px;height:18px;"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: false, keyboard: false, zIndexOffset: -100 }).addTo(map);
-        if (ring) { map.removeLayer(ring); ring = null; }
-        if (acc > 0 && acc < 400) ring = L.circle([lat, lng], { radius: acc, color: '#2b7fff', weight: 1, opacity: 0.6, fillColor: '#2b7fff', fillOpacity: 0.1, interactive: false }).addTo(map);
+        else youDot = map.addMarker({ latlng: [lat, lng], html: '<div class="swpp-you" style="width:18px;height:18px;"></div>', size: [18, 18], z: -100, interactive: false });
+        if (ring) { ring.remove(); ring = null; }
+        if (acc > 0 && acc < 400) ring = map.addCircle([lat, lng], acc, { color: '#2b7fff', weight: 1, opacity: 0.6, fillOpacity: 0.1 });
       }
 
       // Finds the customer and zooms in on them. Used when there was no starting point, and by "My spot".
       function locateMe(centre) {
         if (!navigator.geolocation || locating) return;
         locating = true; readout();
-        var done = false;
         function got(pos, final) {
           if (!map) return;
           var lat = pos.coords.latitude, lng = pos.coords.longitude, acc = Math.round(pos.coords.accuracy || 0);
@@ -154,14 +146,14 @@
           meBtn.style.display = '';
           showYou(lat, lng, acc);
           if (centre && !userMoved) { map.setView(start, zoomFor(acc), { animate: true }); }
-          if (final) { locating = false; done = true; }
+          if (final) locating = false;
           readout();
         }
         // A quick rough fix first (so the map jumps to the right neighbourhood at once), then a precise one.
         navigator.geolocation.getCurrentPosition(function (pos) { got(pos, false); fine(); }, function () { fine(); }, { enableHighAccuracy: false, maximumAge: 120000, timeout: 6000 });
         function fine() {
           navigator.geolocation.getCurrentPosition(function (pos) { got(pos, true); }, function () {
-            locating = false; readout();
+            locating = false; if (map) readout();
             if (!hasStart) info.textContent = 'Could not find your location. Move the map to your spot, or allow Location for this site.';
           }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
         }
@@ -174,6 +166,7 @@
         document.removeEventListener('keydown', onKey, true);
         root.removeEventListener('click', onClick);
         if (map) { try { map.remove(); } catch (e) {} map = null; }
+        mapDiv.innerHTML = '';
         root.classList.remove('open', 'moving');
         if (!confirmed && o.onCancel) { try { o.onCancel(); } catch (e) { console.error(e); } }
       }
@@ -183,6 +176,7 @@
       }
 
       function readout() {
+        if (!map) return;
         var c = map.getCenter();
         if (!hasStart) {
           info.className = 'swpp-info';
@@ -204,6 +198,7 @@
         if (!b) return;
         var a = b.getAttribute('data-a');
         if (a === 'cancel') { close(); return; }
+        if (!map) return;                         // still starting up
         if (a === 'ok') {
           var c = map.getCenter();
           var moved = hasStart ? metres(o.lat, o.lng, c.lat, c.lng) : 0;
@@ -214,7 +209,7 @@
         }
         if (a === 'sat') {
           satellite = !satellite;
-          if (satellite) { map.removeLayer(street); sat.addTo(map); } else { map.removeLayer(sat); street.addTo(map); }
+          map.setSatellite(satellite);
           satBtn.textContent = satellite ? '🗺️ Streets' : '🛰️ Satellite';
           return;
         }
@@ -223,28 +218,37 @@
       function onKey(e) { if (e.key === 'Escape') { e.stopPropagation(); close(); } }
 
       meBtn.style.display = '';
+      satBtn.textContent = '🛰️ Satellite';
+      info.className = 'swpp-info';
+      info.textContent = 'Loading the map…';
 
       // Show it first (through the page's own overlay handling when given, so the phone's
-      // Back button closes just this map), because Leaflet needs a visible box to measure.
+      // Back button closes just this map), because the map needs a visible box to measure.
       if (o.openOverlay) o.openOverlay(root, cleanup); else root.classList.add('open');
-      map = L.map(mapDiv, { zoomControl: false, attributionControl: true, maxZoom: 19, zoomSnap: 0.5 }).setView(start, startZoom);
-      street = L.tileLayer(STREET_TILES, { maxZoom: 19, subdomains: 'abc', attribution: '© OpenStreetMap' }).addTo(map);
-      sat = L.tileLayer(SAT_TILES, { maxZoom: 19, attribution: 'Imagery © Esri' });
-      L.control.zoom({ position: 'bottomright' }).addTo(map);
-      if (hasStart) showYou(o.lat, o.lng, o.accuracy);
-      map.on('dragstart', function () { userMoved = true; });
-      // Any touch on the map also means "I'm placing it myself": don't re-centre on a later, more precise reading.
-      ['touchstart', 'mousedown', 'wheel'].forEach(function (ev) { mapDiv.addEventListener(ev, function () { userMoved = true; }, { passive: true }); });
-      map.on('movestart', function () { root.classList.add('moving'); });
-      map.on('moveend', function () { root.classList.remove('moving'); readout(); });
-      readout();
-      setTimeout(function () { if (map) { map.invalidateSize(); map.setView(start, startZoom); readout(); } }, 80);
-      if (!hasStart) locateMe(true);
-
       root.addEventListener('click', onClick);
       document.addEventListener('keydown', onKey, true);
       active = { close: close };
+
+      SM.create(mapDiv, { center: start, zoom: startZoom, zoomControl: true, zoomPosition: 'bottomright' }).then(function (M) {
+        if (closed) { M.remove(); return; }       // closed again before the map was ready
+        map = M;
+        root.setAttribute('data-engine', M.kind);
+        if (hasStart) showYou(o.lat, o.lng, o.accuracy);
+        map.on('dragstart', function () { userMoved = true; });
+        // Any touch on the map also means "I'm placing it myself": don't re-centre on a later, more precise reading.
+        ['touchstart', 'mousedown', 'wheel'].forEach(function (ev) { mapDiv.addEventListener(ev, function () { userMoved = true; }, { passive: true }); });
+        map.on('movestart', function () { root.classList.add('moving'); });
+        map.on('moveend', function () { root.classList.remove('moving'); readout(); });
+        readout();
+        setTimeout(function () { if (map) { map.invalidateSize(); map.setView(start, startZoom); readout(); } }, 80);
+        if (!hasStart) locateMe(true);
+      }).catch(function (e) {
+        console.warn('[pin-picker] map unavailable:', e && e.message);
+        if (!closed) { confirmed = true; close(); }   // nothing to confirm: close quietly, then let the caller carry on
+        if (o.onUnavailable) { try { o.onUnavailable(); } catch (err) { console.error(err); } }
+      });
     }).catch(function (e) {
+      active = null;
       console.warn('[pin-picker] map unavailable:', e && e.message);
       if (o.onUnavailable) { try { o.onUnavailable(); } catch (err) { console.error(err); } }
     });

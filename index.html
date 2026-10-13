@@ -1090,8 +1090,9 @@
   </style>
   <!-- Firebase -->
   <script src="/app-bridge.js"></script>
-  <script src="/rider-map.js?v=20261012a"></script>
-  <script src="/pin-picker.js?v=2"></script>
+  <script src="/swift-map.js?v=1"></script>
+  <script src="/rider-map.js?v=20261013a"></script>
+  <script src="/pin-picker.js?v=3"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getFirestore, collection, doc, getDoc, updateDoc, addDoc, onSnapshot, getDocs, increment, query, where, arrayUnion, arrayRemove, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -8002,7 +8003,7 @@
       var amountDueNowVal = hasShippedItemsVal ? Math.max(0, totalsVal.finalTotal - balanceDueOnDeliveryVal) : totalsVal.finalTotal;
       var order = {
         customerName: nameVal, phone: phoneVal, deliveryArea: areaVal,
-        exactLocation: (document.getElementById('exact-location') && document.getElementById('exact-location').value) || '',
+        exactLocation: swiftExactLocationValue(),
         products: productsVal, paymentMethod: paymentVal, notes: notesVal,
         cartItems: checkoutItems.map(function(c){ return {id:c.id, name:c.name, qty:c.qty, price:c.price, cost:c.cost||0, variantIdx:c.variantIdx, img:c.img||null}; }),
         appliedPromoCode: totalsVal.usedDiscountType === 'promo' ? (checkoutAppliedPromoCode || null) : null,
@@ -8282,11 +8283,12 @@
     // Locking prevents an accidental keystroke from corrupting exact
     // coordinates once they're captured — "Unlock" below is the deliberate
     // escape hatch for when a real change is actually needed.
-    field.readOnly = true;
+    field.readOnly = false;
+    window.swiftPinnedGps = 'GPS: ' + lat + ', ' + lng;
     result.className='location-result'; result.style.display='block';
-    result.innerHTML='📍 Location pinned and locked!'+(accNote||'')+' <a href="'+link+'" target="_blank">View on Google Maps</a><br/>'
+    result.innerHTML='📍 Location pinned!'+(accNote||'')+' <a href="'+link+'" target="_blank">View on Google Maps</a><br/>'
       + '<button type="button" onclick="adjustCheckoutPin()" style="margin-top:6px; margin-right:14px; background:none; border:none; color:#F0A93B; text-decoration:underline; cursor:pointer; font-size:0.78rem; padding:0;">🗺️ Adjust pin on map</button>'
-      + '<button type="button" onclick="unlockLocationField()" style="margin-top:6px; background:none; border:none; color:#4a9eff; text-decoration:underline; cursor:pointer; font-size:0.78rem; padding:0;">✏️ Need to change this? Tap to unlock</button>';
+    
     btn.textContent='Location Pinned!';
   }
 
@@ -8357,6 +8359,15 @@
       // indoors — 10 seconds often isn't enough.
       {timeout:20000,onProgress:function(a){ btn.textContent='Locking on… (±'+Math.round(a)+' m)'; }}
     );
+  }
+
+  // What goes on the order: whatever the customer typed, always with their confirmed pin attached
+  // (even if they edited the text around it and accidentally removed the coordinates).
+  function swiftExactLocationValue() {
+    var el = document.getElementById('exact-location');
+    var v = (el && el.value) || '';
+    if (window.swiftPinnedGps && v.trim() && !GPS_IN_TEXT.test(v)) v = v.trim() + ' | ' + window.swiftPinnedGps;   // an emptied box means "no pin"
+    return v;
   }
 
   function unlockLocationField() {

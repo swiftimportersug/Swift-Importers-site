@@ -25,13 +25,12 @@
  * direction, the line shows the way still to go, and the card shows a travel time. If the
  * Worker can't be reached, everything above quietly falls back to the plain moving dot.
  *
- * Map: Leaflet + OpenStreetMap, loaded only when a map is actually needed.
+ * Map: drawn through swift-map.js: MapLibre vector map (OpenFreeMap tiles) when the phone supports it,
+ * Leaflet + OpenStreetMap otherwise. Loaded only when a map is actually needed.
  */
 (function () {
   'use strict';
 
-  var LEAFLET_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
-  var LEAFLET_JS = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
   var STALE_AFTER_MS = 3 * 60 * 1000;     // no update for this long: say the rider's connection may be weak
   var CLOCK_SANITY_MS = 6 * 60 * 60 * 1000; // an "age" bigger than this means a wrong phone clock, not a stale rider
   var MIN_GLIDE_MS = 1200;                // the dot takes at least this long to travel to a new position...
@@ -48,22 +47,19 @@
   var SNAP_DISTANCE_M = 600;              // farther than this, jump rather than glide (e.g. coming back to the tab)
 
   // ── Leaflet, loaded once on demand ──
-  var leafletPromise = null;
-  function loadLeaflet() {
-    if (window.L && window.L.map) return Promise.resolve(window.L);
-    if (leafletPromise) return leafletPromise;
-    leafletPromise = new Promise(function (resolve, reject) {
-      var css = document.createElement('link');
-      css.rel = 'stylesheet';
-      css.href = LEAFLET_CSS;
-      document.head.appendChild(css);
+  // The shared map layer. Normally already on the page; loaded here if the page forgot it.
+  var mapLayerPromise = null;
+  function ensureMapLayer() {
+    if (window.SwiftMap) return Promise.resolve(window.SwiftMap);
+    if (mapLayerPromise) return mapLayerPromise;
+    mapLayerPromise = new Promise(function (resolve, reject) {
       var js = document.createElement('script');
-      js.src = LEAFLET_JS;
-      js.onload = function () { window.L && window.L.map ? resolve(window.L) : reject(new Error('Leaflet did not load')); };
-      js.onerror = function () { leafletPromise = null; reject(new Error('Leaflet failed to load')); };
+      js.src = '/swift-map.js?v=1';
+      js.onload = function () { window.SwiftMap ? resolve(window.SwiftMap) : reject(new Error('swift-map.js did not load')); };
+      js.onerror = function () { mapLayerPromise = null; reject(new Error('swift-map.js failed to load')); };
       document.head.appendChild(js);
     });
-    return leafletPromise;
+    return mapLayerPromise;
   }
 
   // ── Styles (injected once; every class is prefixed srm- so nothing else is touched) ──
@@ -93,7 +89,9 @@
       '.srm-follow{position:absolute;right:10px;bottom:10px;z-index:1000;background:#F0A93B;color:#1a1206;border:none;border-radius:18px;padding:8px 13px;font-size:0.74rem;font-weight:800;font-family:inherit;box-shadow:0 2px 8px rgba(0,0,0,.5);cursor:pointer;display:none;}' +
       '.srm-card .leaflet-container{font-family:inherit;}' +
       // Some pages set max-width:100% on everything, which squashes map markers to nothing.
-      '.srm-card .leaflet-container *{max-width:none;}';
+      '.srm-card .leaflet-container *, .srm-card .maplibregl-map *{max-width:none;}' +
+      // the vector map's own zoom buttons and credit line, sized to match the card
+      '.srm-card .maplibregl-ctrl-attrib{font-size:10px;}';
     document.head.appendChild(s);
   }
 
@@ -253,7 +251,7 @@
     if (opts.arrivalBeep) armAudioUnlock();
     var orderId = null;
     var unsubscribe = null;
-    var map = null, riderMarker = null, destMarker = null, accCircle = null, routeLine = null, L = null;
+    var map = null, riderMarker = null, destMarker = null, accCircle = null, routeLine = null;
     var destLatLng = null;
     var loc = null;              // newest fix: { lat, lng, accuracy, updatedMs, receivedMs }
     var shown = null;            // where the dot is drawn right now: { lat, lng }
@@ -263,6 +261,7 @@
     var glideMs = 3000;          // typical gap between updates, learned as they arrive
     var rafId = null;
     var lastRouteDrawAt = 0;
+    var mapRetryAt = 0;
     var route = null;            // road route from the rider to the delivery point (null = none yet / unavailable)
     var routeFetchedAt = 0, routeFetching = false, routeFailUntil = 0;
     var routedFrom = null;       // where the rider was when the route was fetched
@@ -288,7 +287,7 @@
       riderMarker = null; destMarker = null; accCircle = null; routeLine = null;
       loc = null; shown = null; anim = null; heading = null; targetHeading = null; glideMs = 3000;
       route = null; routeFetchedAt = 0; routeFetching = false; routeFailUntil = 0; routedFrom = null; offRouteCount = 0; rerouteGapMs = REROUTE_MIN_GAP_MS; shownS = null; remainingM = null;
-      followOn = true; camBusyUntil = 0; didFit = false; mapStarted = false; els = {};
+      followOn = true; camBusyUntil = 0; didFit = false; mapStarted = false; mapRetryAt = 0; els = {};
       orderId = null; destLatLng = null; arrivalStreak = 0; beepedThisSession = false;
       if (hide && wrap) { wrap.style.display = 'none'; wrap.innerHTML = ''; }
     }
@@ -320,7 +319,7 @@
     }
 
     function makeIcon(cls, emoji) {
-      return L.divIcon({ className: '', html: '<div class="srm-pin ' + cls + '">' + emoji + '</div>', iconSize: [34, 34], iconAnchor: [17, 17] });
+      return { html: '<div class="srm-pin ' + cls + '">' + emoji + '</div>', size: [34, 34] };
     }
     // A bike seen from above, nose pointing up. The whole drawing is turned to face the way the
     // rider is travelling. Dark outline, no white backing, so it stays clear on pale roads.
@@ -333,23 +332,19 @@
       '<circle cx="20" cy="30" r="5" fill="#F0A93B" stroke="#1a1206" stroke-width="1.6"/>' +
       '</svg>';
     function makeRiderIcon() {
-      return L.divIcon({
-        className: '',
-        html: '<div class="srm-rider"><div class="srm-bike">' + BIKE_SVG + '</div></div>',
-        iconSize: [48, 48], iconAnchor: [24, 24]
-      });
+      return { html: '<div class="srm-rider"><div class="srm-bike">' + BIKE_SVG + '</div></div>', size: [48, 48] };
     }
 
     function ensureMap() {
-      if (map || mapStarted) return;
+      if (map || mapStarted || Date.now() < mapRetryAt) return;
       mapStarted = true;
       var forOrder = orderId;
-      loadLeaflet().then(function (Lib) {
-        if (orderId !== forOrder || !els.map) return;   // moved on while Leaflet was loading
-        L = Lib;
-        els.mapbox.style.display = 'block';
-        map = L.map(els.map, { zoomControl: true, attributionControl: true }).setView(destLatLng || (shown ? [shown.lat, shown.lng] : [0.3476, 32.5825]), 15);
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(map);
+      els.mapbox.style.display = 'block';        // the map needs a visible box to measure
+      ensureMapLayer().then(function (SM) {
+        return SM.create(els.map, { center: destLatLng || (shown ? [shown.lat, shown.lng] : [0.3476, 32.5825]), zoom: 15, zoomControl: true, zoomPosition: 'topleft' });
+      }).then(function (M) {
+        if (orderId !== forOrder || !els.map) { M.remove(); return; }   // moved on while the map was starting
+        map = M;
         // Only the customer's own touches count as "I want to look around" (not our own camera moves).
         var userTookOver = function () {
           if (!followOn) return;
@@ -360,10 +355,13 @@
         els.map.addEventListener('wheel', userTookOver, { passive: true });
         els.map.addEventListener('touchstart', function (e) { if (e.touches && e.touches.length > 1) userTookOver(); }, { passive: true });
         setTimeout(function () { if (map) map.invalidateSize(); }, 250);
+        els.mapbox.setAttribute('data-engine', M.kind);
         render();
       }).catch(function (e) {
         console.error('[rider-map] map unavailable:', e);
         mapStarted = false;
+        mapRetryAt = Date.now() + 30000;
+        if (els.mapbox) els.mapbox.style.display = 'none';
         // No map: the distance and "last seen" line below still work.
       });
     }
@@ -380,9 +378,9 @@
 
     // Draws the dot (and the things that move with it) at its current in-between position.
     function place() {
-      if (!map || !L || !shown) return;
+      if (!map || !shown) return;
       var pos = [shown.lat, shown.lng];
-      if (!riderMarker) riderMarker = L.marker(pos, { icon: makeRiderIcon(), keyboard: false, zIndexOffset: 500 }).addTo(map);
+      if (!riderMarker) { var ri = makeRiderIcon(); riderMarker = map.addMarker({ latlng: pos, html: ri.html, size: ri.size, z: 500, interactive: false }); }
       else riderMarker.setLatLng(pos);
       var el = riderMarker.getElement();
       var bike = el && el.querySelector('.srm-bike');
@@ -391,8 +389,8 @@
       // fall back to a dashed straight line that follows the dot.
       if (!route && destLatLng) {
         if (!routeLine || routeLine.__road) {
-          if (routeLine) map.removeLayer(routeLine);
-          routeLine = L.polyline([pos, destLatLng], { color: '#F0A93B', weight: 3, opacity: 0.55, dashArray: '2 8', lineCap: 'round' }).addTo(map);
+          if (routeLine) routeLine.remove();
+          routeLine = map.addLine([pos, destLatLng], { color: '#F0A93B', weight: 3, opacity: 0.55, dash: [2, 8] });
           routeLine.__road = false;
         } else routeLine.setLatLngs([pos, destLatLng]);
       }
@@ -466,13 +464,13 @@
 
     // ── road route ──
     function drawRoute(fromS) {
-      if (!map || !L || !route) return;
+      if (!map || !route) return;
       var pts = routeFrom(route, fromS || 0);
-      if (routeLine && !routeLine.__road) { map.removeLayer(routeLine); routeLine = null; }
+      if (routeLine && !routeLine.__road) { routeLine.remove(); routeLine = null; }
       if (!routeLine) {
-        routeLine = L.polyline(pts, { color: '#F0A93B', weight: 5, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+        routeLine = map.addLine(pts, { color: '#F0A93B', weight: 5, opacity: 0.95, casing: { color: '#ffffff', weight: 9, opacity: 0.85 } });
         routeLine.__road = true;
-        if (riderMarker) riderMarker.setZIndexOffset(500);
+        if (riderMarker) riderMarker.setZ(500);
       } else routeLine.setLatLngs(pts);
     }
 
@@ -545,18 +543,18 @@
         els.age.textContent = fmtAge(age);
       }
 
-      if (!map || !L) return;
+      if (!map) return;
 
       if (destLatLng) {
-        if (!destMarker) destMarker = L.marker(destLatLng, { icon: makeIcon('dest', '📍'), keyboard: false }).addTo(map);
+        if (!destMarker) { var di = makeIcon('dest', '📍'); destMarker = map.addMarker({ latlng: destLatLng, html: di.html, size: di.size, interactive: false }); }
         else destMarker.setLatLng(destLatLng);
       }
       if (loc && shown) {
         // A faint circle shows how sure we are, but only when the reading is rough.
         var showRing = loc.accuracy >= 30;
-        if (showRing && !accCircle) accCircle = L.circle([shown.lat, shown.lng], { radius: loc.accuracy, color: '#F0A93B', weight: 1, opacity: 0.5, fillColor: '#F0A93B', fillOpacity: 0.1, interactive: false }).addTo(map);
+        if (showRing && !accCircle) accCircle = map.addCircle([shown.lat, shown.lng], loc.accuracy, { color: '#F0A93B', weight: 1, opacity: 0.5, fillOpacity: 0.1 });
         else if (showRing) accCircle.setRadius(loc.accuracy);
-        else if (accCircle) { map.removeLayer(accCircle); accCircle = null; }
+        else if (accCircle) { accCircle.remove(); accCircle = null; }
         place();
 
         if (!didFit) {
@@ -564,8 +562,7 @@
           frameBoth(false);
         } else if (followOn && destLatLng && Date.now() > camBusyUntil) {
           // Keep the delivery point in view too: re-frame (gently) if either has drifted out.
-          var b = map.getBounds().pad(-0.06);
-          if (!b.contains([shown.lat, shown.lng]) || !b.contains(destLatLng)) {
+          if (!map.insideView([shown.lat, shown.lng], 0.06) || !map.insideView(destLatLng, 0.06)) {
             if (metresBetween([shown.lat, shown.lng], destLatLng) < 4000) frameBoth(true);
           }
         }
@@ -593,7 +590,7 @@
       var forOrder = orderId;
       unsubscribe = f.onSnapshot(f.doc(window.fbDb, 'rider_locations', forOrder), function (snap) {
         if (orderId !== forOrder) return;
-        if (!snap.exists()) { loc = null; shown = null; anim = null; if (riderMarker && map) { map.removeLayer(riderMarker); riderMarker = null; } render(); return; }
+        if (!snap.exists()) { loc = null; shown = null; anim = null; if (riderMarker && map) { riderMarker.remove(); riderMarker = null; } render(); return; }
         var d = snap.data() || {};
         if (typeof d.lat !== 'number' || typeof d.lng !== 'number') return;
         var ms = (d.updatedAt && typeof d.updatedAt.toMillis === 'function') ? d.updatedAt.toMillis() : Date.now();

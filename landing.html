@@ -159,7 +159,8 @@
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="/app-bridge.js"></script>
-<script src="/pin-picker.js?v=2"></script>
+<script src="/swift-map.js?v=1"></script>
+<script src="/pin-picker.js?v=3"></script>
 </head>
 <body>
 
@@ -947,11 +948,12 @@
     var field = document.getElementById('exact-location');
     var link = 'https://www.google.com/maps?q=' + lat + ',' + lng;
     swiftSetGps(field, lat, lng);
-    field.readOnly = true;
+    field.readOnly = false;
+    window.swiftPinnedGps = 'GPS: ' + lat + ', ' + lng;
     result.style.display = 'block';
-    result.innerHTML = '📍 Location pinned and locked!' + (accNote || '') + ' <a href="' + link + '" target="_blank">View on Google Maps</a><br/>'
+    result.innerHTML = '📍 Location pinned!' + (accNote || '') + ' <a href="' + link + '" target="_blank">View on Google Maps</a><br/>'
       + '<button type="button" onclick="adjustLandingPin()" style="margin-top:6px; margin-right:14px; background:none; border:none; color:#F0A93B; text-decoration:underline; cursor:pointer; font-size:0.78rem; padding:0;">🗺️ Adjust pin on map</button>'
-      + '<button type="button" onclick="unlockLocationField()" style="margin-top:6px; background:none; border:none; color:#4a9eff; text-decoration:underline; cursor:pointer; font-size:0.78rem; padding:0;">✏️ Need to change this? Tap to unlock</button>';
+    
     btn.textContent = 'Location Pinned!';
   }
 
@@ -1001,6 +1003,14 @@
       else msg = 'Could not determine your location right now. Please try again, choose your spot on the map below, or type your address manually.';
       result.textContent = msg;
     }, { timeout: 20000, onProgress: function(a){ btn.textContent = 'Locking on… (±' + Math.round(a) + ' m)'; } });
+  }
+
+  // What goes on the order: whatever the customer typed, always with their confirmed pin attached.
+  function swiftExactLocationValue() {
+    var el = document.getElementById('exact-location');
+    var v = (el && el.value) || '';
+    if (window.swiftPinnedGps && v.trim() && !GPS_IN_TEXT.test(v)) v = v.trim() + ' | ' + window.swiftPinnedGps;   // an emptied box means "no pin"
+    return v;
   }
 
   function unlockLocationField() {
@@ -1060,7 +1070,7 @@
       customerName: document.getElementById('order-name').value.trim(),
       phone: document.getElementById('order-phone').value.trim(),
       deliveryArea: document.getElementById('order-area').value,
-      exactLocation: document.getElementById('exact-location').value.trim(),
+      exactLocation: swiftExactLocationValue().trim(),
       products: landingProduct.name + (v.name ? ' (' + v.name + (v.color?' - '+v.color:'') + ')' : '') + ' x' + landingQty,
       paymentMethod: paymentVal,
       notes: document.getElementById('order-notes').value.trim(),

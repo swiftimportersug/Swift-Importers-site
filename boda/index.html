@@ -1591,20 +1591,20 @@
         el = document.createElement('div');
         el.id = 'delivered-bubble';
         el.setAttribute('role', 'status');
-        el.style.cssText = 'position:fixed;left:50%;top:42%;transform:translate(-50%,-50%) scale(.9);z-index:2147483000;' +
-          'background:#1fa24a;color:#fff;border-radius:22px;padding:22px 28px;text-align:center;max-width:82vw;' +
-          'box-shadow:0 10px 34px rgba(0,0,0,.45);font-weight:800;font-size:1.15rem;line-height:1.35;' +
+        el.style.cssText = 'position:fixed;left:50%;top:calc(env(safe-area-inset-top, 0px) + 14px);transform:translate(-50%,-30px);z-index:2147483000;' +
+          'background:linear-gradient(135deg,#22f06b,#0fd14f);color:#03280f;border-radius:20px;padding:16px 26px;text-align:center;max-width:90vw;' +
+          'box-shadow:0 8px 28px rgba(15,209,79,.55),0 2px 8px rgba(0,0,0,.35);font-weight:800;font-size:1.15rem;line-height:1.3;' +
           'opacity:0;pointer-events:none;transition:opacity .25s ease,transform .25s ease;';
-        el.innerHTML = '<div style="font-size:2.4rem;line-height:1;margin-bottom:8px;">✅</div>Order Delivered.<br/>Thank You!';
+        el.innerHTML = '<span style="font-size:1.6rem;vertical-align:middle;margin-right:8px;">✅</span><span style="vertical-align:middle;">Order Delivered. Thank You!</span>';
         document.body.appendChild(el);
       }
       clearTimeout(deliveredBubbleTimer);
       void el.offsetWidth;                      // restart the fade if it is already showing
       el.style.opacity = '1';
-      el.style.transform = 'translate(-50%,-50%) scale(1)';
+      el.style.transform = 'translate(-50%,0)';
       deliveredBubbleTimer = setTimeout(function(){
         el.style.opacity = '0';
-        el.style.transform = 'translate(-50%,-50%) scale(.9)';
+        el.style.transform = 'translate(-50%,-30px)';
       }, 3000);
     }
 
@@ -2039,5 +2039,6 @@
     </div>
   </div>
 
+<div style="text-align:center; font-size:0.62rem; color:#8a8a8a; padding:6px 0 22px;">Swift Boda · build 2026-10-13a</div>
 </body>
 </html>
