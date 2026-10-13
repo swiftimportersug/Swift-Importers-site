@@ -46,7 +46,12 @@
 
   // Free vector map style and tiles from OpenFreeMap (OpenStreetMap data, no key needed).
   // Alternatives from the same service: /styles/bright and /styles/positron.
-  var STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
+  var STYLE_NAMES = { liberty: 1, bright: 1, positron: 1, dark: 1 };
+  function styleUrl() {
+    var n = 'liberty';
+    try { var q = new URLSearchParams(window.location.search).get('style'); if (q && STYLE_NAMES[q]) n = q; } catch (e) {}
+    return 'https://tiles.openfreemap.org/styles/' + n;
+  }
   var STREET_RASTER = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
   var SAT_TILES = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
   var STYLE_TIMEOUT_MS = 8000;
@@ -117,11 +122,12 @@
           var c = opts.center || [0.3476, 32.5825];
           map = new ml.Map({
             container: el,
-            style: STYLE_URL,
+            style: styleUrl(),
             center: [c[1], c[0]],
             zoom: (opts.zoom || 15) - 1,
             attributionControl: false,
-            dragRotate: false, pitchWithRotate: false, touchPitch: false, maxPitch: 0,
+            dragRotate: false, pitchWithRotate: false, touchPitch: false, maxPitch: opts.pitch || 0,
+            pitch: opts.pitch || 0,
             fadeDuration: 120
           });
           map.addControl(new ml.AttributionControl({ compact: true }), 'bottom-right');
@@ -145,10 +151,31 @@
           if (!map.isStyleLoaded()) return;
           settled = true;
           clearTimeout(timer);
+          try { add3dBuildings(map, opts); } catch (e) { console.warn('[swift-map] 3D buildings skipped:', e && e.message); }
           resolve(wrapVector(map, el, ml));
         }
       });
     });
+  }
+
+  // Raised buildings (visible when the map is tilted). Reuses the building layer the style already has.
+  function add3dBuildings(map, opts) {
+    if (!opts.pitch) return;
+    var layers = map.getStyle().layers || [], b = null, firstLabel = null;
+    layers.forEach(function (l) {
+      if (!b && l['source-layer'] === 'building' && l.source) b = l;
+      if (!firstLabel && l.type === 'symbol' && l.layout && l.layout['text-field']) firstLabel = l.id;
+    });
+    if (!b || layers.some(function (l) { return l.type === 'fill-extrusion'; })) return;
+    map.addLayer({
+      id: 'sw-3d-buildings', type: 'fill-extrusion', source: b.source, 'source-layer': 'building', minzoom: 14,
+      paint: {
+        'fill-extrusion-color': '#e6e1d8',
+        'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 6],
+        'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+        'fill-extrusion-opacity': 0.75
+      }
+    }, firstLabel || undefined);
   }
 
   function wrapVector(map, el, ml) {
@@ -343,18 +370,36 @@
   // ════════════════════════════════════════════════════════════════
   //  public entry point
   // ════════════════════════════════════════════════════════════════
+  function addLayerToggle(el, M) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.setAttribute('aria-label', 'Switch between map and satellite view');
+    btn.style.cssText = 'position:absolute;top:10px;right:10px;z-index:5;max-width:none;border:0;border-radius:10px;padding:8px 11px;font:700 12px/1 system-ui,sans-serif;background:rgba(255,255,255,.95);color:#1a1a1a;box-shadow:0 2px 8px rgba(0,0,0,.3);cursor:pointer;touch-action:manipulation;';
+    var on = false;
+    function label() { btn.textContent = on ? '🗺️ Map' : '🛰️ Satellite'; }
+    label();
+    btn.addEventListener('click', function (e) { e.stopPropagation(); on = !on; M.setSatellite(on); label(); });
+    ['mousedown', 'touchstart', 'dblclick'].forEach(function (n) { btn.addEventListener(n, function (e) { e.stopPropagation(); }); });
+    el.appendChild(btn);
+    return btn;
+  }
+
   function create(el, opts) {
     opts = opts || {};
     var forced = forcedEngine();
+    var p;
     if (forced !== 'leaflet' && webglOk()) {
-      return createVector(el, opts).catch(function (err) {
+      p = createVector(el, opts).catch(function (err) {
         if (forced === 'vector') throw err;
         console.warn('[swift-map] vector map unavailable, using the classic map:', err && err.message);
         el.innerHTML = '';
         return createLeaflet(el, opts);
       });
-    }
-    return createLeaflet(el, opts);
+    } else p = createLeaflet(el, opts);
+    return p.then(function (M) {
+      if (opts.layerToggle !== false) { try { addLayerToggle(el, M); } catch (e) {} }
+      return M;
+    });
   }
 
   window.SwiftMap = { create: create, _circlePolygon: circlePolygon };

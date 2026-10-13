@@ -341,7 +341,7 @@
       var forOrder = orderId;
       els.mapbox.style.display = 'block';        // the map needs a visible box to measure
       ensureMapLayer().then(function (SM) {
-        return SM.create(els.map, { center: destLatLng || (shown ? [shown.lat, shown.lng] : [0.3476, 32.5825]), zoom: 15, zoomControl: true, zoomPosition: 'topleft' });
+        return SM.create(els.map, { center: destLatLng || (shown ? [shown.lat, shown.lng] : [0.3476, 32.5825]), zoom: 15, zoomControl: true, zoomPosition: 'topleft', pitch: 40 });
       }).then(function (M) {
         if (orderId !== forOrder || !els.map) { M.remove(); return; }   // moved on while the map was starting
         map = M;

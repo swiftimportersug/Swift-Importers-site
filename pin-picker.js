@@ -229,7 +229,7 @@
       document.addEventListener('keydown', onKey, true);
       active = { close: close };
 
-      SM.create(mapDiv, { center: start, zoom: startZoom, zoomControl: true, zoomPosition: 'bottomright' }).then(function (M) {
+      SM.create(mapDiv, { center: start, zoom: startZoom, zoomControl: true, zoomPosition: 'bottomright', layerToggle: false }).then(function (M) {
         if (closed) { M.remove(); return; }       // closed again before the map was ready
         map = M;
         root.setAttribute('data-engine', M.kind);
