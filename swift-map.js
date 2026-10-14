@@ -151,6 +151,14 @@
           if (!map.isStyleLoaded()) return;
           settled = true;
           clearTimeout(timer);
+          // Attribution (a licence requirement for the map data) stays, but folded into the small (i) button.
+          function fold() {
+            try {
+              var d = el.querySelector('.maplibregl-ctrl-attrib');
+              if (d) { d.classList.add('maplibregl-compact'); d.classList.remove('maplibregl-compact-show'); d.removeAttribute('open'); }
+            } catch (e) {}
+          }
+          fold(); setTimeout(fold, 300); setTimeout(fold, 1500);
           try { add3dBuildings(map, opts); } catch (e) { console.warn('[swift-map] 3D buildings skipped:', e && e.message); }
           resolve(wrapVector(map, el, ml));
         }

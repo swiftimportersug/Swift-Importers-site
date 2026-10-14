@@ -1090,7 +1090,8 @@
   </style>
   <!-- Firebase -->
   <script src="/app-bridge.js"></script>
-  <script src="/swift-map.js?v=2"></script>
+  <script src="/swift-map.js?v=3"></script>
+  <script src="/swift-call.js?v=1"></script>
   <script src="/rider-map.js?v=20261013b"></script>
   <script src="/pin-picker.js?v=4"></script>
   <script type="module">
@@ -5774,10 +5775,20 @@
       var active = allOrders.filter(function(o){ return o.status === 'pending' || o.status === 'confirmed'; })
         .sort(function(a,b){ return new Date(b.timestamp) - new Date(a.timestamp); })[0];
       renderActiveOrderCard(active);
+      callWatchOrders(allOrders);
     });
   }
 
+  // Free internet calls from a delivery rider (swift-call.js): ring while this customer's orders are out for delivery.
+  function callInit() {
+    if (!window.SwiftCall) return false;
+    window.SwiftCall.init({ workerUrl: ORDER_ALERT_WORKER_URL, key: ORDER_ALERT_SHARED_KEY, role: 'customer', name: (currentAccount && currentAccount.name) || 'Customer' });
+    return true;
+  }
+  function callWatchOrders(orders) { try { if (callInit()) window.SwiftCall.watchOrders(orders); } catch (e) { console.warn('[call] watch failed', e); } }
+
   function stopActiveOrderListener() {
+    try { if (window.SwiftCall) window.SwiftCall.stopWatching(); } catch (e) {}
     if (unsubscribeActiveOrder) { unsubscribeActiveOrder(); unsubscribeActiveOrder = null; }
     var card = document.getElementById('active-order-card');
     if (card) card.style.display = 'none';
@@ -7718,7 +7729,10 @@
         sound: 'order_update',
         // A second channel for chat messages from a delivery rider — default system
         // sound, so a message is clearly audible rather than the short order chime.
-        extraChannels: [{ id: 'customer-messages', name: 'Messages from your rider', description: 'Messages from your delivery rider' }]
+        extraChannels: [
+          { id: 'customer-messages-v2', name: 'Messages from your rider', description: 'Messages from your delivery rider', sound: 'swift_message' },
+          { id: 'swift-calls', name: 'Calls from your rider', description: 'Free internet calls from your delivery rider', sound: 'swift_message' }
+        ]
       }).then(function(token) {
         cachedCustomerPushToken = token;
         return token;
@@ -8903,6 +8917,7 @@
     if (!window.SwiftRiderMap) return;
     if (!mdlRiderMapCtl) mdlRiderMapCtl = window.SwiftRiderMap.create(document.getElementById('mdl-map-wrap'), { arrivalBeep: true });
     mdlRiderMapCtl.sync(o);
+    try { if (callInit()) window.SwiftCall.watchOne(o); } catch (e) {}
   }
 
   // Deep-link support: a notification click lands here as
