@@ -28,7 +28,7 @@
 
   var STUN_ONLY = [{ urls: 'stun:stun.cloudflare.com:3478' }, { urls: 'stun:stun.l.google.com:19302' }];
   var RING_TIMEOUT_MS = 45000;      // the caller gives up after this long
-  var FRESH_MS = 60000;             // a ringing call older than this is ignored by the person being called
+  var FRESH_MS = 45000;             // rings for 45 s, then stops by itself; a call older than this is ignored by the person being called
   var cfg = { workerUrl: '', key: '', role: '', name: '' };
   var cur = null;                   // the call in progress on this phone (only ever one)
   var watchers = {};                // customer: orderId -> unsubscribe
@@ -76,18 +76,19 @@
       o.start(t0); o.stop(t0 + dur * p[2] + 0.05);
     });
   }
-  var chimeAudio = null;
-  function playChime() {
-    // The Swift Importers message tone (hosted at /sounds/swift-message.mp3); the synthesized bells are only a fallback.
+  // Incoming-call ring: the Swift Importers call tone (/sounds/swift-call.mp3), looped. The synthesized bells are a fallback.
+  var callAudio = null;
+  function startCallTone() {
     try {
-      if (!chimeAudio) chimeAudio = new Audio('/sounds/swift-message.mp3');
-      chimeAudio.currentTime = 0;
-      var p = chimeAudio.play();
+      if (!callAudio) { callAudio = new Audio('/sounds/swift-call.mp3'); callAudio.loop = true; }
+      callAudio.currentTime = 0;
+      var p = callAudio.play();
       if (p && p.catch) p.catch(function () { synthChime(); });
-      return;
-    } catch (e) {}
-    synthChime();
+      return true;
+    } catch (e) { return false; }
   }
+  function stopCallTone() { try { if (callAudio) callAudio.pause(); } catch (e) {} }
+  function playChime() { if (callAudio && !callAudio.paused) return; synthChime(); }
   function synthChime() { var c = audioCtx(); if (!c) return; bell(c, 784, 0, 1.1, 0.9); bell(c, 1046.5, 0.3, 1.1, 0.9); bell(c, 1318.5, 0.6, 1.6, 0.9); }
   function playRingback() {
     var c = audioCtx(); if (!c) return;
@@ -102,14 +103,14 @@
   function startRinging(kind) {
     stopRinging();
     var fn = kind === 'incoming' ? playChime : playRingback, every = kind === 'incoming' ? 2800 : 3200;
-    fn();
+    if (kind === 'incoming') { if (!startCallTone()) fn(); } else fn();
     if (kind === 'incoming') { try { navigator.vibrate && navigator.vibrate([400, 200, 400]); } catch (e) {} }
     ringTimer = setInterval(function () {
       fn();
       if (kind === 'incoming') { try { navigator.vibrate && navigator.vibrate([400, 200, 400]); } catch (e) {} }
     }, every);
   }
-  function stopRinging() { if (ringTimer) { clearInterval(ringTimer); ringTimer = null; } try { navigator.vibrate && navigator.vibrate(0); } catch (e) {} }
+  function stopRinging() { stopCallTone(); if (ringTimer) { clearInterval(ringTimer); ringTimer = null; } try { navigator.vibrate && navigator.vibrate(0); } catch (e) {} }
   function endBeep() {
     var c = audioCtx(); if (!c) return;
     var o = c.createOscillator(), g = c.createGain();
@@ -354,7 +355,7 @@
     show('incoming', n.title, n.sub, 'Incoming free call…', n.avatar);
     startRinging('incoming');
     clearTimeout(incoming.timer);
-    incoming.timer = setTimeout(function () { if (incoming && incoming.id === id) clearIncoming('Missed call'); }, Math.max(2000, FRESH_MS - (now() - d.createdAt)));
+    incoming.timer = setTimeout(function () { if (incoming && incoming.id === id) clearIncoming('Missed call'); }, Math.max(1000, FRESH_MS - (now() - d.createdAt)));
   }
   function clearIncoming(message) {
     if (!incoming) return;

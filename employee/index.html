@@ -3037,7 +3037,7 @@
       name: 'New orders',
       description: 'Alerts when a new order needs attention',
       sound: 'order_alert',
-      extraChannels: [{ id: 'swift-calls', name: 'Rider calls', description: 'Free internet calls from delivery riders', sound: 'swift_message' }]
+      extraChannels: [{ id: 'swift-calls-v2', name: 'Rider calls', description: 'Free internet calls from delivery riders', sound: 'swift_call' }]
     }).then(function(token) {
       notificationsEnabled = true;
       saveFcmToken(token);
