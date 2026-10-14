@@ -206,7 +206,18 @@
     return 'Could not start the microphone.';
   }
   function getMic() {
-    return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
+    return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }, video: false });
+  }
+  // Voice-only audio settings: mono, with error correction so a weak mobile signal crackles less, at a bitrate made for speech.
+  function tuneOpus(sdp) {
+    try {
+      var m = /a=rtpmap:(\d+) opus\/48000\/2/.exec(sdp);
+      if (!m) return sdp;
+      var pt = m[1], want = 'stereo=0;sprop-stereo=0;useinbandfec=1;usedtx=0;maxaveragebitrate=32000';
+      var re = new RegExp('a=fmtp:' + pt + ' ([^\\r\\n]*)');
+      if (re.test(sdp)) return sdp.replace(re, function (all, params) { return 'a=fmtp:' + pt + ' ' + params.replace(/;?(stereo|sprop-stereo|useinbandfec|usedtx|maxaveragebitrate)=[^;]*/g, '') + ';' + want; });
+      return sdp.replace(m[0], m[0] + '\r\na=fmtp:' + pt + ' ' + want);
+    } catch (e) { return sdp; }
   }
 
   // ── one peer connection, either side ──
@@ -294,8 +305,9 @@
         if (call.ended) return;
         var pc = makePeer(call, servers, 'callerIce');
         return pc.createOffer({ offerToReceiveAudio: true }).then(function (offer) {
-          return pc.setLocalDescription(offer).then(function () {
-            return fns().updateDoc(ref(o.id), { offer: { type: offer.type, sdp: offer.sdp }, status: 'ringing' });
+          var tunedOffer = { type: offer.type, sdp: tuneOpus(offer.sdp) };
+          return pc.setLocalDescription(tunedOffer).then(function () {
+            return fns().updateDoc(ref(o.id), { offer: tunedOffer, status: 'ringing' });
           });
         }).then(function () {
           if (call.ended) return;
@@ -354,6 +366,12 @@
     var n = incomingNames(d);
     show('incoming', n.title, n.sub, 'Incoming free call…', n.avatar);
     startRinging('incoming');
+    if (autoAnswer && now() < autoAnswer.until && (!autoAnswer.id || autoAnswer.id === id)) {
+      // The person already tapped Answer on the phone's own call screen: connect straight away.
+      autoAnswer = null;
+      setTimeout(function () { if (incoming && incoming.id === id) answerIncoming(); }, 60);
+      return;
+    }
     clearTimeout(incoming.timer);
     incoming.timer = setTimeout(function () { if (incoming && incoming.id === id) clearIncoming('Missed call'); }, Math.max(1000, FRESH_MS - (now() - d.createdAt)));
   }
@@ -393,8 +411,9 @@
           flushIce(call);
           return pc.createAnswer();
         }).then(function (answer) {
-          return pc.setLocalDescription(answer).then(function () {
-            return fns().updateDoc(ref(id), { answer: { type: answer.type, sdp: answer.sdp }, status: 'active', answeredBy: cfg.name || cfg.role });
+          var tunedAnswer = { type: answer.type, sdp: tuneOpus(answer.sdp) };
+          return pc.setLocalDescription(tunedAnswer).then(function () {
+            return fns().updateDoc(ref(id), { answer: tunedAnswer, status: 'active', answeredBy: cfg.name || cfg.role });
           });
         }).then(function () {
           call.unsub = fns().onSnapshot(ref(id), function (snap) {
@@ -424,6 +443,7 @@
     offerIncoming(id, d);
   }
   function watchOrders(orders) {
+    checkPending();
     if (!db() || !fns().onSnapshot || !fns().doc) return;
     var wanted = {};
     (orders || []).forEach(function (o) {
@@ -445,6 +465,7 @@
     watchers[o.fbDocId] = fns().onSnapshot(ref(o.fbDocId), function (snap) { onCalleeSnapshot(o.fbDocId, snap); }, function () {});
   }
   function watchStaff() {
+    checkPending();
     if (staffUnsub || !db() || !fns().query || !fns().where || !fns().collection) return;
     var q = fns().query(fns().collection(db(), 'calls'), fns().where('kind', '==', 'staff'), fns().where('status', '==', 'ringing'));
     staffUnsub = fns().onSnapshot(q, function (snap) {
@@ -457,6 +478,47 @@
     Object.keys(watchers).forEach(function (id) { try { watchers[id](); } catch (e) {} });
     watchers = {};
     if (staffUnsub) { try { staffUnsub(); } catch (e) {} staffUnsub = null; }
+  }
+
+  // ── the phone's own full-screen call screen (storefront / admin / employee apps) ──
+  var autoAnswer = null;   // { id, until }: the person tapped Answer on the native call screen
+  function nativeCalls() { var a = window.SwiftApp && window.SwiftApp.callAlert; return a && a.available ? a : null; }
+  function checkPending() {
+    var ca = nativeCalls();
+    if (!ca) return;
+    ca.consumePendingAction().then(function (r) {
+      if (!r || r.action !== 'answer') return;
+      autoAnswer = { id: r.callId || '', until: now() + 30000 };
+      if (incoming && (!autoAnswer.id || autoAnswer.id === incoming.id)) { autoAnswer = null; answerIncoming(); }
+    }).catch(function () {});
+  }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) checkPending(); });
+
+  // One gentle, dismissible reminder to allow the two Android settings that let a call ring over the lock screen.
+  function setupPrompt() {
+    var ca = nativeCalls();
+    if (!ca) return;
+    try { if (new URLSearchParams(location.search).get('calltest') === '1') ca.testCall(); } catch (e) {}
+    var KEY = 'swift_call_setup_ts';
+    try { var last = Number(localStorage.getItem(KEY) || 0); if (last && now() - last < 2 * 24 * 3600 * 1000) return; } catch (e) {}
+    ca.getStatus().then(function (st) {
+      if (!st || (st.canOverlay && st.canFullScreen && st.notificationsEnabled)) return;
+      if (document.getElementById('swc-setup')) return;
+      var bar = document.createElement('div');
+      bar.id = 'swc-setup';
+      bar.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);z-index:99990;background:#2a2118;color:#f7f1e6;border:2px solid #F0A93B;border-radius:14px;padding:12px 14px;font:600 13px/1.4 system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.45);max-width:none';
+      bar.innerHTML = '<div style="margin-bottom:8px">📞 To ring like a real phone call when the app is closed, allow <b>' +
+        (!st.notificationsEnabled ? 'notifications' : (!st.canOverlay ? 'Display over other apps' : 'Full-screen notifications')) + '</b> for this app.</div>' +
+        '<div style="display:flex;gap:8px"><button type="button" id="swc-setup-go" style="flex:1;background:#F0A93B;color:#1a1206;border:0;border-radius:10px;padding:10px;font:800 13px system-ui,sans-serif">Allow</button>' +
+        '<button type="button" id="swc-setup-later" style="flex:0 0 auto;background:none;color:#a69c8c;border:1.5px solid #5a4e3c;border-radius:10px;padding:10px 14px;font:700 13px system-ui,sans-serif">Later</button></div>';
+      document.body.appendChild(bar);
+      try { localStorage.setItem(KEY, String(now())); } catch (e) {}
+      bar.querySelector('#swc-setup-later').addEventListener('click', function () { bar.remove(); });
+      bar.querySelector('#swc-setup-go').addEventListener('click', function () {
+        bar.remove();
+        if (!st.canOverlay) ca.openOverlaySettings(); else if (!st.canFullScreen) ca.openFullScreenSettings(); else ca.openOverlaySettings();
+      });
+    }).catch(function () {});
   }
 
   // ── public ──
@@ -478,7 +540,7 @@
   }
 
   window.SwiftCall = {
-    init: function (c) { cfg = Object.assign(cfg, c || {}); },
+    init: function (c) { cfg = Object.assign(cfg, c || {}); if (cfg.role === 'customer' || cfg.role === 'staff') { checkPending(); setupPrompt(); } },
     supported: supported,
     callCustomer: callCustomer,
     callShop: callShop,

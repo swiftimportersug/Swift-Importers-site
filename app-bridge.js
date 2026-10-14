@@ -240,6 +240,23 @@
     }
   } : { available: false };
 
+  // ── 4b. Native full-screen incoming call (storefront, admin and employee builds) ──
+  // Absent everywhere else (boda, a normal browser, a build made before it existed).
+  var CallAlertPlugin = null;
+  try {
+    if (typeof cap.isPluginAvailable === 'function' && cap.isPluginAvailable('CallAlert')) CallAlertPlugin = getPlugin('CallAlert');
+  } catch (e) { CallAlertPlugin = null; }
+  window.SwiftApp.callAlert = CallAlertPlugin ? {
+    available: true,
+    getStatus: function () { return CallAlertPlugin.getStatus(); },
+    openOverlaySettings: function () { return CallAlertPlugin.openOverlaySettings(); },
+    openFullScreenSettings: function () { return CallAlertPlugin.openFullScreenSettings(); },
+    testCall: function () { return CallAlertPlugin.testCall(); },
+    consumePendingAction: function () {
+      return CallAlertPlugin.consumePendingAction().then(function (r) { return { action: (r && r.action) || '', callId: (r && r.callId) || '' }; });
+    }
+  } : { available: false };
+
   // ── 5. Native live location sharing (boda build only) ──
   // A foreground service uploads the rider's position even while the app is
   // minimised. Absent everywhere else, and in boda builds made before it existed.
