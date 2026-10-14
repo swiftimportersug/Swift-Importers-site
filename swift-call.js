@@ -76,7 +76,19 @@
       o.start(t0); o.stop(t0 + dur * p[2] + 0.05);
     });
   }
-  function playChime() { var c = audioCtx(); if (!c) return; bell(c, 784, 0, 1.1, 0.9); bell(c, 1046.5, 0.3, 1.1, 0.9); bell(c, 1318.5, 0.6, 1.6, 0.9); }
+  var chimeAudio = null;
+  function playChime() {
+    // The Swift Importers message tone (hosted at /sounds/swift-message.mp3); the synthesized bells are only a fallback.
+    try {
+      if (!chimeAudio) chimeAudio = new Audio('/sounds/swift-message.mp3');
+      chimeAudio.currentTime = 0;
+      var p = chimeAudio.play();
+      if (p && p.catch) p.catch(function () { synthChime(); });
+      return;
+    } catch (e) {}
+    synthChime();
+  }
+  function synthChime() { var c = audioCtx(); if (!c) return; bell(c, 784, 0, 1.1, 0.9); bell(c, 1046.5, 0.3, 1.1, 0.9); bell(c, 1318.5, 0.6, 1.6, 0.9); }
   function playRingback() {
     var c = audioCtx(); if (!c) return;
     [0, 0.45].forEach(function (s) {
