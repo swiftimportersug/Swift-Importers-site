@@ -365,14 +365,16 @@
     if (!(d.status === 'ringing' && d.offer && d.createdAt && now() - d.createdAt < FRESH_MS)) return;
     incoming = { id: id, data: d };
     var n = incomingNames(d);
-    show('incoming', n.title, n.sub, 'Incoming free call…', n.avatar);
-    startIncomingRing();
     if (autoAnswer && now() < autoAnswer.until && (!autoAnswer.id || autoAnswer.id === id)) {
-      // The person already tapped Answer on the phone's own call screen: connect straight away.
+      // The person already tapped Answer on the phone's own call screen: connect straight away
+      // (no ringing, no Answer button: the call window just carries on from "Connecting…").
       autoAnswer = null;
-      setTimeout(function () { if (incoming && incoming.id === id) answerIncoming(); }, 60);
+      show('calling', n.title, n.sub, 'Connecting…', n.avatar);
+      setTimeout(function () { if (incoming && incoming.id === id) answerIncoming(); }, 30);
       return;
     }
+    show('incoming', n.title, n.sub, 'Incoming free call…', n.avatar);
+    startIncomingRing();
     clearTimeout(incoming.timer);
     incoming.timer = setTimeout(function () { if (incoming && incoming.id === id) clearIncoming('Missed call'); }, Math.max(1000, FRESH_MS - (now() - d.createdAt)));
   }
@@ -502,9 +504,41 @@
     if (!ca) return;
     ca.consumePendingAction().then(function (r) {
       if (!r || r.action !== 'answer') return;
-      autoAnswer = { id: r.callId || '', until: now() + 30000 };
-      if (incoming && (!autoAnswer.id || autoAnswer.id === incoming.id)) { autoAnswer = null; answerIncoming(); }
+      beginAutoAnswer(r.callId || '');
     }).catch(function () {});
+  }
+  // The person tapped Answer on the phone's call screen. Put the call window up at once (so the shop's
+  // home page never shows), then look the call up directly instead of waiting for the page to finish loading.
+  var autoFetchTimer = null;
+  function beginAutoAnswer(id) {
+    autoAnswer = { id: id, until: now() + 30000 };
+    if (incoming && (!id || id === incoming.id)) { autoAnswer = null; answerIncoming(); return; }
+    if (cur) return;
+    var put = function () { if (!cur && !incoming) show('calling', 'Swift Importers', 'Free internet call', 'Connecting…', '🏍️'); };
+    if (document.body) put(); else document.addEventListener('DOMContentLoaded', put);
+    clearInterval(autoFetchTimer);
+    var started = now();
+    var fetching = false;
+    function endedNow(text) { autoAnswer = null; show('ended', '', '', text); hideUi(2200); }
+    autoFetchTimer = setInterval(function () {
+      if (cur || !autoAnswer) { clearInterval(autoFetchTimer); return; }
+      if (now() - started > 20000) { clearInterval(autoFetchTimer); endedNow('Could not connect the call'); return; }
+      if (fetching || !id || !db() || !fns().getDoc || !fns().doc) return;
+      fetching = true;
+      fns().getDoc(ref(id)).then(function (snap) {
+        fetching = false;
+        if (cur) { clearInterval(autoFetchTimer); return; }
+        clearInterval(autoFetchTimer);
+        var d = snap && snap.exists() ? snap.data() : null;
+        if (d && d.status === 'ringing') {
+          offerIncoming(id, d);
+          if (!incoming && !cur) endedNow('Missed call');
+          return;
+        }
+        var st = d && d.status;
+        endedNow(st === 'cancelled' ? 'Caller hung up' : st === 'active' ? 'Answered on another device' : st === 'declined' ? 'Declined' : 'Call ended');
+      }).catch(function () { fetching = false; });
+    }, 250);
   }
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) return;
@@ -558,6 +592,9 @@
       title: 'Swift Importers', sub: 'Calling the shop' + (order && order.refCode ? ' · Order #' + order.refCode : ''), avatar: '🏬'
     });
   }
+
+  // Runs as soon as this file loads, so an Answer tapped on the lock screen shows the call window immediately.
+  try { if (nativeCalls()) checkPending(); } catch (e) {}
 
   window.SwiftCall = {
     init: function (c) { cfg = Object.assign(cfg, c || {}); if (cfg.role === 'customer' || cfg.role === 'staff') { checkPending(); setupPrompt(); } },
