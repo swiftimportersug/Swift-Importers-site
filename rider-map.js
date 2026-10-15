@@ -54,7 +54,7 @@
     if (mapLayerPromise) return mapLayerPromise;
     mapLayerPromise = new Promise(function (resolve, reject) {
       var js = document.createElement('script');
-      js.src = '/swift-map.js?v=1';
+      js.src = '/swift-map.js?v=4';
       js.onload = function () { window.SwiftMap ? resolve(window.SwiftMap) : reject(new Error('swift-map.js did not load')); };
       js.onerror = function () { mapLayerPromise = null; reject(new Error('swift-map.js failed to load')); };
       document.head.appendChild(js);
@@ -87,6 +87,8 @@
       '.srm-bike svg{display:block;width:100%;height:100%;}' +
       '.srm-mapbox{position:relative;}' +
       '.srm-follow{position:absolute;right:10px;bottom:10px;z-index:1000;background:#F0A93B;color:#1a1206;border:none;border-radius:18px;padding:8px 13px;font-size:0.74rem;font-weight:800;font-family:inherit;box-shadow:0 2px 8px rgba(0,0,0,.5);cursor:pointer;display:none;}' +
+      '.srm-compass{position:absolute;right:10px;top:50px;z-index:5;width:34px;height:34px;border:0;border-radius:10px;background:rgba(255,255,255,.95);box-shadow:0 2px 8px rgba(0,0,0,.3);font-size:18px;line-height:1;cursor:pointer;touch-action:manipulation;display:none;}' +
+      '.srm-compass span{display:block;transition:transform .15s linear;}' +
       '.srm-card .leaflet-container{font-family:inherit;}' +
       // Some pages set max-width:100% on everything, which squashes map markers to nothing.
       '.srm-card .leaflet-container *, .srm-card .maplibregl-map *{max-width:none;}' +
@@ -297,15 +299,27 @@
       wrap.innerHTML =
         '<div class="srm-card">' +
           '<div class="srm-head"><span class="srm-title">📍 Live rider location</span><span class="srm-live stale" data-r="live">WAITING</span></div>' +
-          '<div class="srm-mapbox" data-r="mapbox" style="display:none;"><div class="srm-map" data-r="map"></div><button type="button" class="srm-follow" data-r="follow">🎯 Follow rider</button></div>' +
+          '<div class="srm-mapbox" data-r="mapbox" style="display:none;"><div class="srm-map" data-r="map"></div><button type="button" class="srm-follow" data-r="follow">🎯 Follow rider</button><button type="button" class="srm-compass" data-r="compass" aria-label="Face north"><span>🧭</span></button></div>' +
           '<div class="srm-meta" data-r="meta" style="display:none;"><span class="srm-dist" data-r="dist"></span><span class="srm-age" data-r="age"></span></div>' +
           '<div class="srm-wait" data-r="wait">Your rider\'s live location will appear here as soon as they start sharing it.</div>' +
         '</div>';
-      ['live', 'mapbox', 'map', 'follow', 'meta', 'dist', 'age', 'wait'].forEach(function (k) { els[k] = wrap.querySelector('[data-r="' + k + '"]'); });
+      ['live', 'mapbox', 'map', 'follow', 'compass', 'meta', 'dist', 'age', 'wait'].forEach(function (k) { els[k] = wrap.querySelector('[data-r="' + k + '"]'); });
       els.follow.addEventListener('click', function () {
         followOn = true;
         els.follow.style.display = 'none';
-        frameBoth(true);
+        if (map && map.canRotate && shown) {
+          // Back to "ride along": centred on the rider, facing the way they are going.
+          camBusyUntil = Date.now() + 650;
+          map.follow([shown.lat, shown.lng], heading, camOffsetY(), { animate: true, duration: 600 });
+          setTimeout(ensureLoop, 700);
+        } else frameBoth(true);
+      });
+      // Compass: tap to face north (and stop following until "Follow rider" is tapped).
+      els.compass.addEventListener('click', function () {
+        if (!map || !map.canRotate) return;
+        followOn = false;
+        els.follow.style.display = 'block';
+        map.setBearing(0, { animate: true, duration: 0.5 });
       });
     }
 
@@ -341,7 +355,7 @@
       var forOrder = orderId;
       els.mapbox.style.display = 'block';        // the map needs a visible box to measure
       ensureMapLayer().then(function (SM) {
-        return SM.create(els.map, { center: destLatLng || (shown ? [shown.lat, shown.lng] : [0.3476, 32.5825]), zoom: 15, zoomControl: true, zoomPosition: 'topleft', pitch: 40 });
+        return SM.create(els.map, { center: destLatLng || (shown ? [shown.lat, shown.lng] : [0.3476, 32.5825]), zoom: 15, zoomControl: true, zoomPosition: 'topleft', pitch: 40, rotate: true });
       }).then(function (M) {
         if (orderId !== forOrder || !els.map) { M.remove(); return; }   // moved on while the map was starting
         map = M;
@@ -352,8 +366,15 @@
           if (els.follow) els.follow.style.display = 'block';
         };
         map.on('dragstart', userTookOver);
-        els.map.addEventListener('wheel', userTookOver, { passive: true });
-        els.map.addEventListener('touchstart', function (e) { if (e.touches && e.touches.length > 1) userTookOver(); }, { passive: true });
+        if (map.canRotate) {
+          // Turning the map by hand takes over from "ride along" (zooming alone does not).
+          map.on('rotatestart', function (ev) { if (ev && ev.originalEvent) userTookOver(); });
+          map.on('rotate', function () { place(); updateCompass(); });
+          els.compass.style.display = 'block';
+        } else {
+          els.map.addEventListener('wheel', userTookOver, { passive: true });
+          els.map.addEventListener('touchstart', function (e) { if (e.touches && e.touches.length > 1) userTookOver(); }, { passive: true });
+        }
         setTimeout(function () { if (map) map.invalidateSize(); }, 250);
         els.mapbox.setAttribute('data-engine', M.kind);
         render();
@@ -366,13 +387,21 @@
       });
     }
 
+    // While riding along, the rider sits a little below the middle so more of the road ahead shows.
+    function camOffsetY() { return els.map ? Math.round(els.map.clientHeight * 0.16) : 0; }
+    function updateCompass() {
+      if (!map || !map.canRotate || !els.compass) return;
+      var sp = els.compass.firstChild;
+      if (sp) sp.style.transform = 'rotate(' + (-map.getBearing()).toFixed(1) + 'deg)';
+    }
+
     // Keep both the rider and the delivery point in view (used on first sight and by "Follow rider").
     function frameBoth(animate) {
       if (!map || !shown) return;
       var pts = [[shown.lat, shown.lng]];
       if (destLatLng) pts.push(destLatLng);
       camBusyUntil = Date.now() + 1300;
-      if (pts.length > 1) map.fitBounds(pts, { padding: [44, 44], maxZoom: 17, animate: !!animate, duration: 1 });
+      if (pts.length > 1) map.fitBounds(pts, { padding: [44, 44], maxZoom: 17, animate: !!animate, duration: 1, bearing: (map.canRotate && heading != null) ? heading : undefined });
       else map.setView(pts[0], 16, { animate: !!animate });
     }
 
@@ -384,7 +413,8 @@
       else riderMarker.setLatLng(pos);
       var el = riderMarker.getElement();
       var bike = el && el.querySelector('.srm-bike');
-      if (bike) bike.style.transform = 'rotate(' + (heading == null ? 0 : heading).toFixed(1) + 'deg)';
+      var camB = (map.canRotate && map.getBearing) ? map.getBearing() : 0;
+      if (bike) bike.style.transform = 'rotate(' + (((heading == null ? 0 : heading) - camB + 360) % 360).toFixed(1) + 'deg)';
       // With a road route the line is drawn by drawRoute() when a fix arrives; without one,
       // fall back to a dashed straight line that follows the dot.
       if (!route && destLatLng) {
@@ -425,6 +455,10 @@
         if (Math.abs(d) > 0.5) { heading = (heading + d * 0.3 + 360) % 360; busy = true; }
       }
       place();
+      // Camera, ride-along mode: centred on the rider and turned to face the way they are heading.
+      if (map && map.canRotate && followOn && shown && Date.now() > camBusyUntil) {
+        try { map.follow([shown.lat, shown.lng], heading, camOffsetY()); } catch (e) {}
+      } else
       // Camera: while following, only move when the rider nears the edge, so the map doesn't shake.
       if (map && followOn && shown && Date.now() > camBusyUntil && ts - lastPanAt > 120) {
         lastPanAt = ts;
@@ -560,6 +594,10 @@
         if (!didFit) {
           didFit = true;
           frameBoth(false);
+          if (map.canRotate) ensureLoop();
+        } else if (map.canRotate) {
+          // ride-along mode keeps the rider centred itself (see frame())
+          if (followOn) ensureLoop();
         } else if (followOn && destLatLng && Date.now() > camBusyUntil) {
           // Keep the delivery point in view too: re-frame (gently) if either has drifted out.
           if (!map.insideView([shown.lat, shown.lng], 0.06) || !map.insideView(destLatLng, 0.06)) {

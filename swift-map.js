@@ -126,12 +126,12 @@
             center: [c[1], c[0]],
             zoom: (opts.zoom || 15) - 1,
             attributionControl: false,
-            dragRotate: false, pitchWithRotate: false, touchPitch: false, maxPitch: opts.pitch || 0,
+            dragRotate: !!opts.rotate, pitchWithRotate: false, touchPitch: false, maxPitch: opts.pitch || 0,
             pitch: opts.pitch || 0,
             fadeDuration: 120
           });
           map.addControl(new ml.AttributionControl({ compact: true }), 'bottom-right');
-          if (map.touchZoomRotate && map.touchZoomRotate.disableRotation) map.touchZoomRotate.disableRotation();
+          if (!opts.rotate && map.touchZoomRotate && map.touchZoomRotate.disableRotation) map.touchZoomRotate.disableRotation();
           if (opts.zoomControl) {
             map.addControl(new ml.NavigationControl({ showCompass: false, visualizePitch: false }), opts.zoomPosition === 'bottomright' ? 'bottom-right' : 'top-left');
           }
@@ -196,7 +196,18 @@
 
     var M = {
       kind: 'vector',
+      canRotate: !!opts.rotate,
       container: el,
+      getBearing: function () { return map.getBearing(); },
+      // Turn the map to a compass bearing (0 = north up).
+      setBearing: function (b, o) { o = o || {}; if (o.animate) map.easeTo({ bearing: b, duration: o.duration ? o.duration * 1000 : 500 }); else map.jumpTo({ bearing: b }); },
+      // Camera that rides along with something: centred on ll (nudged down by offsetY px so you see more road ahead) and turned to bearing.
+      follow: function (ll, bearing, offsetY, o) {
+        o = o || {};
+        var t = { center: [ll[1], ll[0]], offset: [0, offsetY || 0], duration: o.animate ? (o.duration || 600) : 0, essential: true };
+        if (bearing != null) t.bearing = bearing;
+        map.easeTo(t);
+      },
       setView: function (ll, z, o) {
         o = o || {};
         var target = { center: [ll[1], ll[0]] };
@@ -213,6 +224,7 @@
         pts.forEach(function (p) { minLat = Math.min(minLat, p[0]); maxLat = Math.max(maxLat, p[0]); minLng = Math.min(minLng, p[1]); maxLng = Math.max(maxLng, p[1]); });
         try {
           map.fitBounds([[minLng, minLat], [maxLng, maxLat]], {
+            bearing: o.bearing != null ? o.bearing : undefined,
             padding: padNumber(o.padding) || 40,
             maxZoom: (o.maxZoom || 18) - 1,
             animate: !!o.animate,
@@ -321,6 +333,10 @@
 
       return {
         kind: 'leaflet',
+        canRotate: false,
+        getBearing: function () { return 0; },
+        setBearing: function () {},
+        follow: function () {},
         container: el,
         setView: function (ll, z, o) { map.setView(ll, z != null ? z : map.getZoom(), { animate: !!(o && o.animate) }); },
         getCenter: function () { var c2 = map.getCenter(); return { lat: c2.lat, lng: c2.lng }; },

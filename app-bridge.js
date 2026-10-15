@@ -253,10 +253,23 @@
     openFullScreenSettings: function () { return CallAlertPlugin.openFullScreenSettings(); },
     testCall: function () { return CallAlertPlugin.testCall(); },
     cancelRing: function () { return CallAlertPlugin.cancelRing(); },
+    configure: function (o) { return CallAlertPlugin.configure(o || {}); },
     callFinished: function () { return CallAlertPlugin.callFinished(); },
     consumePendingAction: function () {
       return CallAlertPlugin.consumePendingAction().then(function (r) { return { action: (r && r.action) || '', callId: (r && r.callId) || '' }; });
     }
+  } : { available: false };
+
+  // ── 4b. Where a call is heard (earpiece / speaker) ──
+  var CallAudioPlugin = null;
+  try {
+    if (typeof cap.isPluginAvailable === 'function' && cap.isPluginAvailable('CallAudio')) CallAudioPlugin = getPlugin('CallAudio');
+  } catch (e) { CallAudioPlugin = null; }
+  window.SwiftApp.callAudio = CallAudioPlugin ? {
+    available: true,
+    start: function (speaker) { return CallAudioPlugin.start({ speaker: !!speaker }); },
+    setSpeaker: function (on) { return CallAudioPlugin.setSpeaker({ on: !!on }); },
+    stop: function () { return CallAudioPlugin.stop(); }
   } : { available: false };
 
   // ── 5. Native live location sharing (boda build only) ──

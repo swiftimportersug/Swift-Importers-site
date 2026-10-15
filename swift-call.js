@@ -179,9 +179,23 @@
         mute.querySelector('.swc-circle').textContent = t.enabled ? '🎤' : '🔇';
       });
       ui.row.appendChild(mute);
+      var au = audioNative();
+      if (au) {
+        var spk = btn('Speaker', '🔊', (cur && cur.speaker) ? 'on' : '', function () {
+          if (!cur) return;
+          cur.speaker = !cur.speaker;
+          try { au.setSpeaker(cur.speaker).catch(function () {}); } catch (e) {}
+          spk.querySelector('.swc-circle').className = 'swc-circle' + (cur.speaker ? ' on' : '');
+        });
+        ui.row.appendChild(spk);
+      }
       ui.row.appendChild(btn(mode === 'calling' ? 'Cancel' : 'End', '✕', 'red', function () { hangUp(); }));
     }
   }
+  // Earpiece / speaker choice (installed app only).
+  function audioNative() { var a = window.SwiftApp && window.SwiftApp.callAudio; return a && a.available ? a : null; }
+  function audioStart() { var a = audioNative(); if (a) { try { a.start(false).catch(function () {}); } catch (e) {} } }
+  function audioStop() { var a = audioNative(); if (a) { try { a.stop().catch(function () {}); } catch (e) {} } }
   function setState(text) { if (ui) ui.state.textContent = text; }
   function hideUi(delay) {
     setTimeout(function () { if (!cur && ui) ui.el.style.display = 'none'; }, delay || 0);
@@ -282,6 +296,7 @@
       var upd = { status: 'ended', endedAt: now(), endedBy: cfg.role };
       fns().updateDoc(ref(call.id), upd).catch(function () {});
     }
+    audioStop();
     try { call.stream && call.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
     try { call.pc && call.pc.close(); } catch (e) {}
     if (ui) { try { ui.audio.srcObject = null; } catch (e) {} }
@@ -297,6 +312,7 @@
     if (!supported()) { toast('Calls are not supported on this phone. Use the normal call button.'); return; }
     var call = cur = { id: o.id, side: 'caller', title: o.title, sub: o.sub, avatar: o.avatar, iceSeen: 0, pendingIce: [], ended: false };
     show('calling', o.title, o.sub, 'Starting…', o.avatar);
+    audioStart();
     audioCtx(); // wake the audio engine inside the tap
     getMic().then(function (stream) {
       call.stream = stream;
@@ -411,6 +427,7 @@
     stopRinging();
     var call = cur = { id: id, side: 'callee', title: n.title, sub: n.sub, avatar: n.avatar, iceSeen: 0, pendingIce: [], ended: false };
     show('calling', n.title, n.sub, 'Connecting…', n.avatar);
+    audioStart();
     audioCtx();
     // Make sure nobody else answered first (shop calls ring several devices at once).
     var check = fns().getDoc ? fns().getDoc(ref(id)) : Promise.resolve(null);
@@ -597,7 +614,14 @@
   try { if (nativeCalls()) checkPending(); } catch (e) {}
 
   window.SwiftCall = {
-    init: function (c) { cfg = Object.assign(cfg, c || {}); if (cfg.role === 'customer' || cfg.role === 'staff') { checkPending(); setupPrompt(); } },
+    init: function (c) {
+      cfg = Object.assign(cfg, c || {});
+      if (cfg.role === 'customer' || cfg.role === 'staff') {
+        var caCfg = nativeCalls();
+        if (caCfg && caCfg.configure && cfg.workerUrl) { try { caCfg.configure({ workerUrl: cfg.workerUrl, key: cfg.key, role: cfg.role }).catch(function () {}); } catch (e) {} }
+        checkPending(); setupPrompt();
+      }
+    },
     supported: supported,
     callCustomer: callCustomer,
     callShop: callShop,
