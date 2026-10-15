@@ -277,6 +277,7 @@
     stopRinging();
     clearInterval(call.tick); clearTimeout(call.ringTimeout); clearTimeout(call.dropTimer);
     try { call.unsub && call.unsub(); } catch (e) {}
+    if (call.side === 'callee') { var caDone = nativeCalls(); if (caDone && caDone.callFinished) { setTimeout(function () { try { caDone.callFinished().catch(function () {}); } catch (e) {} }, 1900); } }
     if (writeEnd) {
       var upd = { status: 'ended', endedAt: now(), endedBy: cfg.role };
       fns().updateDoc(ref(call.id), upd).catch(function () {});
@@ -330,7 +331,7 @@
           call.ringTimeout = setTimeout(function () {
             if (call.ended || call.connectedAt) return;
             if (call.pc && call.pc.remoteDescription) return;
-            fns().updateDoc(ref(o.id), { status: 'missed', endedAt: now(), endedBy: cfg.role }).catch(function () {});
+            fns().updateDoc(ref(o.id), { status: 'missed', endedAt: now(), endedBy: cfg.role }).then(function () { post({ callCancel: true, callId: o.id }); }).catch(function () {});
             finish(call, 'No answer', false);
           }, RING_TIMEOUT_MS);
         });
@@ -347,7 +348,7 @@
     if (!cur) { hideUi(0); return; }
     var call = cur;
     if (call.side === 'caller' && !call.connectedAt && !(call.pc && call.pc.remoteDescription)) {
-      fns().updateDoc(ref(call.id), { status: 'cancelled', endedAt: now(), endedBy: cfg.role }).catch(function () {});
+      fns().updateDoc(ref(call.id), { status: 'cancelled', endedAt: now(), endedBy: cfg.role }).then(function () { post({ callCancel: true, callId: call.id }); }).catch(function () {});
       finish(call, 'Call cancelled', false);
     } else finish(call, 'Call ended', true);
   }
@@ -365,7 +366,7 @@
     incoming = { id: id, data: d };
     var n = incomingNames(d);
     show('incoming', n.title, n.sub, 'Incoming free call…', n.avatar);
-    startRinging('incoming');
+    startIncomingRing();
     if (autoAnswer && now() < autoAnswer.until && (!autoAnswer.id || autoAnswer.id === id)) {
       // The person already tapped Answer on the phone's own call screen: connect straight away.
       autoAnswer = null;
@@ -375,8 +376,21 @@
     clearTimeout(incoming.timer);
     incoming.timer = setTimeout(function () { if (incoming && incoming.id === id) clearIncoming('Missed call'); }, Math.max(1000, FRESH_MS - (now() - d.createdAt)));
   }
+  // In the installed app, when the app is not on screen the phone's own call screen is already ringing,
+  // so the page stays quiet (otherwise you hear two rings, one soft and one loud).
+  function startIncomingRing() {
+    var ca = nativeCalls();
+    if (!ca) { startRinging('incoming'); return; }
+    if (document.hidden) return;
+    ca.getStatus().then(function (st) {
+      if (!incoming || cur) return;
+      if (st && st.appVisible === false) return;
+      startRinging('incoming');
+    }).catch(function () { if (incoming && !cur) startRinging('incoming'); });
+  }
   function clearIncoming(message) {
     if (!incoming) return;
+    var caCancel = nativeCalls(); if (caCancel && caCancel.cancelRing) { try { caCancel.cancelRing().catch(function () {}); } catch (e) {} }
     clearTimeout(incoming.timer);
     var id = incoming.id; dismissed[dkey(id, incoming.data)] = true; incoming = null;
     stopRinging();
@@ -492,7 +506,13 @@
       if (incoming && (!autoAnswer.id || autoAnswer.id === incoming.id)) { autoAnswer = null; answerIncoming(); }
     }).catch(function () {});
   }
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) checkPending(); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) return;
+    checkPending();
+    // Opened while a call was ringing quietly in the background: ring in the page now.
+    if (incoming && !cur && !ringTimer) startRinging('incoming');
+  });
+  window.addEventListener('focus', function () { checkPending(); });
 
   // One gentle, dismissible reminder to allow the two Android settings that let a call ring over the lock screen.
   function setupPrompt() {

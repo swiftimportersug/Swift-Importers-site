@@ -252,6 +252,8 @@
     openOverlaySettings: function () { return CallAlertPlugin.openOverlaySettings(); },
     openFullScreenSettings: function () { return CallAlertPlugin.openFullScreenSettings(); },
     testCall: function () { return CallAlertPlugin.testCall(); },
+    cancelRing: function () { return CallAlertPlugin.cancelRing(); },
+    callFinished: function () { return CallAlertPlugin.callFinished(); },
     consumePendingAction: function () {
       return CallAlertPlugin.consumePendingAction().then(function (r) { return { action: (r && r.action) || '', callId: (r && r.callId) || '' }; });
     }
