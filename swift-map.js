@@ -160,7 +160,7 @@
           }
           fold(); setTimeout(fold, 300); setTimeout(fold, 1500);
           try { add3dBuildings(map, opts); } catch (e) { console.warn('[swift-map] 3D buildings skipped:', e && e.message); }
-          resolve(wrapVector(map, el, ml));
+          resolve(wrapVector(map, el, ml, opts));
         }
       });
     });
@@ -186,7 +186,8 @@
     }, firstLabel || undefined);
   }
 
-  function wrapVector(map, el, ml) {
+  function wrapVector(map, el, ml, opts) {
+    opts = opts || {};
     var uid = 0;
     var baseLayers = (map.getStyle().layers || []).map(function (l) { return { id: l.id, type: l.type }; });
     var satOn = false;

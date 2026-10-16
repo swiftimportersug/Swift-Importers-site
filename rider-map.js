@@ -54,7 +54,7 @@
     if (mapLayerPromise) return mapLayerPromise;
     mapLayerPromise = new Promise(function (resolve, reject) {
       var js = document.createElement('script');
-      js.src = '/swift-map.js?v=4';
+      js.src = '/swift-map.js?v=5';
       js.onload = function () { window.SwiftMap ? resolve(window.SwiftMap) : reject(new Error('swift-map.js did not load')); };
       js.onerror = function () { mapLayerPromise = null; reject(new Error('swift-map.js failed to load')); };
       document.head.appendChild(js);
