@@ -195,21 +195,25 @@
     function addGeoSource(id, data) { map.addSource(id, { type: 'geojson', data: data }); }
     function setData(id, data) { var s = map.getSource(id); if (s && s.setData) s.setData(data); }
 
+    function sized() { return el.clientWidth > 0 && el.clientHeight > 0; }
+
     var M = {
       kind: 'vector',
       canRotate: !!opts.rotate,
       container: el,
       getBearing: function () { return map.getBearing(); },
       // Turn the map to a compass bearing (0 = north up).
-      setBearing: function (b, o) { o = o || {}; if (o.animate) map.easeTo({ bearing: b, duration: o.duration ? o.duration * 1000 : 500 }); else map.jumpTo({ bearing: b }); },
+      setBearing: function (b, o) { if (!sized()) return; o = o || {}; if (o.animate) map.easeTo({ bearing: b, duration: o.duration ? o.duration * 1000 : 500 }); else map.jumpTo({ bearing: b }); },
       // Camera that rides along with something: centred on ll (nudged down by offsetY px so you see more road ahead) and turned to bearing.
       follow: function (ll, bearing, offsetY, o) {
+        if (!sized()) return;
         o = o || {};
         var t = { center: [ll[1], ll[0]], offset: [0, offsetY || 0], duration: o.animate ? (o.duration || 600) : 0, essential: true };
         if (bearing != null) t.bearing = bearing;
         map.easeTo(t);
       },
       setView: function (ll, z, o) {
+        if (!sized()) return;
         o = o || {};
         var target = { center: [ll[1], ll[0]] };
         if (z != null) target.zoom = z - 1;
@@ -220,7 +224,7 @@
       getZoom: function () { return map.getZoom() + 1; },
       fitBounds: function (pts, o) {
         o = o || {};
-        if (!pts || !pts.length) return;
+        if (!pts || !pts.length || !sized()) return;
         var minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
         pts.forEach(function (p) { minLat = Math.min(minLat, p[0]); maxLat = Math.max(maxLat, p[0]); minLng = Math.min(minLng, p[1]); maxLng = Math.max(maxLng, p[1]); });
         try {
@@ -234,6 +238,7 @@
         } catch (e) { M.setView([(minLat + maxLat) / 2, (minLng + maxLng) / 2], o.maxZoom || 16, { animate: !!o.animate }); }
       },
       panInside: function (ll, o) {
+        if (!sized()) return;
         var pad = (o && o.padding) || [60, 60];
         var p = map.project([ll[1], ll[0]]), w = el.clientWidth, h = el.clientHeight, dx = 0, dy = 0;
         if (p.x < pad[0]) dx = p.x - pad[0]; else if (p.x > w - pad[0]) dx = p.x - (w - pad[0]);

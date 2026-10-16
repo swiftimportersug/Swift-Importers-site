@@ -54,7 +54,7 @@
     if (mapLayerPromise) return mapLayerPromise;
     mapLayerPromise = new Promise(function (resolve, reject) {
       var js = document.createElement('script');
-      js.src = '/swift-map.js?v=5';
+      js.src = '/swift-map.js?v=6';
       js.onload = function () { window.SwiftMap ? resolve(window.SwiftMap) : reject(new Error('swift-map.js did not load')); };
       js.onerror = function () { mapLayerPromise = null; reject(new Error('swift-map.js failed to load')); };
       document.head.appendChild(js);
@@ -285,6 +285,7 @@
       if (unsubscribe) { try { unsubscribe(); } catch (e) {} unsubscribe = null; }
       if (ageTimer) { clearInterval(ageTimer); ageTimer = null; }
       stopLoop();
+      if (resizeWatch) { try { resizeWatch.disconnect(); } catch (e) {} resizeWatch = null; }
       if (map) { try { map.remove(); } catch (e) {} map = null; }
       riderMarker = null; destMarker = null; accCircle = null; routeLine = null;
       loc = null; shown = null; anim = null; heading = null; targetHeading = null; glideMs = 3000;
@@ -352,15 +353,24 @@
     // If the turning/ride-along map ever fails on a phone, fall back (once) to the plain map that worked before.
     var rotateOK = true;
     function dropMap() {
+      if (resizeWatch) { try { resizeWatch.disconnect(); } catch (e) {} resizeWatch = null; }
       if (map) { try { map.remove(); } catch (e) {} map = null; }
       riderMarker = null; destMarker = null; accCircle = null; routeLine = null;
       if (els.map) els.map.innerHTML = '';
     }
+    var sizeRetries = 0, resizeWatch = null;
     function ensureMap() {
       if (map || mapStarted || Date.now() < mapRetryAt) return;
-      mapStarted = true;
       var forOrder = orderId;
       els.mapbox.style.display = 'block';        // the map needs a visible box to measure
+      // A map built inside a box that has no size yet (card still hidden / not laid out) breaks with
+      // "failed to invert matrix". Wait until the box really has a size, then build.
+      if (!(els.map.clientWidth > 0 && els.map.clientHeight > 0)) {
+        mapRetryAt = Date.now() + 300;
+        setTimeout(function () { if (orderId === forOrder && !map && !mapStarted && els.live) render(); }, 350);
+        return;
+      }
+      mapStarted = true;
       ensureMapLayer().then(function (SM) {
         return SM.create(els.map, { center: destLatLng || (shown ? [shown.lat, shown.lng] : [0.3476, 32.5825]), zoom: 15, zoomControl: true, zoomPosition: 'topleft', pitch: 40, rotate: rotateOK });
       }).then(function (M) {
@@ -384,6 +394,15 @@
           els.map.addEventListener('touchstart', function (e) { if (e.touches && e.touches.length > 1) userTookOver(); }, { passive: true });
         }
         setTimeout(function () { if (map) map.invalidateSize(); }, 250);
+        // If the box is resized later (rotating the phone, a panel opening), tell the map.
+        try {
+          if (window.ResizeObserver) {
+            if (resizeWatch) resizeWatch.disconnect();
+            resizeWatch = new ResizeObserver(function () { if (map) map.invalidateSize(); });
+            resizeWatch.observe(els.map);
+          }
+        } catch (e4) {}
+        sizeRetries = 0;
         els.mapbox.setAttribute('data-engine', M.kind);
         render();
         } catch (setupErr) { if (map) { try { map.remove(); } catch (e2) {} map = null; } throw setupErr; }
@@ -391,6 +410,14 @@
         console.error('[rider-map] map unavailable:', e);
         dropMap();
         mapStarted = false;
+        var errText = String((e && e.message) || e);
+        if (/invert|matrix|size|NaN|zero|width|height/i.test(errText) && sizeRetries < 8) {
+          // The box was not ready (no size yet): not a rotation problem. Just try again in a moment.
+          sizeRetries++;
+          mapRetryAt = Date.now() + 1000;
+          setTimeout(function () { if (orderId && !map && !mapStarted && els.live) render(); }, 1100);
+          return;
+        }
         if (rotateOK) {
           // Try again once with the plain (north-up) map before giving up.
           rotateOK = false;
