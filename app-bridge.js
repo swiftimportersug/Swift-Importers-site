@@ -272,6 +272,17 @@
     stop: function () { return CallAudioPlugin.stop(); }
   } : { available: false };
 
+  // ── 4c. "Get this phone ready" (swift-setup.js): which Android settings are still missing, and jump to each ──
+  var AppSetupPlugin = null;
+  try {
+    if (typeof cap.isPluginAvailable === 'function' && cap.isPluginAvailable('AppSetup')) AppSetupPlugin = getPlugin('AppSetup');
+  } catch (e) { AppSetupPlugin = null; }
+  window.SwiftApp.appSetup = AppSetupPlugin ? {
+    available: true,
+    getStatus: function () { return AppSetupPlugin.getStatus(); },
+    open: function (which) { return AppSetupPlugin.open({ which: which }); }
+  } : { available: false };
+
   // ── 5. Native live location sharing (boda build only) ──
   // A foreground service uploads the rider's position even while the app is
   // minimised. Absent everywhere else, and in boda builds made before it existed.

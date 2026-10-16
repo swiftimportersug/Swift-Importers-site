@@ -570,6 +570,7 @@
     var ca = nativeCalls();
     if (!ca) return;
     try { if (new URLSearchParams(location.search).get('calltest') === '1') ca.testCall(); } catch (e) {}
+    if (window.SwiftSetup) return;   // the phone-setup checklist (swift-setup.js) covers these settings
     var KEY = 'swift_call_setup_ts';
     try { var last = Number(localStorage.getItem(KEY) || 0); if (last && now() - last < 2 * 24 * 3600 * 1000) return; } catch (e) {}
     ca.getStatus().then(function (st) {

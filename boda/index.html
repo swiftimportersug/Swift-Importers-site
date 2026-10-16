@@ -16,7 +16,8 @@
 
   <!-- Firebase -->
   <script src="/app-bridge.js"></script>
-  <script src="/swift-call.js?v=5"></script>
+  <script src="/swift-call.js?v=6"></script>
+  <script src="/swift-setup.js?v=1"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getFirestore, collection, doc, setDoc, getDocs, onSnapshot, updateDoc, query, where, arrayUnion, addDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -650,7 +651,7 @@
         }
         showScreen('screen-app');
         history.pushState({ bodaTab: 'available' }, '');
-        startBoardListener(); startRiderMessagesListener(); initJobAlertSetup();
+        startBoardListener(); startRiderMessagesListener(); initJobAlertSetup(); startPhoneSetup();
         registerBodaServiceWorker();
         updateBodaNotifyBannerVisibility();
         updateBodaOnlineToggleUI();
@@ -693,7 +694,7 @@
       // already the default active tab in the static markup, so this just gives
       // the back button somewhere real to land after stepping back through tabs.
       history.pushState({ bodaTab: 'available' }, '');
-      startBoardListener(); startRiderMessagesListener(); initJobAlertSetup();
+      startBoardListener(); startRiderMessagesListener(); initJobAlertSetup(); startPhoneSetup();
       registerBodaServiceWorker();
       updateBodaNotifyBannerVisibility();
       updateBodaOnlineToggleUI();
@@ -1435,6 +1436,8 @@
     // The native half (a request screen that wakes the phone and takes over the
     // display) lives in the Android project; this is just the one-time setup prompt,
     // shown only while a permission is still missing.
+    // "Get this phone ready" checklist (swift-setup.js): permissions, battery, auto-start, location all the time.
+    function startPhoneSetup() { try { if (window.SwiftSetup) setTimeout(function () { window.SwiftSetup.start('rider'); }, 1200); } catch (e) {} }
     function bodaJobAlert() {
       var ja = window.SwiftApp && window.SwiftApp.jobAlert;
       return ja && ja.available ? ja : null;
@@ -1445,6 +1448,7 @@
     function refreshFullScreenBanner() {
       var banner = document.getElementById('boda-fullscreen-banner');
       if (!banner) return;
+      if (window.SwiftApp && window.SwiftApp.appSetup && window.SwiftApp.appSetup.available) { banner.style.display = 'none'; return; }   // the new checklist covers this
       var ja = bodaJobAlert();
       if (!ja) { banner.style.display = 'none'; return; }
       ja.getStatus().then(function(st){
