@@ -349,16 +349,24 @@
       return { html: '<div class="srm-rider"><div class="srm-bike">' + BIKE_SVG + '</div></div>', size: [48, 48] };
     }
 
+    // If the turning/ride-along map ever fails on a phone, fall back (once) to the plain map that worked before.
+    var rotateOK = true;
+    function dropMap() {
+      if (map) { try { map.remove(); } catch (e) {} map = null; }
+      riderMarker = null; destMarker = null; accCircle = null; routeLine = null;
+      if (els.map) els.map.innerHTML = '';
+    }
     function ensureMap() {
       if (map || mapStarted || Date.now() < mapRetryAt) return;
       mapStarted = true;
       var forOrder = orderId;
       els.mapbox.style.display = 'block';        // the map needs a visible box to measure
       ensureMapLayer().then(function (SM) {
-        return SM.create(els.map, { center: destLatLng || (shown ? [shown.lat, shown.lng] : [0.3476, 32.5825]), zoom: 15, zoomControl: true, zoomPosition: 'topleft', pitch: 40, rotate: true });
+        return SM.create(els.map, { center: destLatLng || (shown ? [shown.lat, shown.lng] : [0.3476, 32.5825]), zoom: 15, zoomControl: true, zoomPosition: 'topleft', pitch: 40, rotate: rotateOK });
       }).then(function (M) {
         if (orderId !== forOrder || !els.map) { M.remove(); return; }   // moved on while the map was starting
         map = M;
+        try {
         // Only the customer's own touches count as "I want to look around" (not our own camera moves).
         var userTookOver = function () {
           if (!followOn) return;
@@ -378,9 +386,25 @@
         setTimeout(function () { if (map) map.invalidateSize(); }, 250);
         els.mapbox.setAttribute('data-engine', M.kind);
         render();
+        } catch (setupErr) { if (map) { try { map.remove(); } catch (e2) {} map = null; } throw setupErr; }
       }).catch(function (e) {
         console.error('[rider-map] map unavailable:', e);
+        dropMap();
         mapStarted = false;
+        if (rotateOK) {
+          // Try again once with the plain (north-up) map before giving up.
+          rotateOK = false;
+          try {
+            var note = document.createElement('div');
+            note.style.cssText = 'position:absolute;left:8px;bottom:8px;z-index:6;max-width:70%;font:600 10px/1.3 system-ui,sans-serif;color:#fff;background:rgba(0,0,0,.55);padding:3px 6px;border-radius:6px;pointer-events:none';
+            note.textContent = 'Map rotation off: ' + String((e && e.message) || e).slice(0, 90);
+            els.mapbox.appendChild(note);
+          } catch (e3) {}
+          if (els.follow) els.follow.style.display = 'none';
+          if (els.compass) els.compass.style.display = 'none';
+          setTimeout(function () { if (orderId) ensureMap(); }, 50);
+          return;
+        }
         mapRetryAt = Date.now() + 30000;
         if (els.mapbox) els.mapbox.style.display = 'none';
         // No map: the distance and "last seen" line below still work.
@@ -454,7 +478,7 @@
         var d = angleDiff(heading, targetHeading);
         if (Math.abs(d) > 0.5) { heading = (heading + d * 0.3 + 360) % 360; busy = true; }
       }
-      place();
+      try { place(); } catch (e) { console.error('[rider-map] draw failed:', e); }
       // Camera, ride-along mode: centred on the rider and turned to face the way they are heading.
       if (map && map.canRotate && followOn && shown && Date.now() > camBusyUntil) {
         try { map.follow([shown.lat, shown.lng], heading, camOffsetY()); } catch (e) {}
