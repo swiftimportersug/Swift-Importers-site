@@ -128,6 +128,10 @@
 
   <div class="card">
     <div id="lookup-section" class="lookup-box">
+      <picture>
+        <source srcset="/track-hero.webp" type="image/webp"/>
+        <img src="/track-hero.jpg" alt="Track your Swift Importers delivery live on the map" width="1376" height="768" style="display:block; width:100%; height:auto; border-radius:14px; margin-bottom:16px;" onerror="this.parentElement.style.display='none';"/>
+      </picture>
       <h2 style="text-align:center; margin-bottom:6px; font-size:1.1rem; color:var(--ink);">📦 Track Your Order</h2>
       <p style="text-align:center; color:var(--ink-dim); font-size:0.85rem; margin-bottom:18px;">Enter your tracking number below to see live progress.</p>
       <input type="text" id="track-code-input" placeholder="e.g. GDRHHX" maxlength="6" oninput="this.value=this.value.toUpperCase();"/>

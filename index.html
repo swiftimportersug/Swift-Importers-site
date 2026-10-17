@@ -2246,6 +2246,17 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="reviews-all-modal">
+  <div class="modal" style="max-width:480px; max-height:88vh; display:flex; flex-direction:column; padding:0; overflow:hidden;">
+    <div class="hto-close-bar"><span>Customer Reviews</span><button onclick="closeOverlayEl(document.getElementById('reviews-all-modal'))">X</button></div>
+    <div style="padding:16px 20px 24px; overflow-y:auto;">
+      <div id="reviews-all-title" style="font-size:0.9rem; font-weight:800; margin-bottom:10px;"></div>
+      <div id="reviews-all-summary" style="display:flex; align-items:center; gap:12px; margin-bottom:8px;"></div>
+      <div id="reviews-all-list"></div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="review-modal">
   <div class="modal" style="max-width:420px; text-align:left;">
     <button class="modal-close" onclick="closeOverlayEl(document.getElementById('review-modal'))">X</button>
@@ -6206,7 +6217,6 @@
     var modeLabels = { boda: 'Boda Rider', taxi: 'Taxi Driver', bus: 'Bus Driver' };
     var labelStyle = 'opacity:0.55;';
     var html = (icons[d.type] || '🚚') + ' <strong>' + (modeLabels[d.type] || 'Delivery') + ': ' + (d.bodaName || 'Driver') + '</strong>';
-    if (d.bodaPhone) html += ' &middot; <a href="tel:' + d.bodaPhone + '" style="color:#4ade80;">' + d.bodaPhone + '</a>';
     if (d.plateNumber) html += '<br/><span style="' + labelStyle + '">🔖 Plate Number: </span>' + d.plateNumber;
     if (d.eta) html += '<br/><span style="' + labelStyle + '">⏱️ Expected In: </span>' + d.eta;
     if (d.location) html += '<br/><span style="' + labelStyle + '">📍 Delivering to: </span>' + d.location;
@@ -6978,6 +6988,22 @@
     }
   }
 
+  var pdReviewsAll = [], pdReviewsAvg = 0, pdReviewRowHtml = null;
+  // Full review page: every review, with the whole text.
+  function openAllReviews() {
+    var modal = document.getElementById('reviews-all-modal');
+    if (!modal || !pdReviewRowHtml || !pdReviewsAll.length) return;
+    var starsHtml = '';
+    for (var i = 1; i <= 5; i++) starsHtml += i <= Math.round(pdReviewsAvg) ? '★' : '☆';
+    var nameEl = document.getElementById('pd-name');
+    document.getElementById('reviews-all-title').textContent = (nameEl && nameEl.textContent) ? nameEl.textContent : 'Customer Reviews';
+    document.getElementById('reviews-all-summary').innerHTML =
+      '<span style="font-size:1.8rem; font-weight:900;">'+pdReviewsAvg.toFixed(1)+'</span>' +
+      '<div><div style="color:var(--gold); font-size:1.2rem; letter-spacing:2px;">'+starsHtml+'</div><div style="font-size:0.75rem; color:var(--grey);">'+pdReviewsAll.length+' review'+(pdReviewsAll.length===1?'':'s')+'</div></div>';
+    document.getElementById('reviews-all-list').innerHTML = pdReviewsAll.map(function(r){ return pdReviewRowHtml(r, false); }).join('');
+    openOverlayEl(modal);
+  }
+
   async function loadAndRenderProductReviews(productId) {
     var section = document.getElementById('pd-reviews-section');
     if (!section || !window.fbDb || !window.fbFns) return;
@@ -6992,24 +7018,33 @@
       var avg = reviews.reduce(function(s,r){ return s + (r.rating||0); }, 0) / reviews.length;
       var starsHtml = '';
       for (var i = 1; i <= 5; i++) starsHtml += i <= Math.round(avg) ? '★' : '☆';
-      var listHtml = reviews.slice(0, 10).map(function(r){
+      pdReviewsAll = reviews; pdReviewsAvg = avg;
+      var PREVIEW_N = 2;
+      function reviewRow(r, clamp) {
         var rStars = '';
         for (var i = 1; i <= 5; i++) rStars += i <= r.rating ? '★' : '☆';
+        var clampCss = clamp ? ' display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;' : '';
         return '<div style="padding:10px 0; border-bottom:1px solid var(--border);">' +
           '<div style="display:flex; justify-content:space-between; align-items:center;">' +
             '<span style="font-weight:700; font-size:0.82rem;">'+escapeHtml(r.customerName||'Customer')+'</span>' +
             '<span style="color:var(--gold); font-size:0.85rem;">'+rStars+'</span>' +
           '</div>' +
-          (r.text ? '<div style="font-size:0.8rem; color:#555; margin-top:4px; line-height:1.4;">'+escapeHtml(r.text)+'</div>' : '') +
+          (r.text ? '<div style="font-size:0.8rem; color:#555; margin-top:4px; line-height:1.4; word-break:break-word; white-space:pre-wrap;'+clampCss+'">'+escapeHtml(r.text)+'</div>' : '') +
         '</div>';
-      }).join('');
+      }
+      pdReviewRowHtml = reviewRow;
+      var listHtml = reviews.slice(0, PREVIEW_N).map(function(r){ return reviewRow(r, true); }).join('');
+      var anyFolded = reviews.length > PREVIEW_N || reviews.slice(0, PREVIEW_N).some(function(r){ return (r.text||'').length > 90; });
       section.innerHTML =
+        '<div onclick="openAllReviews()" style="cursor:pointer;" role="button" tabindex="0">' +
         '<div style="font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#444;margin-bottom:10px;">⭐ Customer Reviews</div>' +
         '<div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">' +
           '<span style="font-size:1.5rem; font-weight:900;">'+avg.toFixed(1)+'</span>' +
           '<div><div style="color:var(--gold); font-size:1.1rem; letter-spacing:2px;">'+starsHtml+'</div><div style="font-size:0.72rem; color:var(--grey);">'+reviews.length+' review'+(reviews.length===1?'':'s')+'</div></div>' +
         '</div>' +
-        listHtml;
+        listHtml +
+        (anyFolded ? '<div style="margin-top:10px; font-size:0.78rem; font-weight:800; color:var(--gold-dark); text-align:center;">See all '+reviews.length+' review'+(reviews.length===1?'':'s')+' ›</div>' : '') +
+        '</div>';
       section.style.display = 'block';
     } catch(e) { console.error('[reviews] failed to load:', e); }
   }
