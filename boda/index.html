@@ -217,18 +217,33 @@
     .topbar {
       background: linear-gradient(180deg, var(--panel-raised), var(--bezel));
       border-bottom: 1px solid var(--chrome);
-      color: var(--ink); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between;
+      color: var(--ink); padding: 12px 12px; display: flex; align-items: center; justify-content: space-between; gap: 6px;
       flex-shrink: 0; z-index: 50;
     }
-    .topbar .brand { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.02rem; letter-spacing: 0.02em; }
+    .topbar .brand { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.02rem; letter-spacing: 0.02em; display: flex; align-items: center; gap: 8px; line-height: 1; }
+    .topbar .brand .brand-ico { font-size: 1.3rem; line-height: 1; display: block; }
+    .topbar .brand .brand-txt { display: block; line-height: 1; padding-top: 1px; }
     .topbar .brand .dot { color: var(--amber); }
-    .topbar .rider-name { font-size: 0.76rem; color: var(--amber); font-weight: 700; }
+    .topbar .rider-name { font-size: 0.76rem; color: var(--amber); font-weight: 700; margin-top: 5px; }
     .topbar button {
       background: var(--panel-raised); border: 1px solid var(--chrome); color: var(--ink-dim);
-      padding: 7px 13px; border-radius: 8px; font-size: 0.74rem; font-weight: 700;
+      padding: 7px 9px; border-radius: 8px; font-size: 0.72rem; font-weight: 700;
       box-shadow: 0 2px 0 rgba(0,0,0,0.4);
     }
     .topbar button:active { transform: translateY(2px); box-shadow: none; }
+    /* Online / Offline slide switch */
+    .topbar button.sw-toggle {
+      position: relative; width: 98px; height: 38px; padding: 0; border-radius: 19px; flex-shrink: 0;
+      border: 2px solid #1b1b1d; background: #2a2a2d; box-shadow: 0 0 0 2px #3a3a3e, inset 0 2px 5px rgba(0,0,0,0.6);
+      overflow: hidden; transition: background 0.2s;
+    }
+    .topbar button.sw-toggle:active { transform: none; }
+    .sw-toggle .sw-track { position: absolute; inset: 2px; border-radius: 17px; transition: background 0.25s; background: linear-gradient(180deg, #ff6a5e 0%, #c8261b 52%, #a31a12 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.45); }
+    .sw-toggle.on .sw-track { background: linear-gradient(180deg, #4ff06a 0%, #19b83a 52%, #109a2c 100%); }
+    .sw-toggle .sw-text { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; font-size: 0.66rem; font-weight: 800; letter-spacing: 0.02em; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.45); right: 8px; left: auto; }
+    .sw-toggle.on .sw-text { left: 9px; right: auto; }
+    .sw-toggle .sw-knob { position: absolute; top: 3px; left: 3px; width: 28px; height: 28px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #5a5a5f, #232326 70%); border: 2px solid #111; box-shadow: 0 2px 4px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.18); transition: transform 0.25s cubic-bezier(.4,1.3,.5,1); }
+    .sw-toggle.on .sw-knob { transform: translateX(60px); }
 
     #boda-notify-banner { background: linear-gradient(180deg, #2a2118, #1c150e) !important; border-bottom: 1px solid var(--chrome) !important; flex-shrink: 0; }
     #boda-notify-banner div { color: var(--amber-dim) !important; }
@@ -243,6 +258,13 @@
     .empty-state { text-align: center; color: var(--ink-dim); padding: 60px 20px; font-size: 0.9rem; }
 
     /* Job cards read like a dash LCD readout: dark panel, faint amber inset glow */
+    @keyframes jobFlash {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,176,32,0); }
+      25%, 75% { box-shadow: 0 0 0 4px var(--amber), 0 0 26px 6px rgba(255,176,32,0.55); }
+      50% { box-shadow: 0 0 0 4px var(--amber), 0 0 8px 1px rgba(255,176,32,0.3); }
+    }
+    .job-card.job-flash { animation: jobFlash 1.1s ease-in-out 3; position: relative; }
+    .job-card.job-flash::before { content: 'NEW REQUEST'; position: absolute; top: -9px; left: 12px; background: var(--amber); color: #1a1206; font-size: 0.6rem; font-weight: 800; letter-spacing: 0.06em; padding: 2px 8px; border-radius: 6px; }
     .job-card {
       background: var(--panel); border: 1px solid var(--chrome); border-radius: 14px;
       padding: 16px; margin-bottom: 14px;
@@ -374,13 +396,14 @@
     </div>
     <div class="topbar">
       <div>
-        <div class="brand"><span style="font-size:1.6rem; vertical-align:middle; margin-right:4px;">🏍️</span> Swift Boda</div>
+        <div class="brand"><span class="brand-ico">🏍️</span><span class="brand-txt">Swift Boda</span></div>
         <div class="rider-name" id="topbar-rider-name"></div>
       </div>
       <div style="display:flex; align-items:center; gap:8px;">
-        <button id="boda-online-toggle-btn" onclick="toggleBodaOnlineStatus()" style="display:flex; align-items:center; gap:6px;">
-          <span id="boda-online-toggle-dot" style="width:8px; height:8px; border-radius:50%; background:var(--led-green); flex-shrink:0;"></span>
-          <span id="boda-online-toggle-label">Online</span>
+        <button id="boda-online-toggle-btn" class="sw-toggle on" role="switch" aria-checked="true" aria-label="Online status" onclick="toggleBodaOnlineStatus()">
+          <span class="sw-track"></span>
+          <span class="sw-text" id="boda-online-toggle-label">Online</span>
+          <span class="sw-knob"></span>
         </button>
         <button onclick="doBodaLogout()" style="display:flex; align-items:center; gap:8px;">
           <img id="topbar-rider-avatar" style="display:none; width:22px; height:22px; border-radius:50%; object-fit:cover;"/>
@@ -720,13 +743,12 @@
     // touched this toggle keep getting notified exactly as before.
     function updateBodaOnlineToggleUI() {
       var isOnline = !currentRider || currentRider.isOnline !== false;
-      var dot = document.getElementById('boda-online-toggle-dot');
       var label = document.getElementById('boda-online-toggle-label');
       var btn = document.getElementById('boda-online-toggle-btn');
-      if (!dot || !label || !btn) return;
-      dot.style.background = isOnline ? 'var(--led-green)' : 'var(--led-red)';
+      if (!label || !btn) return;
       label.textContent = isOnline ? 'Online' : 'Offline';
-      btn.style.opacity = isOnline ? '1' : '0.75';
+      btn.classList.toggle('on', isOnline);
+      btn.setAttribute('aria-checked', isOnline ? 'true' : 'false');
     }
 
     async function toggleBodaOnlineStatus() {
@@ -894,6 +916,7 @@
       var detail = document.getElementById('boda-new-job-banner-detail');
       if (!banner) return;
       bodaNewJobBannerLatestId = job ? job.fbDocId : null;
+      bodaLastNewJobAt = Date.now();
       if (detail) detail.textContent = (job && (job.itemsSummary || job.products)) || 'Tap View to see the details';
       banner.style.display = 'flex';
       banner.classList.add('shaking');
@@ -911,10 +934,29 @@
       if (bodaNewJobBannerTimeout) { clearTimeout(bodaNewJobBannerTimeout); bodaNewJobBannerTimeout = null; }
     }
 
+    // The request the rider just tapped View on is flashed for a few seconds, so it stands out among the others.
+    var bodaHighlightId = null, bodaHighlightUntil = 0, bodaLastNewJobAt = 0;
+    function applyBodaJobHighlight(scroll) {
+      if (!bodaHighlightId || Date.now() > bodaHighlightUntil) return;
+      var cards = document.querySelectorAll('#tab-available .job-card[data-job-id]');
+      var hit = null;
+      for (var i = 0; i < cards.length; i++) if (cards[i].getAttribute('data-job-id') === bodaHighlightId) hit = cards[i];
+      if (!hit) return;
+      hit.classList.add('job-flash');
+      if (scroll) { try { hit.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { hit.scrollIntoView(); } }
+      setTimeout(function () { hit.classList.remove('job-flash'); }, Math.max(0, bodaHighlightUntil - Date.now()));
+    }
+    function highlightBodaJob(id) {
+      if (!id) return;
+      bodaHighlightId = id; bodaHighlightUntil = Date.now() + 3600;
+      setTimeout(function () { applyBodaJobHighlight(true); }, 120);
+    }
     function viewBodaNewJobFromBanner() {
+      var id = bodaNewJobBannerLatestId;
       dismissBodaNewJobBanner();
       stopBodaAlertSound();
       switchBodaTab('available');
+      highlightBodaJob(id);
     }
 
     var bodaAlertAudio = null;
@@ -1076,6 +1118,7 @@
         availEl.innerHTML = '<div class="empty-state">🎉 No jobs waiting right now.<br/>Check back soon!</div>';
       } else {
         availEl.innerHTML = available.map(renderAvailableJobCard).join('');
+        applyBodaJobHighlight(false);
       }
 
       var mineEl = document.getElementById('tab-mine');
@@ -1127,7 +1170,7 @@
       var isTaxiBus = o.delivery && (o.delivery.type === 'taxi' || o.delivery.type === 'bus');
       var locationText = [o.deliveryArea, o.exactLocation].filter(Boolean).join(' — ') || 'Location not specified';
       var mapsLink = buildMapsLink(o);
-      return '<div class="job-card">' +
+      return '<div class="job-card" data-job-id="' + o.fbDocId + '">' +
         '<div class="ref">Order #' + refCodeFor(o) + '</div>' +
         (isTaxiBus ? '<span class="mode-badge mode-taxibus">🚏 Pickup for ' + (o.delivery.type === 'bus' ? 'Bus' : 'Taxi') + ' Station</span>' : '<span class="mode-badge mode-boda">🏍️ Direct Delivery</span>') +
         '<div class="items">' + itemsSummaryFor(o) + '</div>' +
@@ -1497,7 +1540,10 @@
       var ja = bodaJobAlert();
       if (!ja || !currentRider) return;
       ja.consumePendingAction().then(function(action){
-        if (action === 'view_jobs') switchBodaTab('available');
+        if (action === 'view_jobs') {
+          switchBodaTab('available');
+          if (bodaNewJobBannerLatestId && Date.now() - bodaLastNewJobAt < 10 * 60 * 1000) highlightBodaJob(bodaNewJobBannerLatestId);
+        }
       }).catch(function(){});
     }
     function initJobAlertSetup() { refreshFullScreenBanner(); applyPendingJobAlertAction(); }

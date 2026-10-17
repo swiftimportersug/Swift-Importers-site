@@ -126,7 +126,28 @@
       var meBtn = root.querySelector('[data-a="me"]');
       var confirmed = false, closed = false, satellite = false;
       var map = null, ring = null, youDot = null;
-      var locating = false, userMoved = false;
+      var locating = false, userMoved = false, watchId = null, bestAcc = (o.accuracy > 0 ? o.accuracy : Infinity);
+
+      // Keep listening to the GPS while the map is open: the first reading is often a rough, network-based one
+      // (sometimes 200 m or more off). Whenever a MORE accurate reading arrives, the blue dot and the pin move to it,
+      // unless the customer has already started placing the pin themselves.
+      function startRefining() {
+        if (!navigator.geolocation || watchId != null) return;
+        try {
+          watchId = navigator.geolocation.watchPosition(function (pos) {
+            if (!map || closed) return;
+            var acc = Math.round(pos.coords.accuracy || 0) || 9999;
+            if (acc >= bestAcc) return;                 // not better than what we have
+            bestAcc = acc;
+            var lat = pos.coords.latitude, lng = pos.coords.longitude;
+            o.lat = lat; o.lng = lng; o.accuracy = acc; hasStart = true; start = [lat, lng];
+            showYou(lat, lng, acc);
+            if (!userMoved) { map.setView(start, Math.max(map.getZoom(), zoomFor(acc)), { animate: true, duration: 0.5 }); }
+            readout();
+          }, function () { /* keep what we have */ }, { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
+        } catch (e) {}
+      }
+      function stopRefining() { if (watchId != null) { try { navigator.geolocation.clearWatch(watchId); } catch (e) {} watchId = null; } }
 
       // The blue dot: where the phone says the customer is right now.
       function showYou(lat, lng, acc) {
@@ -165,6 +186,7 @@
         if (closed) return;
         closed = true;
         active = null;
+        stopRefining();
         document.removeEventListener('keydown', onKey, true);
         root.removeEventListener('click', onClick);
         if (map) { try { map.remove(); } catch (e) {} map = null; }
@@ -186,12 +208,13 @@
           return;
         }
         var d = metres(o.lat, o.lng, c.lat, c.lng);
+        var accTxt = (o.accuracy > 0) ? (' GPS accuracy about ' + o.accuracy + ' m' + (o.accuracy > 40 ? ' (improving…)' : '') + '.') : '';
         if (d > FAR_WARNING_M) {
           info.className = 'swpp-info warn';
           info.textContent = 'This is ' + (d < 1000 ? Math.round(d / 10) * 10 + ' m' : (d / 1000).toFixed(1) + ' km') + ' from where your phone says you are. Make sure this is where we should deliver.';
         } else {
           info.className = 'swpp-info';
-          info.textContent = d < 8 ? 'Pin is on your phone’s location.' : 'You moved the pin about ' + Math.round(d) + ' m from your phone’s location.';
+          info.textContent = (d < 8 ? 'Pin is on your phone’s location.' : 'You moved the pin about ' + Math.round(d) + ' m from your phone’s location.') + accTxt;
         }
       }
 
@@ -206,7 +229,7 @@
           var moved = hasStart ? metres(o.lat, o.lng, c.lat, c.lng) : 0;
           confirmed = true;
           close();
-          if (o.onConfirm) { try { o.onConfirm(c.lat, c.lng, { moved: moved }); } catch (err) { console.error(err); } }
+          if (o.onConfirm) { try { o.onConfirm(c.lat, c.lng, { moved: moved, accuracy: o.accuracy || 0 }); } catch (err) { console.error(err); } }
           return;
         }
         if (a === 'sat') {
@@ -255,6 +278,7 @@
         readout();
         setTimeout(function () { if (map) { map.invalidateSize(); map.setView(start, startZoom); readout(); } }, 80);
         if (!hasStart) locateMe(true);
+        startRefining();
       }).catch(function (e) {
         console.warn('[pin-picker] map unavailable:', e && e.message);
         if (!closed) { confirmed = true; close(); }   // nothing to confirm: close quietly, then let the caller carry on

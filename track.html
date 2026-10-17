@@ -23,10 +23,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
   <script src="/app-bridge.js"></script>
-  <script src="/rider-map.js?v=20261011c"></script>
+  <script src="/swift-map.js?v=7"></script>
+  <script src="/swift-call.js?v=6"></script>
+  <script src="/rider-map.js?v=20261016c"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, collection, doc, getDoc, onSnapshot, query, where, getDocs, updateDoc, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, doc, getDoc, onSnapshot, query, where, getDocs, updateDoc, addDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDqOE4NDmp3xJrTf71MzlClTZ201Uhyk0Q",
@@ -39,7 +41,7 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     window.fbDb = db;
-    window.fbFns = { collection, doc, getDoc, onSnapshot, query, where, getDocs, updateDoc, addDoc };
+    window.fbFns = { collection, doc, getDoc, onSnapshot, query, where, getDocs, updateDoc, addDoc, arrayUnion };
     window.firebaseReady = true;
     window.dispatchEvent(new Event('firebaseReady'));
   </script>
@@ -194,12 +196,12 @@
       if (!o) return 'pending';
       var localOrder = localStageOrderFor(o);
       if (o.hasShippedItems) {
-        if (o.status === 'confirmed' && localOrder.slice(1).indexOf(o.deliveryStage) > -1) return o.deliveryStage;
+        if ((o.status === 'confirmed' || o.status === 'closed') && localOrder.slice(1).indexOf(o.deliveryStage) > -1) return o.deliveryStage;
         if (o.importStage && importStageOrder.indexOf(o.importStage) > -1) return o.importStage;
         return 'ordered';
       }
       var stageKey = 'pending';
-      if (o.status === 'confirmed' && localOrder.indexOf(o.deliveryStage) > -1) stageKey = o.deliveryStage;
+      if ((o.status === 'confirmed' || o.status === 'closed') && localOrder.indexOf(o.deliveryStage) > -1) stageKey = o.deliveryStage;
       return stageKey;
     }
     function buildOrderStageBadgeHtml(o) {
@@ -209,6 +211,7 @@
       if (o.status === 'cancelled') return { style: 'background:rgba(214,59,47,0.14); color:var(--red); border:1.5px solid var(--red);', html: '❌ Cancelled' };
       if (o.status === 'pending') return { style: 'background:rgba(245,166,35,0.16); color:#f5a623; border:1.5px solid #f5a623;', html: '⏳ Order Received — Being Prepared' };
       var stageKey = orderCurrentStageKey(o);
+      if (o.status === 'closed' && stageKey === 'pending') return { style: 'background:rgba(74,222,128,0.16); color:#4ade80; border:1.5px solid #4ade80;', html: '✔ Completed' };
       var meta = orderStageMeta[stageKey];
       var labels = {
         ordered: 'Order Placed — Awaiting Shipment', shipped: 'Shipped — In Transit to Uganda',
@@ -220,7 +223,8 @@
     }
     function buildOrderStepsHtml(o) {
       if (o.delivery && o.delivery.type === 'selfpick') return null;
-      if (o.status !== 'confirmed' && o.status !== 'pending') return null;
+      if (o.status !== 'confirmed' && o.status !== 'pending' && o.status !== 'closed') return null;
+      if (o.status === 'closed' && !o.deliveryStage) return null;
       var stageOrderList = orderStageList(o);
       var stageKey = orderCurrentStageKey(o);
       var currentIndex = stageOrderList.indexOf(stageKey);
@@ -347,6 +351,12 @@
       if (!window.SwiftRiderMap) return;
       if (!riderMapCtl) riderMapCtl = window.SwiftRiderMap.create(document.getElementById('rider-map-wrap'), { arrivalBeep: true });
       riderMapCtl.sync(o);
+      try {
+        if (window.SwiftCall) {
+          window.SwiftCall.init({ workerUrl: NOTIFY_WORKER_URL, key: NOTIFY_SHARED_KEY, role: 'customer', name: o.customerName || 'Customer' });
+          window.SwiftCall.watchOne(o);
+        }
+      } catch (e) {}
     }
 
     // Add ?mapdebug=1 to the tracking address to see why the live map is (or isn't) showing.

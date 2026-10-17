@@ -192,6 +192,33 @@
     var baseLayers = (map.getStyle().layers || []).map(function (l) { return { id: l.id, type: l.type }; });
     var satOn = false;
 
+    // Road names: make the small streets' names show up once zoomed in (the default style hides many until very close),
+    // and slightly larger. In satellite view they are drawn white with a dark outline so they stay readable on photos.
+    var roadLabels = [];
+    (map.getStyle().layers || []).forEach(function (l) {
+      if (l.type === 'symbol' && (l['source-layer'] === 'transportation_name' || /highway.*name|road.*(label|name)|street.*(label|name)|path.*name/i.test(l.id))) roadLabels.push(l);
+    });
+    function boostRoadLabels() {
+      roadLabels.forEach(function (l) {
+        try {
+          map.setLayerZoomRange(l.id, Math.min(l.minzoom != null ? l.minzoom : 13, 13.5), l.maxzoom != null ? l.maxzoom : 24);
+          map.setLayoutProperty(l.id, 'text-size', ['interpolate', ['linear'], ['zoom'], 13, 10, 16, 12.5, 19, 15]);
+          map.setLayoutProperty(l.id, 'text-padding', 2);
+          map.setPaintProperty(l.id, 'text-halo-width', 1.6);
+          map.setPaintProperty(l.id, 'text-halo-color', 'rgba(255,255,255,0.95)');
+        } catch (e) {}
+      });
+    }
+    function labelsForSatellite(on) {
+      roadLabels.forEach(function (l) {
+        try {
+          map.setPaintProperty(l.id, 'text-color', on ? '#ffffff' : '#333333');
+          map.setPaintProperty(l.id, 'text-halo-color', on ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.95)');
+        } catch (e) {}
+      });
+    }
+    boostRoadLabels();
+
     function addGeoSource(id, data) { map.addSource(id, { type: 'geojson', data: data }); }
     function setData(id, data) { var s = map.getSource(id); if (s && s.setData) s.setData(data); }
 
@@ -310,6 +337,7 @@
           // Hide the street drawing (keeping road and place names on top of the photos).
           baseLayers.forEach(function (l) { if (l.type !== 'symbol') map.setLayoutProperty(l.id, 'visibility', on ? 'none' : 'visible'); });
           if (map.getLayer('swsat')) map.setLayoutProperty('swsat', 'visibility', on ? 'visible' : 'none');
+          labelsForSatellite(on);
         } catch (e) { console.warn('[swift-map] satellite switch failed:', e && e.message); }
       },
       invalidateSize: function () { try { map.resize(); } catch (e) {} },
