@@ -1817,7 +1817,18 @@
         <input type="number" id="import-quantity" min="1" value="1"/>
       </div>
       <div class="form-group">
-        <label>Photo Link (optional)</label>
+        <label>Notes (optional)</label>
+        <textarea id="import-notes" rows="3" maxlength="500" placeholder="Size, colour, model, anything we should know about this item" style="resize:vertical;"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Photo (optional)</label>
+        <input type="file" id="import-photo-file" accept="image/*" style="display:none;" onchange="onImportPhotoPicked(this)"/>
+        <button type="button" id="import-photo-btn" onclick="document.getElementById('import-photo-file').click()" style="width:100%; background:#fff; border:1.5px dashed var(--gold); color:var(--gold-dark); padding:12px; border-radius:8px; font-size:0.88rem; font-weight:700; cursor:pointer;">📷 Upload a photo from your phone</button>
+        <div id="import-photo-preview" style="display:none; align-items:center; gap:12px; margin-top:10px;">
+          <img id="import-photo-thumb" alt="Your photo" style="width:72px; height:72px; object-fit:cover; border-radius:8px; border:1px solid var(--border);"/>
+          <button type="button" onclick="clearImportPhoto()" style="background:#fdecea; border:1.5px solid #f5c6c0; color:var(--red); padding:7px 12px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer;">✕ Remove</button>
+        </div>
+        <div style="font-size:0.74rem; color:#888; margin:10px 0 6px;">…or paste a link to an image instead:</div>
         <input type="url" id="import-photo-link" placeholder="Paste an image link, if you have one"/>
       </div>
       <div class="form-group">
@@ -7383,6 +7394,8 @@
           '</div>' +
           '<div style="font-size:0.85rem; margin-bottom:6px; word-break:break-all;"><a href="' + r.itemLink + '" target="_blank" style="color:#8fc4ff; text-decoration:underline;">' + r.itemLink + '</a></div>' +
           '<div style="font-size:0.8rem; color:rgba(255,255,255,0.75);">Quantity: ' + r.quantity + '</div>' +
+          (r.notes ? '<div style="font-size:0.8rem; color:rgba(255,255,255,0.8); margin-top:6px; white-space:pre-wrap; word-break:break-word;">📝 ' + escapeHtml(r.notes) + '</div>' : '') +
+          (r.photoImageId ? '<div style="margin-top:8px;"><img data-import-img="' + escapeHtml(r.photoImageId) + '" alt="Your photo" style="display:none; width:84px; height:84px; object-fit:cover; border-radius:8px; border:1px solid rgba(255,255,255,0.25);"/></div>' : '') +
           (r.status === 'quoted' && r.quotedPrice ? (function(){
             var deposit = Math.ceil(r.quotedPrice * 0.6);
             var box = '<div style="margin-top:10px; background:#fff; border:1.5px solid #4a9eff; border-radius:8px; padding:10px 12px;">' +
@@ -7404,6 +7417,13 @@
           (r.status === 'converted' && r.convertedOrderId ? '<div style="margin-top:10px;"><button onclick="openTrackModal(\'' + r.convertedOrderId + '\')" class="btn-primary" style="padding:9px 14px; border-radius:7px; font-size:0.8rem; font-weight:700;">Track This Order</button></div>' : '') +
         '</div>';
       }).join('');
+      // Show each uploaded photo (they are stored separately and removed a few days after the request is handled).
+      Array.prototype.forEach.call(body.querySelectorAll('img[data-import-img]'), function (img) {
+        window.fbFns.getDoc(window.fbFns.doc(window.fbDb, 'import_images', img.getAttribute('data-import-img'))).then(function (s) {
+          if (s.exists() && s.data().data) { img.src = s.data().data; img.style.display = 'block'; }
+          else if (img.parentNode) img.parentNode.style.display = 'none';
+        }).catch(function () { if (img.parentNode) img.parentNode.style.display = 'none'; });
+      });
     } catch(e) {
       console.error('[import] loading requests failed:', e);
       body.innerHTML = '<div style="font-size:0.85rem;color:var(--red);text-align:center;padding:20px 0;">Could not load your requests. Please try again.</div>';
@@ -8438,9 +8458,68 @@
     document.getElementById('import-item-link').value = '';
     document.getElementById('import-quantity').value = '1';
     document.getElementById('import-photo-link').value = '';
+    document.getElementById('import-notes').value = '';
+    clearImportPhoto();
     document.getElementById('import-phone').value = (currentAccount && currentAccount.phone) || '';
     document.getElementById('import-request-msg').style.display = 'none';
     openOverlayEl(document.getElementById('import-request-modal'));
+  }
+
+  // A photo picked from the phone is shrunk on the phone first (about 1100px wide, well under 300 KB), so it
+  // uploads fast on mobile data. It is kept only until a few days after we have quoted the request.
+  var importPhotoData = '';
+  function clearImportPhoto() {
+    importPhotoData = '';
+    var f = document.getElementById('import-photo-file'); if (f) f.value = '';
+    var pv = document.getElementById('import-photo-preview'); if (pv) pv.style.display = 'none';
+    var btn = document.getElementById('import-photo-btn'); if (btn) btn.textContent = '📷 Upload a photo from your phone';
+  }
+  function shrinkImageToDataUrl(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        try {
+          var maxSide = 1100, LIMIT = 300000, out = '';
+          var scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+          for (var attempt = 0; attempt < 4; attempt++) {
+            var c = document.createElement('canvas');
+            c.width = Math.max(1, Math.round(img.naturalWidth * scale));
+            c.height = Math.max(1, Math.round(img.naturalHeight * scale));
+            var ctx = c.getContext('2d');
+            ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+            ctx.drawImage(img, 0, 0, c.width, c.height);
+            var q = 0.74;
+            out = c.toDataURL('image/jpeg', q);
+            while (out.length > LIMIT && q > 0.4) { q -= 0.08; out = c.toDataURL('image/jpeg', q); }
+            if (out.length <= LIMIT) break;
+            scale *= 0.8;
+          }
+          URL.revokeObjectURL(url);
+          if (!out || out.length > 380000) reject(new Error('too big')); else resolve(out);
+        } catch (e) { URL.revokeObjectURL(url); reject(e); }
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('not an image')); };
+      img.src = url;
+    });
+  }
+  function onImportPhotoPicked(input) {
+    var msgEl = document.getElementById('import-request-msg');
+    var file = input.files && input.files[0];
+    if (!file) return;
+    if (!/^image\//.test(file.type)) { msgEl.textContent = 'Please choose a photo (JPG or PNG).'; msgEl.style.display = 'block'; input.value = ''; return; }
+    var btn = document.getElementById('import-photo-btn');
+    btn.textContent = 'Preparing photo…';
+    shrinkImageToDataUrl(file).then(function (dataUrl) {
+      importPhotoData = dataUrl;
+      document.getElementById('import-photo-thumb').src = dataUrl;
+      document.getElementById('import-photo-preview').style.display = 'flex';
+      btn.textContent = '📷 Choose a different photo';
+      msgEl.style.display = 'none';
+    }).catch(function () {
+      clearImportPhoto();
+      msgEl.textContent = 'Could not use that photo. Try another one, or paste a link instead.';
+      msgEl.style.display = 'block';
+    });
   }
 
   function submitImportRequestForm() {
@@ -8448,6 +8527,7 @@
     var link = document.getElementById('import-item-link').value.trim();
     var qty = parseInt(document.getElementById('import-quantity').value, 10) || 1;
     var photoLink = document.getElementById('import-photo-link').value.trim();
+    var notes = (document.getElementById('import-notes').value || '').trim().slice(0, 500);
     var phone = document.getElementById('import-phone').value.trim();
     if (!link) { msgEl.textContent = 'Please paste the item link.'; msgEl.style.display = 'block'; return; }
     if (!phone) { msgEl.textContent = 'Please enter a phone number so we can reach you.'; msgEl.style.display = 'block'; return; }
@@ -8462,16 +8542,29 @@
       }).catch(function(e){ console.error('[import] failed to sync push token to account:', e); });
     }
     var { collection, addDoc } = window.fbFns;
-    addDoc(collection(window.fbDb, 'import_requests'), {
-      customerId: currentAccount.fbDocId,
-      customerName: currentAccount.name,
-      phone: phone,
-      itemLink: link,
-      photoUrl: photoLink,
-      quantity: qty,
-      status: 'pending',
-      createdAt: new Date().toISOString()
+    var sendBtn = document.querySelector('#import-request-modal .submit-btn');
+    var sendBtnText = sendBtn ? sendBtn.textContent : '';
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = importPhotoData ? 'Uploading photo…' : 'Sending…'; }
+    var photoStep = importPhotoData
+      ? addDoc(collection(window.fbDb, 'import_images'), { data: importPhotoData, customerId: currentAccount.fbDocId, createdAt: new Date().toISOString() }).then(function (r) { return r.id; })
+      : Promise.resolve('');
+    photoStep.then(function (photoImageId) {
+      var reqDoc = {
+        customerId: currentAccount.fbDocId,
+        customerName: currentAccount.name,
+        phone: phone,
+        itemLink: link,
+        photoUrl: photoLink,
+        notes: notes,
+        quantity: qty,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      };
+      if (photoImageId) reqDoc.photoImageId = photoImageId;
+      return addDoc(collection(window.fbDb, 'import_requests'), reqDoc);
     }).then(function(){
+      if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = sendBtnText; }
+      clearImportPhoto();
       closeOverlayEl(document.getElementById('import-request-modal'));
       var importNotifyBtn = document.getElementById('import-notify-btn');
       if (importNotifyBtn) importNotifyBtn.style.display = (window.SwiftApp && window.SwiftApp.isNative) ? 'none' : 'block';
@@ -8480,13 +8573,14 @@
       // orders — no Worker changes needed, just different field values.
       notifyNewOrderViaTelegram({
         customerName: currentAccount.name,
-        itemsSummary: 'Import request (x' + qty + '): ' + link,
+        itemsSummary: 'Import request (x' + qty + '): ' + link + (notes ? ' — ' + notes.slice(0, 120) : ''),
         total: '',
         refCode: null,
         source: 'Import Request'
       });
     }).catch(function(e){
       console.error('[import] submit failed:', e);
+      if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = sendBtnText; }
       msgEl.textContent = 'Something went wrong. Please check your connection and try again.';
       msgEl.style.display = 'block';
     });

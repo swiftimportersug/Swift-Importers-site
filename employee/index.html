@@ -238,8 +238,19 @@
       0%, 100% { box-shadow: 0 8px 24px rgba(214, 59, 47, 0.4), 0 0 0 0 rgba(214,59,47,0.5); }
       50% { box-shadow: 0 8px 24px rgba(214, 59, 47, 0.4), 0 0 0 8px rgba(214,59,47,0); }
     }
+    #stale-order-alert .stale-ico { font-size: 0.9rem; line-height: 1; }
+    #stale-order-alert .stale-num { font-weight: 800; }
     @media (max-width: 600px) {
-      #stale-order-alert { left: 18px; bottom: 90px; max-width: 200px; }
+      /* Phones: just a small red circle with the clock and the number, so it never covers the page. */
+      #stale-order-alert {
+        left: 12px; bottom: 84px; width: 46px; height: 46px; max-width: none; padding: 0; border-radius: 50%;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+        box-shadow: 0 4px 12px rgba(214, 59, 47, 0.45);
+      }
+      #stale-order-alert .stale-title { display: contents; }
+      #stale-order-alert .stale-txt, #stale-order-alert .stale-sub { display: none; }
+      #stale-order-alert .stale-ico { font-size: 0.8rem; }
+      #stale-order-alert .stale-num { font-size: 0.85rem; line-height: 1; }
     }
 
     /* ── SUCCESS TOAST ── */
@@ -3262,9 +3273,11 @@
     }
     const mine = stale.filter(o => o.recordedBy === currentEmployeeName).length;
     el.innerHTML = `
-      <div class="stale-title">⏰ ${stale.length} unfinished order${stale.length!==1?'s':''}</div>
-      <div class="stale-sub">${mine > 0 ? mine + ' assigned to you. ' : ''}Tap to review.</div>
+      <div class="stale-title"><span class="stale-ico">⏰</span><span class="stale-num">${stale.length}</span><span class="stale-txt"> unfinished order${stale.length!==1?'s':''}</span></div>
+      <div class="stale-sub">${mine > 0 ? mine + ' assigned to you.' : ''}</div>
     `;
+    el.setAttribute('title', stale.length + ' unfinished order' + (stale.length!==1?'s':'') + ' — tap to review');
+    el.setAttribute('aria-label', stale.length + ' unfinished orders');
     el.style.display = 'block';
   }
 
@@ -4438,6 +4451,7 @@
       importRequests.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
       renderImportRequestsList();
       updateImportRequestsBadge();
+      sweepOldImportPhotos();
     });
   }
 
@@ -4466,6 +4480,53 @@
     renderImportRequestsList();
   }
 
+  // Text typed by customers is shown to staff, so it is escaped before going into the page.
+  function escHtml(s) {
+    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+  // Uploaded import photos live in their own collection and are loaded one at a time when a card is shown.
+  const importImageCache = {};
+  function loadImportPhotos(wrap) {
+    wrap.querySelectorAll('img[data-import-img]').forEach(img => {
+      const id = img.getAttribute('data-import-img');
+      const show = (data) => {
+        if (data) { img.src = data; img.style.display = 'block'; img.onclick = () => viewImportPhoto(data); }
+        else { const n = img.nextElementSibling; if (n) n.style.display = 'block'; }
+      };
+      if (id in importImageCache) { show(importImageCache[id]); return; }
+      window.fbFns.getDoc(window.fbFns.doc(window.fbDb, 'import_images', id)).then(s => {
+        importImageCache[id] = s.exists() ? (s.data().data || '') : '';
+        show(importImageCache[id]);
+      }).catch(() => show(''));
+    });
+  }
+  function viewImportPhoto(data) {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
+    ov.onclick = () => ov.remove();
+    const im = document.createElement('img');
+    im.src = data; im.style.cssText = 'max-width:100%;max-height:100%;border-radius:8px;';
+    ov.appendChild(im); document.body.appendChild(ov);
+  }
+  // Photos are kept for 5 days after a request is quoted or rejected, then removed to save space.
+  // (The Cloudflare Worker also does this daily; this sweep covers it whenever staff have the panel open.)
+  let importSweepBusy = false;
+  async function sweepOldImportPhotos() {
+    if (importSweepBusy || !window.fbDb || !window.fbFns) return;
+    const cutoff = Date.now() - 5 * 24 * 60 * 60 * 1000;
+    const old = importRequests.filter(r => r.photoImageId && r.processedAt && new Date(r.processedAt).getTime() <= cutoff);
+    if (!old.length) return;
+    importSweepBusy = true;
+    const { doc, deleteDoc, updateDoc } = window.fbFns;
+    for (const r of old) {
+      try {
+        await deleteDoc(doc(window.fbDb, 'import_images', r.photoImageId));
+        await updateDoc(doc(window.fbDb, 'import_requests', r.fbDocId), { photoImageId: '', photoDeleted: true });
+      } catch (e) { console.warn('[import] photo cleanup skipped:', e); }
+    }
+    importSweepBusy = false;
+  }
+
   function renderImportRequestsList() {
     const wrap = document.getElementById('import-requests-list');
     if (!wrap) return;
@@ -4487,15 +4548,17 @@
         <div class="card" style="padding:16px 18px;">
           <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;">
             <div>
-              <div style="font-weight:700; font-size:0.92rem;">${r.customerName}</div>
-              <div style="font-size:0.76rem; color:#888;">${r.phone} &middot; ${when}</div>
+              <div style="font-weight:700; font-size:0.92rem;">${escHtml(r.customerName)}</div>
+              <div style="font-size:0.76rem; color:#888;">${escHtml(r.phone)} &middot; ${when}</div>
             </div>
             <span style="background:${meta.bg}; color:${meta.color}; font-size:0.72rem; font-weight:800; padding:4px 10px; border-radius:20px; white-space:nowrap;">${meta.label}</span>
           </div>
           <div style="background:var(--light); border-radius:8px; padding:10px 12px; margin-bottom:10px; font-size:0.82rem;">
-            <div style="word-break:break-all; margin-bottom:4px;"><a href="${r.itemLink}" target="_blank" style="color:var(--black); font-weight:600;">🔗 ${r.itemLink}</a></div>
-            <div style="color:#666;">Quantity: <strong>${r.quantity}</strong></div>
-            ${r.photoUrl ? `<div style="margin-top:8px;"><img src="${r.photoUrl}" style="max-width:120px; max-height:120px; border-radius:6px; object-fit:cover;" onerror="this.style.display='none';"/></div>` : ''}
+            <div style="word-break:break-all; margin-bottom:4px;"><a href="${escHtml(r.itemLink)}" target="_blank" rel="noopener" style="color:var(--black); font-weight:600;">🔗 ${escHtml(r.itemLink)}</a></div>
+            <div style="color:#666;">Quantity: <strong>${escHtml(r.quantity)}</strong></div>
+            ${r.notes ? `<div style="margin-top:8px; white-space:pre-wrap; word-break:break-word; color:#333;">📝 ${escHtml(r.notes)}</div>` : ''}
+            ${r.photoImageId ? `<div style="margin-top:8px;"><img data-import-img="${escHtml(r.photoImageId)}" alt="Customer photo" style="display:none; max-width:160px; max-height:160px; border-radius:6px; object-fit:cover; cursor:zoom-in;"/><div style="display:none; font-size:0.74rem; color:#999;">Photo no longer available</div></div>` : (r.photoDeleted ? `<div style="margin-top:8px; font-size:0.74rem; color:#999;">📷 Photo removed (older than 5 days after processing)</div>` : '')}
+            ${r.photoUrl ? `<div style="margin-top:8px;"><img src="${escHtml(r.photoUrl)}" style="max-width:120px; max-height:120px; border-radius:6px; object-fit:cover;" onerror="this.style.display='none';"/></div>` : ''}
           </div>
           ${r.status === 'quoted' || r.status === 'converted' ? `
             <div style="background:#fff; border:1.5px solid #4a9eff; border-radius:8px; padding:10px 12px; margin-bottom:10px;">
@@ -4517,6 +4580,7 @@
         </div>
       `;
     }).join('');
+    loadImportPhotos(wrap);
   }
 
   async function quoteImportRequest(reqId) {
@@ -4528,7 +4592,7 @@
     const { doc, updateDoc, getDoc } = window.fbFns;
     try {
       await updateDoc(doc(window.fbDb, 'import_requests', reqId), {
-        status: 'quoted', quotedPrice: price, quotedAt: new Date().toISOString()
+        status: 'quoted', quotedPrice: price, quotedAt: new Date().toISOString(), processedAt: new Date().toISOString()
       });
       showSuccessToast('💰 Quote sent — now reach out to the customer directly with the price.');
 
@@ -4562,7 +4626,7 @@
       if (!window.fbDb || !window.fbFns) return;
       const { doc, updateDoc } = window.fbFns;
       try {
-        await updateDoc(doc(window.fbDb, 'import_requests', reqId), { status: 'rejected' });
+        await updateDoc(doc(window.fbDb, 'import_requests', reqId), { status: 'rejected', processedAt: new Date().toISOString() });
         showSuccessToast('Marked as not available.');
       } catch(e) {
         showAppAlert('Error updating request. Check your connection.');
@@ -4721,7 +4785,7 @@
         balanceDue: Math.max(0, req.quotedPrice - amountPaid),
         refCode: refCode,
         timestamp: new Date().toISOString(),
-        notes: 'Converted from an Import Request. Item link: ' + req.itemLink + (req.photoUrl ? ' | Photo: ' + req.photoUrl : '')
+        notes: 'Converted from an Import Request. Item link: ' + req.itemLink + (req.photoUrl ? ' | Photo: ' + req.photoUrl : '') + (req.notes ? ' | Customer notes: ' + req.notes : '')
       };
       const orderRef = await addDoc(collection(window.fbDb, 'orders'), newOrder);
       await updateDoc(doc(window.fbDb, 'import_requests', reqId), {
