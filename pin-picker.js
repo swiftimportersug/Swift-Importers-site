@@ -64,7 +64,9 @@
       '.swpp-title{font-size:1.02rem;font-weight:700;}' +
       '.swpp-sub{font-size:.8rem;opacity:.75;margin-top:3px;line-height:1.35;}' +
       '.swpp-mapwrap{position:relative;flex:1;min-height:0;}' +
-      '.swpp-map{position:absolute;inset:0;background:#1b2029;}' +
+      // !important: the map libraries' own stylesheets (loaded later) set position:relative on the map box,
+      // which collapsed it to zero height, leaving only the pin over an empty dark area.
+      '.swpp .swpp-mapwrap > .swpp-map{position:absolute !important;left:0;top:0;right:0;bottom:0;width:auto !important;height:auto !important;background:#1b2029;}' +
       '.swpp-pin{position:absolute;left:calc(50% - 17px);top:calc(50% - 46px);width:34px;height:46px;z-index:1000;pointer-events:none;}' +
       '.swpp-pin svg{position:absolute;left:0;top:0;width:34px;height:46px;display:block;filter:drop-shadow(0 3px 3px rgba(0,0,0,.45));transition:transform .15s ease;}' +
       '.swpp.moving .swpp-pin svg{transform:translateY(-8px);}' +
@@ -229,6 +231,16 @@
       document.addEventListener('keydown', onKey, true);
       active = { close: close };
 
+      // Wait until the box actually has a size (the overlay may still be opening), then draw the map in it.
+      function whenSized(cb) {
+        var tries = 0;
+        (function check() {
+          if (closed) return;
+          if ((mapDiv.clientWidth > 0 && mapDiv.clientHeight > 0) || tries++ > 40) cb();
+          else requestAnimationFrame(check);
+        })();
+      }
+      whenSized(function () {
       SM.create(mapDiv, { center: start, zoom: startZoom, zoomControl: true, zoomPosition: 'bottomright', layerToggle: false }).then(function (M) {
         if (closed) { M.remove(); return; }       // closed again before the map was ready
         map = M;
@@ -237,6 +249,7 @@
         map.on('dragstart', function () { userMoved = true; });
         // Any touch on the map also means "I'm placing it myself": don't re-centre on a later, more precise reading.
         ['touchstart', 'mousedown', 'wheel'].forEach(function (ev) { mapDiv.addEventListener(ev, function () { userMoved = true; }, { passive: true }); });
+        if (window.ResizeObserver) { try { new ResizeObserver(function () { if (map) map.invalidateSize(); }).observe(mapDiv); } catch (e) {} }
         map.on('movestart', function () { root.classList.add('moving'); });
         map.on('moveend', function () { root.classList.remove('moving'); readout(); });
         readout();
@@ -246,6 +259,7 @@
         console.warn('[pin-picker] map unavailable:', e && e.message);
         if (!closed) { confirmed = true; close(); }   // nothing to confirm: close quietly, then let the caller carry on
         if (o.onUnavailable) { try { o.onUnavailable(); } catch (err) { console.error(err); } }
+      });
       });
     }).catch(function (e) {
       active = null;

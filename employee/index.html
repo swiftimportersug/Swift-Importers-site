@@ -223,6 +223,7 @@
 
     /* ── FLOATING STALE ORDER ALERT ── */
     #stale-order-alert {
+      display: block;
       position: fixed; bottom: 100px; left: 26px; z-index: 499;
       background: var(--red); color: #fff; border-radius: 14px;
       padding: 14px 18px; max-width: 260px; cursor: pointer;
@@ -3278,7 +3279,7 @@
     `;
     el.setAttribute('title', stale.length + ' unfinished order' + (stale.length!==1?'s':'') + ' — tap to review');
     el.setAttribute('aria-label', stale.length + ' unfinished orders');
-    el.style.display = 'block';
+    el.style.display = '';
   }
 
   function refreshOrders() { fbListenOrders(); }
@@ -4554,7 +4555,7 @@
             <span style="background:${meta.bg}; color:${meta.color}; font-size:0.72rem; font-weight:800; padding:4px 10px; border-radius:20px; white-space:nowrap;">${meta.label}</span>
           </div>
           <div style="background:var(--light); border-radius:8px; padding:10px 12px; margin-bottom:10px; font-size:0.82rem;">
-            <div style="word-break:break-all; margin-bottom:4px;"><a href="${escHtml(r.itemLink)}" target="_blank" rel="noopener" style="color:var(--black); font-weight:600;">🔗 ${escHtml(r.itemLink)}</a></div>
+            ${r.itemLink ? `<div style="word-break:break-all; margin-bottom:4px;"><a href="${escHtml(r.itemLink)}" target="_blank" rel="noopener" style="color:var(--black); font-weight:600;">🔗 ${escHtml(r.itemLink)}</a></div>` : ''}
             <div style="color:#666;">Quantity: <strong>${escHtml(r.quantity)}</strong></div>
             ${r.notes ? `<div style="margin-top:8px; white-space:pre-wrap; word-break:break-word; color:#333;">📝 ${escHtml(r.notes)}</div>` : ''}
             ${r.photoImageId ? `<div style="margin-top:8px;"><img data-import-img="${escHtml(r.photoImageId)}" alt="Customer photo" style="display:none; max-width:160px; max-height:160px; border-radius:6px; object-fit:cover; cursor:zoom-in;"/><div style="display:none; font-size:0.74rem; color:#999;">Photo no longer available</div></div>` : (r.photoDeleted ? `<div style="margin-top:8px; font-size:0.74rem; color:#999;">📷 Photo removed (older than 5 days after processing)</div>` : '')}
@@ -4785,7 +4786,7 @@
         balanceDue: Math.max(0, req.quotedPrice - amountPaid),
         refCode: refCode,
         timestamp: new Date().toISOString(),
-        notes: 'Converted from an Import Request. Item link: ' + req.itemLink + (req.photoUrl ? ' | Photo: ' + req.photoUrl : '') + (req.notes ? ' | Customer notes: ' + req.notes : '')
+        notes: 'Converted from an Import Request. Item link: ' + (req.itemLink || 'none (photo/notes)') + (req.photoUrl ? ' | Photo: ' + req.photoUrl : '') + (req.notes ? ' | Customer notes: ' + req.notes : '')
       };
       const orderRef = await addDoc(collection(window.fbDb, 'orders'), newOrder);
       await updateDoc(doc(window.fbDb, 'import_requests', reqId), {
@@ -8240,5 +8241,53 @@
   })();
 </script>
 
+
+<!-- DRAGGABLE UNFINISHED-ORDERS CIRCLE -->
+<script>
+  (function() {
+    var KEY = 'swiftStaleAlertPos', restoring = false, el, down = false, moved = false, sx = 0, sy = 0, sl = 0, st = 0;
+    function clamp(l, t) {
+      return { left: Math.max(6, Math.min(l, window.innerWidth - el.offsetWidth - 6)), top: Math.max(6, Math.min(t, window.innerHeight - el.offsetHeight - 6)) };
+    }
+    function place(l, t) { el.style.left = l + 'px'; el.style.top = t + 'px'; el.style.right = 'auto'; el.style.bottom = 'auto'; }
+    function restore() {
+      if (down || restoring) return;
+      restoring = true;
+      try {
+        var p = JSON.parse(localStorage.getItem(KEY) || 'null');
+        if (p && typeof p.left === 'number' && typeof p.top === 'number' && el.offsetWidth) { var c = clamp(p.left, p.top); var r = el.getBoundingClientRect(); if (Math.abs(r.left - c.left) > 1 || Math.abs(r.top - c.top) > 1) place(c.left, c.top); }
+      } catch (e) {}
+      setTimeout(function () { restoring = false; }, 0);
+    }
+    function init() {
+      el = document.getElementById('stale-order-alert');
+      if (!el) return;
+      el.style.touchAction = 'none'; el.style.userSelect = 'none'; el.style.webkitUserSelect = 'none';
+      el.addEventListener('pointerdown', function (e) {
+        down = true; moved = false;
+        var r = el.getBoundingClientRect(); sx = e.clientX; sy = e.clientY; sl = r.left; st = r.top;
+        try { el.setPointerCapture(e.pointerId); } catch (err) {}
+      });
+      el.addEventListener('pointermove', function (e) {
+        if (!down) return;
+        var dx = e.clientX - sx, dy = e.clientY - sy;
+        if (Math.abs(dx) > 6 || Math.abs(dy) > 6) moved = true;
+        if (moved) { var c = clamp(sl + dx, st + dy); place(c.left, c.top); }
+      });
+      function up() {
+        if (!down) return; down = false;
+        if (moved) { try { var r = el.getBoundingClientRect(); localStorage.setItem(KEY, JSON.stringify({ left: r.left, top: r.top })); } catch (e) {} }
+      }
+      el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+      // A drag must not count as a tap (a tap opens the open-orders page).
+      el.addEventListener('click', function (e) { if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; } }, true);
+      window.addEventListener('resize', function () { var r = el.getBoundingClientRect(); var c = clamp(r.left, r.top); if (c.left !== r.left || c.top !== r.top) place(c.left, c.top); });
+      // Put it back where it was left, once it first appears (it is hidden until there are unfinished orders).
+      new MutationObserver(restore).observe(el, { attributes: true, attributeFilter: ['style'] });
+      restore();
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+  })();
+</script>
 </body>
 </html>

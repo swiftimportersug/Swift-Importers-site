@@ -1095,7 +1095,7 @@
   <script src="/swift-setup.js?v=1"></script>
   <script>window.addEventListener("load", function () { setTimeout(function () { try { if (window.SwiftSetup) window.SwiftSetup.start("customer"); } catch (e) {} }, 2500); });</script>
   <script src="/rider-map.js?v=20261016c"></script>
-  <script src="/pin-picker.js?v=4"></script>
+  <script src="/pin-picker.js?v=5"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getFirestore, collection, doc, getDoc, updateDoc, addDoc, onSnapshot, getDocs, increment, query, where, arrayUnion, arrayRemove, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -1807,9 +1807,20 @@
   <div class="modal" style="max-width:460px;">
     <div class="hto-close-bar"><span>Import For Me</span><button onclick="closeOverlayEl(document.getElementById('import-request-modal'))">X</button></div>
     <div style="padding:20px;">
-      <p style="font-size:0.85rem; color:#666; margin-bottom:16px; line-height:1.6;">Found something on another site you'd like us to import for you? Send us the link and we'll price it including delivery to Uganda, then send you a quote.</p>
+      <p style="font-size:0.85rem; color:#666; margin-bottom:16px; line-height:1.6;">Found something on another site you'd like us to import for you? Send us a photo or a link and we'll price it including delivery to Uganda, then send you a quote.</p>
       <div class="form-group">
-        <label>Item Link *</label>
+        <label>Item Photo (optional)</label>
+        <input type="file" id="import-photo-file" accept="image/*" style="display:none;" onchange="onImportPhotoPicked(this)"/>
+        <button type="button" id="import-photo-btn" onclick="document.getElementById('import-photo-file').click()" style="width:100%; background:#fff; border:1.5px dashed var(--gold); color:var(--gold-dark); padding:12px; border-radius:8px; font-size:0.88rem; font-weight:700; cursor:pointer;">📷 Upload a photo from your phone</button>
+        <div id="import-photo-preview" style="display:none; align-items:center; gap:12px; margin-top:10px;">
+          <img id="import-photo-thumb" alt="Your photo" style="width:72px; height:72px; object-fit:cover; border-radius:8px; border:1px solid var(--border);"/>
+          <button type="button" onclick="clearImportPhoto()" style="background:#fdecea; border:1.5px solid #f5c6c0; color:var(--red); padding:7px 12px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer;">✕ Remove</button>
+        </div>
+        <div style="font-size:0.74rem; color:#888; margin:10px 0 6px;">…or paste a link to an image:</div>
+        <input type="url" id="import-photo-link" placeholder="Image link (optional)"/>
+      </div>
+      <div class="form-group">
+        <label>Item Link (optional)</label>
         <input type="url" id="import-item-link" placeholder="https://www.amazon.com/..."/>
       </div>
       <div class="form-group">
@@ -1821,18 +1832,7 @@
         <textarea id="import-notes" rows="3" maxlength="500" placeholder="Size, colour, model, anything we should know about this item" style="resize:vertical;"></textarea>
       </div>
       <div class="form-group">
-        <label>Photo (optional)</label>
-        <input type="file" id="import-photo-file" accept="image/*" style="display:none;" onchange="onImportPhotoPicked(this)"/>
-        <button type="button" id="import-photo-btn" onclick="document.getElementById('import-photo-file').click()" style="width:100%; background:#fff; border:1.5px dashed var(--gold); color:var(--gold-dark); padding:12px; border-radius:8px; font-size:0.88rem; font-weight:700; cursor:pointer;">📷 Upload a photo from your phone</button>
-        <div id="import-photo-preview" style="display:none; align-items:center; gap:12px; margin-top:10px;">
-          <img id="import-photo-thumb" alt="Your photo" style="width:72px; height:72px; object-fit:cover; border-radius:8px; border:1px solid var(--border);"/>
-          <button type="button" onclick="clearImportPhoto()" style="background:#fdecea; border:1.5px solid #f5c6c0; color:var(--red); padding:7px 12px; border-radius:7px; font-size:0.78rem; font-weight:700; cursor:pointer;">✕ Remove</button>
-        </div>
-        <div style="font-size:0.74rem; color:#888; margin:10px 0 6px;">…or paste a link to an image instead:</div>
-        <input type="url" id="import-photo-link" placeholder="Paste an image link, if you have one"/>
-      </div>
-      <div class="form-group">
-        <label>Your Phone</label>
+        <label>Your Phone *</label>
         <input type="tel" id="import-phone" placeholder="+256 7XX XXX XXX"/>
       </div>
       <div id="import-request-msg" style="display:none; color:var(--red); font-size:0.8rem; margin-bottom:10px;"></div>
@@ -7392,7 +7392,7 @@
             '<div style="font-size:0.78rem; color:rgba(255,255,255,0.55);">' + when + '</div>' +
             '<span style="background:' + meta.bg + '; color:' + meta.color + '; font-size:0.72rem; font-weight:800; padding:4px 10px; border-radius:20px; white-space:nowrap;">' + meta.label + '</span>' +
           '</div>' +
-          '<div style="font-size:0.85rem; margin-bottom:6px; word-break:break-all;"><a href="' + r.itemLink + '" target="_blank" style="color:#8fc4ff; text-decoration:underline;">' + r.itemLink + '</a></div>' +
+          (r.itemLink ? '<div style="font-size:0.85rem; margin-bottom:6px; word-break:break-all;"><a href="' + escapeHtml(r.itemLink) + '" target="_blank" rel="noopener" style="color:#8fc4ff; text-decoration:underline;">' + escapeHtml(r.itemLink) + '</a></div>' : '<div style="font-size:0.85rem; margin-bottom:6px; color:rgba(255,255,255,0.7);">Item sent as photo / notes</div>') +
           '<div style="font-size:0.8rem; color:rgba(255,255,255,0.75);">Quantity: ' + r.quantity + '</div>' +
           (r.notes ? '<div style="font-size:0.8rem; color:rgba(255,255,255,0.8); margin-top:6px; white-space:pre-wrap; word-break:break-word;">📝 ' + escapeHtml(r.notes) + '</div>' : '') +
           (r.photoImageId ? '<div style="margin-top:8px;"><img data-import-img="' + escapeHtml(r.photoImageId) + '" alt="Your photo" style="display:none; width:84px; height:84px; object-fit:cover; border-radius:8px; border:1px solid rgba(255,255,255,0.25);"/></div>' : '') +
@@ -8529,7 +8529,7 @@
     var photoLink = document.getElementById('import-photo-link').value.trim();
     var notes = (document.getElementById('import-notes').value || '').trim().slice(0, 500);
     var phone = document.getElementById('import-phone').value.trim();
-    if (!link) { msgEl.textContent = 'Please paste the item link.'; msgEl.style.display = 'block'; return; }
+    if (!link && !photoLink && !importPhotoData && !notes) { msgEl.textContent = 'Please add a photo or an item link (or describe the item in Notes).'; msgEl.style.display = 'block'; return; }
     if (!phone) { msgEl.textContent = 'Please enter a phone number so we can reach you.'; msgEl.style.display = 'block'; return; }
     if (!currentAccount || !window.fbDb || !window.fbFns) { msgEl.textContent = 'Not connected. Check your internet connection.'; msgEl.style.display = 'block'; return; }
     msgEl.style.display = 'none';
@@ -8573,7 +8573,7 @@
       // orders — no Worker changes needed, just different field values.
       notifyNewOrderViaTelegram({
         customerName: currentAccount.name,
-        itemsSummary: 'Import request (x' + qty + '): ' + link + (notes ? ' — ' + notes.slice(0, 120) : ''),
+        itemsSummary: 'Import request (x' + qty + '): ' + (link || (photoLink ? 'photo link' : importPhotoData ? 'photo uploaded' : 'see notes')) + (notes ? ' — ' + notes.slice(0, 120) : ''),
         total: '',
         refCode: null,
         source: 'Import Request'
