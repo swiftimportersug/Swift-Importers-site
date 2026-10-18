@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>Swift Importers — Employee Panel</title>
   <meta name="robots" content="noindex, nofollow"/>
   <meta property="og:type" content="website"/>
@@ -817,6 +817,19 @@
       .fin-chart { height: 110px; gap: 8px; }
       .fin-panel-hdr { flex-direction: column; align-items: stretch; }
     }
+  </style>
+
+  <style id="swift-insets">
+    /* Full-screen phones: the app is drawn behind the clock/battery bar and the gesture bar. These keep content clear of them
+       and paint those two strips in the app's own colours. (Zero on phones/PCs that don't report them.) */
+    :root { --sat: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px)); --sab: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px)); }
+    html { background: #F0EFE9; }
+    body { padding-top: var(--sat); padding-bottom: var(--sab); }
+    html::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: var(--sat); background: #FFFFFF; z-index: 5; pointer-events: none; }
+    html::after { content: ''; position: fixed; bottom: 0; left: 0; right: 0; height: var(--sab); background: #F0EFE9; z-index: 5; pointer-events: none; }
+    .modal-overlay, .login-screen { top: var(--sat) !important; bottom: var(--sab) !important; }
+    .topbar { top: var(--sat) !important; }
+    .sidebar { padding-top: var(--sat); }
   </style>
 </head>
 <body class="on-dashboard-page">

@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>Swift Importers — Boda Riders</title>
   <meta name="robots" content="noindex, nofollow"/>
   <meta property="og:type" content="website"/>
@@ -317,6 +317,19 @@
     .chat-bubble.them { align-self: flex-start; background: var(--panel-raised); color: var(--ink); border: 1px solid var(--chrome); border-bottom-left-radius: 4px; }
     .chat-time { font-size: 0.6rem; opacity: 0.6; margin-top: 3px; }
     .chat-quick { flex-shrink: 0; background: var(--panel-raised); color: var(--ink); border: 1px solid var(--chrome); padding: 7px 12px; border-radius: 16px; font-size: 0.74rem; font-weight: 700; white-space: nowrap; font-family: inherit; }
+  </style>
+
+  <style id="swift-insets">
+    /* Full-screen phones: the app is drawn behind the clock/battery bar and the gesture bar. These keep content clear of them
+       and paint those two strips in the app's own colours. (Zero on phones/PCs that don't report them.) */
+    :root { --sat: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px)); --sab: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px)); }
+    html { background: #100E0C; }
+    body { padding-top: var(--sat); padding-bottom: var(--sab); }
+    html::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: var(--sat); background: #221D19; z-index: 5; pointer-events: none; }
+    html::after { content: ''; position: fixed; bottom: 0; left: 0; right: 0; height: var(--sab); background: #100E0C; z-index: 5; pointer-events: none; }
+    .modal-overlay, .login-screen { top: var(--sat) !important; bottom: var(--sab) !important; }
+    #screen-app.active { height: calc(100vh - var(--sat) - var(--sab)); }
+    #boda-chat-modal { top: var(--sat) !important; bottom: var(--sab) !important; }
   </style>
 </head>
 <body>

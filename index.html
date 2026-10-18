@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>Swift Importers — Electronics & Retail Uganda</title>
   <meta name="google-site-verification" content="4irIN6YCE150cyqu7nOkATnRZJ3XQb4J1v6g-n-SzvY" />
   <meta name="description" content="Shop genuine electronics in Uganda with Swift Importers — smartphones, laptops, TVs, audio, and more. Fast delivery in Kampala, Mobile Money payment, and items imported directly on request."/>
@@ -1119,6 +1119,20 @@
     window.dispatchEvent(new Event('firebaseReady'));
   </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <style id="swift-insets">
+    /* Full-screen phones: the app is drawn behind the clock/battery bar and the gesture bar. These keep content clear of them
+       and paint those two strips in the app's own colours. (Zero on phones/PCs that don't report them.) */
+    :root { --sat: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px)); --sab: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px)); }
+    html { background: #0B0B0C; }
+    body { padding-top: var(--sat); padding-bottom: var(--sab); }
+    html::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: var(--sat); background: #0B0B0C; z-index: 5; pointer-events: none; }
+    html::after { content: ''; position: fixed; bottom: 0; left: 0; right: 0; height: var(--sab); background: #0B0B0C; z-index: 5; pointer-events: none; }
+    .modal-overlay, .login-screen { top: var(--sat) !important; bottom: var(--sab) !important; }
+    nav { top: var(--sat) !important; }
+    .mobile-bottom-nav { bottom: var(--sab) !important; }
+    .pd-actions { bottom: var(--sab); }
+  </style>
 </head>
 <body>
 
