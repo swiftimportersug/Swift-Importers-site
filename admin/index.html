@@ -18,6 +18,7 @@
   <!-- Firebase -->
   <script src="/app-bridge.js?v=2"></script>
   <script src="/receipt.js?v=1"></script>
+  <script src="/image-upload.js?v=1"></script>
   <script src="/swift-map.js?v=7"></script>
   <script src="/swift-call.js?v=6"></script>
   <script src="/swift-setup.js?v=1"></script>
@@ -1451,6 +1452,7 @@
             <button onclick="openQuickScanModal()" title="Scan barcode or QR code"
               style="width:38px; height:38px; flex-shrink:0; background:var(--black); color:#fff; border:none; border-radius:7px; font-size:1.1rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.2s;"
               onmouseover="this.style.background='var(--gold)'" onmouseout="this.style.background='var(--black)'">📷</button>
+            <button onclick="SwiftImages.openMigrate()" title="Copy every picture still on imgbb / Google Drive to our own image host" style="background:#fff; border:1.5px solid #25a244; color:#14532d; padding:9px 12px; border-radius:7px; font-weight:800; font-size:0.78rem; cursor:pointer;">🚚 Move Images</button>
             <button class="btn-gold" onclick="openAddModal()">+ Add Product</button>
           </div>
         </div>
@@ -2088,6 +2090,14 @@
       <!-- PRODUCT IMAGES -->
       <div class="form-group">
         <label>Product Images (up to 10)</label>
+
+        <!-- PHOTO UPLOAD (new image host) -->
+        <div style="background:linear-gradient(135deg,#0f3d1f,#14532d); border-radius:10px; padding:14px 16px; margin-bottom:12px;">
+          <div style="font-size:0.72rem; font-weight:800; color:#9be3a8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:4px;">📷 Upload Photos</div>
+          <div style="font-size:0.7rem; color:#cfe9d6; margin-bottom:10px; line-height:1.5;">Pick photos straight from your phone or computer. They're shrunk automatically and saved on our own fast image host — no links to copy. You can pick several at once.</div>
+          <button type="button" onclick="SwiftImages.pickAndUpload()" style="background:#25a244; color:#fff; border:none; padding:11px 18px; border-radius:8px; font-weight:800; font-size:0.84rem; cursor:pointer; font-family:'Inter',sans-serif;">📷 Choose Photos &amp; Upload</button>
+          <div id="img-upload-status" style="display:none; margin-top:10px; font-size:0.76rem; font-weight:700;"></div>
+        </div>
 
         <!-- CONVERTER TOOL -->
         <div style="background:#1a1a1a; border-radius:10px; padding:14px 16px; margin-bottom:12px;">

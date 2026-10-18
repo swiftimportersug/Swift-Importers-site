@@ -1149,6 +1149,24 @@
     #account-modal .modal-close, #saved-modal .modal-close, #messages-modal .modal-close { height: calc(52px + var(--sat)) !important; padding-top: var(--sat) !important; }
     .login-screen { padding-top: var(--sat); padding-bottom: var(--sab); }
   </style>
+<script>
+/* Picture reliability: if a picture fails to load (slow/dropped data), try again twice before giving up. */
+(function () {
+  var tries = new WeakMap();
+  window.addEventListener('error', function (e) {
+    var el = e.target;
+    if (!el || el.tagName !== 'IMG') return;
+    var src = el.getAttribute('src') || '';
+    if (!/^https?:/i.test(src)) return;
+    var n = tries.get(el) || 0;
+    if (n >= 2) { el.classList.add('img-failed'); return; }      // let the page's own fallback run
+    tries.set(el, n + 1);
+    e.stopImmediatePropagation(); e.preventDefault();
+    var base = src.replace(/([?&])_r=\d+&?/, '$1').replace(/[?&]$/, '');
+    setTimeout(function () { el.src = base + (base.indexOf('?') > -1 ? '&' : '?') + '_r=' + (n + 1); }, 900 * (n + 1));
+  }, true);
+})();
+</script>
 </head>
 <body>
 
@@ -2107,6 +2125,7 @@
         <div id="active-order-stage-badge" style="display:none; align-items:center; gap:8px; padding:9px 14px; border-radius:9px; margin-bottom:12px; font-size:0.88rem; font-weight:800;"></div>
         <div id="active-order-steps" style="display:none; margin-bottom:14px;"></div>
         <div id="active-order-delivery" style="background:rgba(255,255,255,0.08); border-radius:10px; padding:10px 12px; font-size:0.78rem; line-height:1.7; display:none;"></div>
+        <div id="active-order-receipt" style="display:none;"></div>
         <div id="active-order-footer"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
@@ -6241,6 +6260,13 @@
       '<div style="display:flex; margin-top:5px;">' + labelsRow + '</div>';
   }
 
+  // "Receipt #3898" button — only for orders staff have already issued a receipt for.
+  function receiptButtonHtml(o) {
+    if (!o || !o.receipt || !o.receipt.no || !o.fbDocId) return '';
+    var url = 'https://swiftimporters.com/receipt/?o=' + encodeURIComponent(o.fbDocId);
+    return '<a href="' + url + '" target="_blank" rel="noopener" style="display:flex; align-items:center; justify-content:center; gap:8px; margin-top:10px; padding:11px 14px; border-radius:10px; background:#012e7b; color:#fff; font-weight:800; font-size:0.84rem; text-decoration:none;">\uD83E\uDDFE Receipt #' + o.receipt.no + ' &mdash; View / Download</a>';
+  }
+
   function buildOrderDeliveryInfoHtml(o) {
     var d = o.delivery;
     if (!d || !d.type || d.type === 'selfpick' || !(d.bodaName || d.eta || d.plateNumber || d.location)) return null;
@@ -6284,6 +6310,8 @@
     var items = (o.cartItems || []).map(function(c){ return c.name + ' x' + c.qty; }).join(', ');
     document.getElementById('active-order-items').textContent = items || o.products || 'Your order';
     renderOrderStageTracker(o);
+    var rcEl = document.getElementById('active-order-receipt');
+    if (rcEl) { rcEl.innerHTML = receiptButtonHtml(o); rcEl.style.display = (o.receipt && o.receipt.no) ? 'block' : 'none'; }
 
     // Detect a genuine change since we last rendered this order, to trigger the same
     // notification treatment used for new messages — sound + pulsing badge on Account.
@@ -7587,6 +7615,7 @@
           '<div style="display:flex; align-items:center; gap:8px; padding:9px 14px; border-radius:9px; margin-bottom:12px; font-size:0.88rem; font-weight:800; ' + badgeData.style + '">' + badgeData.html + '</div>' +
           (stepsHtml ? '<div style="margin-bottom:14px;">' + stepsHtml + '</div>' : '') +
           (deliveryHtml ? '<div style="background:rgba(255,255,255,0.08); border-radius:10px; padding:10px 12px; font-size:0.78rem; line-height:1.7;">' + deliveryHtml + '</div>' : '') +
+            receiptButtonHtml(o) +
           buildOrderReferenceAndCancelHtml(o) +
           '<div style="font-size:0.72rem; color:rgba(255,255,255,0.5); margin-top:10px;">Ordered ' + fmtMessageTime(o.timestamp) + ' &middot; ' + fmtPrice(o.orderTotal || o.subtotal || 0) + '</div>' +
         '</div>';
@@ -7643,6 +7672,7 @@
             '<div style="display:flex; align-items:center; gap:8px; padding:9px 14px; border-radius:9px; margin-bottom:12px; font-size:0.88rem; font-weight:800; ' + badgeData.style + '">' + badgeData.html + '</div>' +
             (stepsHtml ? '<div style="margin-bottom:14px;">' + stepsHtml + '</div>' : '') +
             (deliveryHtml ? '<div style="background:rgba(255,255,255,0.08); border-radius:10px; padding:10px 12px; font-size:0.78rem; line-height:1.7;">' + deliveryHtml + '</div>' : '') +
+            receiptButtonHtml(o) +
             buildOrderReferenceAndCancelHtml(o) +
             '<div style="font-size:0.72rem; color:rgba(255,255,255,0.5); margin-top:10px;">Ordered ' + fmtMessageTime(o.timestamp) + ' &middot; ' + fmtPrice(o.orderTotal || o.subtotal || 0) + '</div>' +
           '</div>';
@@ -7665,6 +7695,7 @@
             '</div>' +
             '<div style="font-size:0.8rem; color:#555; margin-top:3px;">' + items + '</div>' +
             '<div style="font-size:0.82rem; font-weight:800; margin-top:3px;">' + fmtPrice(o.orderTotal || o.subtotal || 0) + '</div>' +
+            receiptButtonHtml(o) +
           '</div>';
         }).join('');
       }
@@ -8998,6 +9029,7 @@
           '<div style="display:flex; align-items:center; gap:8px; padding:9px 14px; border-radius:9px; margin-bottom:12px; font-size:0.88rem; font-weight:800; ' + badgeData.style + '">' + badgeData.html + '</div>' +
           (stepsHtml ? '<div style="margin-bottom:14px;">' + stepsHtml + '</div>' : '') +
           (deliveryHtml ? '<div style="background:rgba(255,255,255,0.08); border-radius:10px; padding:10px 12px; font-size:0.78rem; line-height:1.7;">' + deliveryHtml + '</div>' : '') +
+            receiptButtonHtml(o) +
           buildOrderReferenceAndCancelHtml(o) +
           '<div style="font-size:0.72rem; color:rgba(255,255,255,0.5); margin-top:10px;">Ordered ' + fmtMessageTime(o.timestamp) + ' &middot; ' + fmtPrice(o.orderTotal || o.subtotal || 0) + '</div>' +
           '<button onclick="openTrackModal(\'' + o.fbDocId + '\')" style="width:100%; margin-top:10px; background:rgba(74,158,255,0.14); border:1.5px solid rgba(74,158,255,0.4); color:#8fc4ff; padding:8px; border-radius:7px; font-size:0.76rem; font-weight:700; cursor:pointer;">🔴 View Live Updates</button>' +
