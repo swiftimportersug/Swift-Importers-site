@@ -6434,7 +6434,8 @@
         const customerName = (o.customerName || '').toLowerCase();
         const phone = (o.phone || '').toLowerCase();
         const refCode = (o.refCode || (o.fbDocId ? o.fbDocId.slice(-6) : '')).toLowerCase();
-        return itemText.includes(q) || customerName.includes(q) || phone.includes(q) || refCode.includes(q);
+        const receiptNo = String((o.receipt && o.receipt.no) || '');
+        return itemText.includes(q) || customerName.includes(q) || phone.includes(q) || refCode.includes(q) || (receiptNo && receiptNo.includes(q.replace(/^#/, '')));
       });
     }
 
@@ -6507,7 +6508,8 @@
         const bodaPhone = (o.delivery && o.delivery.bodaPhone || '').toLowerCase();
         const recordedBy = (o.recordedBy || '').toLowerCase();
         const refCode = (o.refCode || (o.fbDocId ? o.fbDocId.slice(-6) : '')).toLowerCase();
-        return itemText.includes(q) || customerName.includes(q) || phone.includes(q) || bodaName.includes(q) || bodaPhone.includes(q) || recordedBy.includes(q) || refCode.includes(q);
+        const receiptNo = String((o.receipt && o.receipt.no) || '');
+        return itemText.includes(q) || customerName.includes(q) || phone.includes(q) || bodaName.includes(q) || bodaPhone.includes(q) || recordedBy.includes(q) || refCode.includes(q) || (receiptNo && receiptNo.includes(q.replace(/^#/, '')));
       });
     }
 
