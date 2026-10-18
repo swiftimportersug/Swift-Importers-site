@@ -819,17 +819,16 @@
     }
   </style>
 
+
   <style id="swift-insets">
-    /* Full-screen phones: the app is drawn behind the clock/battery bar and the gesture bar. These keep content clear of them
-       and paint those two strips in the app's own colours. (Zero on phones/PCs that don't report them.) */
+    /* Edge-to-edge: the app draws behind the phone's clock bar and gesture bar. --sat / --sab are the heights of those two areas
+       (0 on phones and PCs that don't report them). Headers and bottom bars grow by that much so their own background fills the area;
+       content stays clear of the clock and gesture strip. */
     :root { --sat: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px)); --sab: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px)); }
-    html { background: #F0EFE9; }
-    body { padding-top: var(--sat); padding-bottom: var(--sab); }
-    html::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: var(--sat); background: #FFFFFF; z-index: 5; pointer-events: none; }
-    html::after { content: ''; position: fixed; bottom: 0; left: 0; right: 0; height: var(--sab); background: #F0EFE9; z-index: 5; pointer-events: none; }
-    .modal-overlay, .login-screen { top: var(--sat) !important; bottom: var(--sab) !important; }
-    .topbar { top: var(--sat) !important; }
-    .sidebar { padding-top: var(--sat); }
+    .topbar { padding-top: calc(10px + var(--sat)); min-height: calc(60px + var(--sat)); }
+    .sidebar { padding-top: var(--sat); padding-bottom: var(--sab); }
+    .login-screen { padding-top: var(--sat); padding-bottom: var(--sab); }
+    body { padding-bottom: var(--sab); }
   </style>
 </head>
 <body class="on-dashboard-page">

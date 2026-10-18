@@ -319,17 +319,17 @@
     .chat-quick { flex-shrink: 0; background: var(--panel-raised); color: var(--ink); border: 1px solid var(--chrome); padding: 7px 12px; border-radius: 16px; font-size: 0.74rem; font-weight: 700; white-space: nowrap; font-family: inherit; }
   </style>
 
+
   <style id="swift-insets">
-    /* Full-screen phones: the app is drawn behind the clock/battery bar and the gesture bar. These keep content clear of them
-       and paint those two strips in the app's own colours. (Zero on phones/PCs that don't report them.) */
+    /* Edge-to-edge: the app draws behind the phone's clock bar and gesture bar. --sat / --sab are the heights of those two areas
+       (0 on phones and PCs that don't report them). Headers and bottom bars grow by that much so their own background fills the area;
+       content stays clear of the clock and gesture strip. */
     :root { --sat: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px)); --sab: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px)); }
-    html { background: #100E0C; }
-    body { padding-top: var(--sat); padding-bottom: var(--sab); }
-    html::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: var(--sat); background: #221D19; z-index: 5; pointer-events: none; }
-    html::after { content: ''; position: fixed; bottom: 0; left: 0; right: 0; height: var(--sab); background: #100E0C; z-index: 5; pointer-events: none; }
-    .modal-overlay, .login-screen { top: var(--sat) !important; bottom: var(--sab) !important; }
-    #screen-app.active { height: calc(100vh - var(--sat) - var(--sab)); }
-    #boda-chat-modal { top: var(--sat) !important; bottom: var(--sab) !important; }
+    .topbar { padding-top: calc(14px + var(--sat)); }
+    .screen:not(#screen-app) { padding-top: var(--sat); padding-bottom: var(--sab); }
+    #screen-app.active { padding-bottom: var(--sab); }
+    #boda-chat-modal { padding-top: var(--sat); }
+    #boda-new-job-banner { padding-top: calc(14px + var(--sat)) !important; }
   </style>
 </head>
 <body>
@@ -402,7 +402,7 @@
       </div>
       <div id="boda-chat-thread" style="flex:1; overflow-y:auto; padding:14px 16px; display:flex; flex-direction:column; gap:8px;"></div>
       <div id="boda-chat-quick" style="display:flex; gap:6px; padding:8px 12px 0; overflow-x:auto; flex-shrink:0;"></div>
-      <div style="display:flex; gap:8px; padding:10px 12px; padding-bottom:calc(10px + env(safe-area-inset-bottom, 0px)); background:var(--panel); border-top:1px solid var(--chrome); flex-shrink:0;">
+      <div style="display:flex; gap:8px; padding:10px 12px; padding-bottom:calc(10px + var(--sab)); background:var(--panel); border-top:1px solid var(--chrome); flex-shrink:0;">
         <input type="text" id="boda-chat-input" maxlength="500" placeholder="Type a message..." onkeydown="if(event.key==='Enter'){sendBodaChat();}" style="flex:1; min-width:0; padding:12px 14px; border:1.5px solid var(--chrome); border-radius:22px; font-size:0.9rem; background:var(--bezel); color:var(--ink); font-family:inherit;"/>
         <button onclick="sendBodaChat()" style="background:linear-gradient(180deg, #ffcf6e, var(--amber)); color:#1a1206; border:none; width:46px; height:46px; border-radius:50%; font-size:1.1rem; font-weight:800; flex-shrink:0;">➤</button>
       </div>
@@ -1686,7 +1686,7 @@
         el = document.createElement('div');
         el.id = 'delivered-bubble';
         el.setAttribute('role', 'status');
-        el.style.cssText = 'position:fixed;left:50%;top:calc(env(safe-area-inset-top, 0px) + 14px);transform:translate(-50%,-30px);z-index:2147483000;' +
+        el.style.cssText = 'position:fixed;left:50%;top:calc(var(--sat) + 14px);transform:translate(-50%,-30px);z-index:2147483000;' +
           'background:linear-gradient(135deg,#22f06b,#0fd14f);color:#03280f;border-radius:20px;padding:16px 26px;text-align:center;max-width:90vw;' +
           'box-shadow:0 8px 28px rgba(15,209,79,.55),0 2px 8px rgba(0,0,0,.35);font-weight:800;font-size:1.15rem;line-height:1.3;' +
           'opacity:0;pointer-events:none;transition:opacity .25s ease,transform .25s ease;';
