@@ -8165,7 +8165,11 @@
         customerName: nameVal, phone: phoneVal, deliveryArea: areaVal,
         exactLocation: swiftExactLocationValue(),
         products: productsVal, paymentMethod: paymentVal, notes: notesVal,
-        cartItems: checkoutItems.map(function(c){ return {id:c.id, name:c.name, qty:c.qty, price:c.price, cost:c.cost||0, variantIdx:c.variantIdx, img:c.img||null}; }),
+        cartItems: checkoutItems.map(function(c){
+          var lp = c.price;
+          try { var pp = products.find(function(p){ return p.id === c.id; }); var vv = pp && pp.variants && pp.variants[c.variantIdx]; if (vv && parseInt(vv.sell) > 0) lp = Math.max(parseInt(vv.sell), c.price); } catch(e) {}
+          return {id:c.id, name:c.name, qty:c.qty, price:c.price, listPrice:lp, category:(function(){ var pp = products.find(function(p){ return p.id === c.id; }); return pp ? (pp.category||'') : ''; })(), cost:c.cost||0, variantIdx:c.variantIdx, img:c.img||null};
+        }),
         appliedPromoCode: totalsVal.usedDiscountType === 'promo' ? (checkoutAppliedPromoCode || null) : null,
         promoDiscount: totalsVal.usedDiscountType === 'promo' ? totalsVal.finalDiscount : 0,
         memberTier: currentAccount ? (currentAccount.tier || 'standard') : null,
@@ -8648,6 +8652,23 @@
     });
   }
 
+  // Green confirmation banner at the very top of the screen (3 seconds).
+  function showImportSentBanner() {
+    var old = document.getElementById('import-sent-banner');
+    if (old) old.remove();
+    var el = document.createElement('div');
+    el.id = 'import-sent-banner';
+    el.setAttribute('role', 'status');
+    el.textContent = '\u2705 Import Request Sent';
+    el.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:2147483000;background:#1f9d4a;color:#fff;text-align:center;font:800 1rem/1.2 system-ui,-apple-system,Segoe UI,sans-serif;padding:calc(var(--sat,0px) + 14px) 16px 14px;box-shadow:0 4px 18px rgba(0,0,0,.3);transform:translateY(-110%);transition:transform .28s ease;';
+    document.body.appendChild(el);
+    requestAnimationFrame(function () { requestAnimationFrame(function () { el.style.transform = 'translateY(0)'; }); });
+    setTimeout(function () {
+      el.style.transform = 'translateY(-110%)';
+      setTimeout(function () { if (el.parentNode) el.remove(); }, 400);
+    }, 3000);
+  }
+
   function submitImportRequestForm() {
     var msgEl = document.getElementById('import-request-msg');
     var link = document.getElementById('import-item-link').value.trim();
@@ -8695,6 +8716,7 @@
       var importNotifyBtn = document.getElementById('import-notify-btn');
       if (importNotifyBtn) importNotifyBtn.style.display = (window.SwiftApp && window.SwiftApp.isNative) ? 'none' : 'block';
       openOverlayEl(document.getElementById('import-success-modal'));
+      showImportSentBanner();
       // Reuses the exact same admin alert channel (Telegram + FCM) as new
       // orders — no Worker changes needed, just different field values.
       notifyNewOrderViaTelegram({

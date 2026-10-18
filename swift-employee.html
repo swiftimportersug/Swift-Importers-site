@@ -17,6 +17,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
   <!-- Firebase -->
   <script src="/app-bridge.js?v=2"></script>
+  <script src="/receipt.js?v=1"></script>
   <script src="/swift-map.js?v=7"></script>
   <script src="/swift-call.js?v=6"></script>
   <script src="/swift-setup.js?v=1"></script>
@@ -36,7 +37,7 @@
   <script src="/rider-map.js?v=20261016c"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, collection, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, deleteDoc, query, orderBy, addDoc, where, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, deleteDoc, query, orderBy, addDoc, where, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
 
@@ -71,7 +72,7 @@
     // Expose to global scope
     window.fbDb = db;
     window.fbAuth = auth;
-    window.fbFns = { collection, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, deleteDoc, query, orderBy, addDoc, where, arrayUnion };
+    window.fbFns = { collection, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, deleteDoc, query, orderBy, addDoc, where, arrayUnion, runTransaction };
     window.fbAuthFns = { signInWithEmailAndPassword, signOut, onAuthStateChanged };
     window.fbMessaging = messaging;
     window.fbMessagingFns = { getToken };
@@ -3293,6 +3294,7 @@
       orders = snapshot.docs.map(d => ({ fbDocId: d.id, ...d.data() }));
       orders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       checkForNewOrders(orders);
+      try { if (window.SwiftReceipt) SwiftReceipt.watch(orders, products); } catch (e) { console.warn('[receipt] watch', e); }
       renderOpenOrders();
       renderClosedOrders();
       updateOpenOrdersBadge();
@@ -3627,6 +3629,9 @@
           ` : (o.paymentStatus === 'paid' ? `
             <div style="width:100%; margin-top:6px; font-size:0.74rem; color:var(--green); font-weight:700; display:flex; align-items:center; gap:6px;">✅ Paid in full <span style="font-weight:800; color:var(--green); font-size:0.88rem;">${fmt(getOrderTotal(o))}</span></div>
           ` : '')}
+          ${(window.SwiftReceipt && SwiftReceipt.isEligible(o)) ? `
+            <div style="width:100%; margin-top:6px;"><button onclick="openReceipt('${o.fbDocId}')" style="background:#012e7b; color:#fff; border:none; padding:7px 12px; border-radius:8px; font-size:0.76rem; font-weight:800; cursor:pointer;">🧾 ${(o.receipt && o.receipt.no) ? 'Receipt #' + o.receipt.no : 'Generate Receipt'}</button></div>
+          ` : ''}
         </div>
         <div class="order-card-actions">${actions}</div>
       </div>`;
@@ -4475,6 +4480,19 @@
 
   function fmt(n) { return 'UGX ' + parseInt(n).toLocaleString('en-UG'); }
 
+  // ---- Receipts (see /receipt.js) ----
+  function openReceipt(docId) {
+    const o = orders.find(x => x.fbDocId === docId);
+    if (!o || !window.SwiftReceipt) return;
+    SwiftReceipt.openModal(docId, o, products);
+  }
+  if (window.SwiftReceipt) {
+    SwiftReceipt.setOnGenerated(function (snap) {
+      showSuccessToast('🧾 Receipt #' + snap.no + ' generated for ' + snap.billTo);
+      try { renderOpenOrders(); renderClosedOrders(); } catch (e) {}
+    });
+  }
+
   // ── IMPORT REQUESTS ──
   let importRequests = [];
   let unsubscribeImportRequests = null;
@@ -4861,7 +4879,7 @@
         phone: req.phone,
         accountId: req.customerId,
         products: 'Imported item (x' + req.quantity + ') — see link in notes',
-        cartItems: [{ name: 'Imported item (x' + req.quantity + ')', qty: req.quantity }],
+        cartItems: [{ name: 'Imported item', qty: req.quantity, price: Math.round(req.quotedPrice / Math.max(1, req.quantity || 1)) }],
         orderTotal: req.quotedPrice,
         subtotal: req.quotedPrice,
         hasShippedItems: true,
@@ -7316,6 +7334,7 @@
         name: item.productName + ' - ' + item.variantName,
         qty: item.qty,
         price: item.qty > 0 ? Math.round(adjustedLineTotal / item.qty) : 0,
+        listPrice: item.unitPrice,
         lineTotal: adjustedLineTotal,
         cost: item.cost
       };

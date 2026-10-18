@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Your Receipt — Swift Importers</title>
+<style>
+  :root{--navy:#012e7b;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:#eef1f6;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#222;}
+  header{background:#0b0b0b;color:#fff;padding:14px 16px;font-weight:800;letter-spacing:.04em;text-align:center;}
+  header span{color:#4a9a38;}
+  main{max-width:640px;margin:0 auto;padding:14px 12px 120px;}
+  #msg{text-align:center;padding:60px 12px;font-weight:600;color:#555;}
+  canvas{width:100%;height:auto;display:block;background:#fff;border-radius:6px;box-shadow:0 2px 14px rgba(0,0,0,.18);margin-bottom:12px;}
+  .bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #ddd;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));display:flex;gap:8px;justify-content:center;}
+  .bar button{flex:1;max-width:280px;border:0;border-radius:10px;padding:13px 8px;font-weight:800;font-size:.9rem;color:#fff;cursor:pointer;}
+  .bar .a{background:var(--navy);} .bar .b{background:#555;}
+  .bar button:disabled{opacity:.5;}
+</style>
+</head>
+<body>
+<header>SWIFT <span>IMPORTERS</span> — RECEIPT</header>
+<main><div id="msg">Loading your receipt…</div><div id="pages"></div></main>
+<div class="bar" id="bar" style="display:none">
+  <button class="a" id="dl">⬇️ Download PDF</button>
+  <button class="b" id="img">🖼️ Save as image</button>
+</div>
+<script src="/receipt.js?v=1"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  const app = initializeApp({
+    apiKey: "AIzaSyDqOE4NDmp3xJrTf71MzlClTZ201Uhyk0Q", authDomain: "swift-importers.firebaseapp.com",
+    projectId: "swift-importers", storageBucket: "swift-importers.firebasestorage.app",
+    messagingSenderId: "223766904777", appId: "1:223766904777:web:aae5780e08d0800aff7218"
+  });
+  const db = getFirestore(app);
+  const msg = document.getElementById('msg');
+  const id = new URLSearchParams(location.search).get('o');
+  (async () => {
+    try {
+      if (!id) throw new Error('This receipt link is incomplete.');
+      const s = await getDoc(doc(db, 'orders', id));
+      const o = s.exists() ? s.data() : null;
+      if (!o || !o.receipt || !o.receipt.no) throw new Error('This receipt is not available yet.');
+      const snap = o.receipt;
+      const n = SwiftReceipt.pageCount(snap), cvs = [];
+      const host = document.getElementById('pages');
+      for (let i = 0; i < n; i++) { const c = await SwiftReceipt.renderPage(snap, i, 1100); cvs.push(c); host.appendChild(c); }
+      msg.remove();
+      document.title = 'Receipt #' + snap.no + ' — Swift Importers';
+      document.getElementById('bar').style.display = 'flex';
+      document.getElementById('dl').onclick = async () => {
+        const b = await SwiftReceipt.pdfBlob(snap), u = URL.createObjectURL(b), a = document.createElement('a');
+        a.href = u; a.download = 'Swift-Importers-Receipt-' + snap.no + '.pdf'; document.body.appendChild(a); a.click();
+        setTimeout(() => { URL.revokeObjectURL(u); a.remove(); }, 4000);
+      };
+      document.getElementById('img').onclick = () => {
+        cvs.forEach((c, i) => c.toBlob(b => {
+          const u = URL.createObjectURL(b), a = document.createElement('a');
+          a.href = u; a.download = 'Swift-Importers-Receipt-' + snap.no + (n > 1 ? '-p' + (i + 1) : '') + '.png'; document.body.appendChild(a); a.click();
+          setTimeout(() => { URL.revokeObjectURL(u); a.remove(); }, 4000);
+        }));
+      };
+    } catch (e) { msg.textContent = e.message || 'Could not load this receipt.'; }
+  })();
+</script>
+</body>
+</html>
