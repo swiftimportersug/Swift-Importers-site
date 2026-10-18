@@ -2,6 +2,7 @@
 <html lang="en-GB">
 <head>
   <meta charset="UTF-8"/>
+  <meta name="swift-bars" content="light"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>Swift Importers — Admin Dashboard</title>
   <meta name="robots" content="noindex, nofollow"/>
@@ -15,7 +16,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
   <!-- Firebase -->
-  <script src="/app-bridge.js"></script>
+  <script src="/app-bridge.js?v=2"></script>
   <script src="/swift-map.js?v=7"></script>
   <script src="/swift-call.js?v=6"></script>
   <script src="/swift-setup.js?v=1"></script>
@@ -881,6 +882,30 @@
       <div style="display:flex; gap:10px;">
         <button onclick="closeManualOrderModal()" style="flex:1; background:#fff; border:1.5px solid var(--border); padding:11px; border-radius:8px; font-weight:700; cursor:pointer;">Cancel</button>
         <button onclick="submitManualOrder()" class="btn-gold" style="flex:1; padding:11px; border-radius:8px; font-weight:700;">Create Order</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUOTE AN IMPORT REQUEST -->
+  <div class="modal-overlay" id="quote-modal" onclick="if(event.target===this) closeQuoteModal();">
+    <div class="modal-box modal-box-flex" style="max-width:440px;">
+      <div class="modal-hdr">
+        <h3>💰 Quote This Import</h3>
+        <button class="modal-close-btn" onclick="closeQuoteModal()">✕</button>
+      </div>
+      <div class="modal-body" style="padding:18px 20px 6px; overflow-y:auto;">
+        <div id="quote-summary" style="background:var(--light); border-radius:12px; padding:12px 14px; margin-bottom:16px; font-size:0.82rem; line-height:1.5;"></div>
+        <label for="quote-price-input" style="display:block; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:#555; margin-bottom:6px;">Final price, including delivery to Uganda</label>
+        <div style="display:flex; align-items:center; border:2px solid var(--gold); border-radius:12px; background:#fff; overflow:hidden;">
+          <span style="padding:0 4px 0 14px; font-weight:800; font-size:0.9rem; color:#8a6a1d;">UGX</span>
+          <input id="quote-price-input" type="text" inputmode="numeric" autocomplete="off" placeholder="0" oninput="formatQuoteInput(this)" onkeydown="if(event.key==='Enter'){submitQuoteModal();}" style="flex:1; min-width:0; border:none; outline:none; padding:14px 14px 14px 8px; font-size:1.5rem; font-weight:900; font-family:'Inter',sans-serif; background:transparent; color:var(--black);"/>
+        </div>
+        <div id="quote-deposit-line" style="margin-top:10px; font-size:0.8rem; color:#555; min-height:1.2em;"></div>
+        <div id="quote-error" style="display:none; margin-top:10px; font-size:0.8rem; font-weight:700; color:var(--red);"></div>
+      </div>
+      <div class="modal-footer" style="display:flex; gap:10px; padding:14px 20px 18px;">
+        <button class="btn-cancel" onclick="closeQuoteModal()" style="flex:1;">Cancel</button>
+        <button class="btn-gold" id="quote-send-btn" onclick="submitQuoteModal()" style="flex:2;">Send Quote</button>
       </div>
     </div>
   </div>
@@ -4640,11 +4665,61 @@
     loadImportPhotos(wrap);
   }
 
-  async function quoteImportRequest(reqId) {
-    const priceStr = prompt('Enter the final price for this item, including delivery to Uganda (UGX):');
-    if (priceStr === null) return;
-    const price = parseInt(priceStr.replace(/[^0-9]/g, ''), 10);
-    if (!price || price <= 0) { showAppAlert('Please enter a valid price.'); return; }
+  // ── QUOTE MODAL (replaces the old plain text prompt) ──
+  let quoteModalReqId = null;
+  function quoteDigits(v) { return String(v || '').replace(/[^0-9]/g, ''); }
+  function openQuoteModal(reqId) {
+    const req = importRequests.find(r => r.fbDocId === reqId);
+    if (!req) return;
+    quoteModalReqId = reqId;
+    const sum = document.getElementById('quote-summary');
+    sum.innerHTML =
+      '<div style="font-weight:800; font-size:0.9rem;">' + escHtml(req.customerName) + ' <span style="font-weight:600; color:#777;">&middot; ' + escHtml(req.phone) + '</span></div>' +
+      '<div style="color:#555; margin-top:2px;">Quantity: <strong>' + escHtml(req.quantity) + '</strong></div>' +
+      (req.itemLink ? '<div style="margin-top:4px; word-break:break-all;"><a href="' + escHtml(req.itemLink) + '" target="_blank" rel="noopener" style="color:var(--black); font-weight:600;">🔗 ' + escHtml(req.itemLink) + '</a></div>' : '') +
+      (req.notes ? '<div style="margin-top:6px; white-space:pre-wrap; word-break:break-word; color:#333;">📝 ' + escHtml(req.notes) + '</div>' : '') +
+      (req.photoImageId ? '<div style="margin-top:8px;"><img data-import-img="' + escHtml(req.photoImageId) + '" alt="Customer photo" style="display:none; max-width:120px; max-height:120px; border-radius:8px; object-fit:cover; cursor:zoom-in;"/><div style="display:none; font-size:0.74rem; color:#999;">Photo no longer available</div></div>' : '');
+    loadImportPhotos(sum);
+    const inp = document.getElementById('quote-price-input');
+    inp.value = req.quotedPrice ? Number(req.quotedPrice).toLocaleString('en-UG') : '';
+    document.getElementById('quote-error').style.display = 'none';
+    document.getElementById('quote-send-btn').disabled = false;
+    document.getElementById('quote-send-btn').textContent = 'Send Quote';
+    updateQuoteDeposit();
+    document.getElementById('quote-modal').classList.add('open');
+    setTimeout(() => { try { inp.focus(); } catch (e) {} }, 120);
+  }
+  function closeQuoteModal() {
+    document.getElementById('quote-modal').classList.remove('open');
+    quoteModalReqId = null;
+  }
+  function formatQuoteInput(el) {
+    const d = quoteDigits(el.value).slice(0, 10);
+    el.value = d ? Number(d).toLocaleString('en-UG') : '';
+    document.getElementById('quote-error').style.display = 'none';
+    updateQuoteDeposit();
+  }
+  function updateQuoteDeposit() {
+    const price = parseInt(quoteDigits(document.getElementById('quote-price-input').value), 10) || 0;
+    document.getElementById('quote-deposit-line').innerHTML = price > 0
+      ? '60% deposit the customer pays first: <strong style="color:var(--black);">' + fmt(Math.ceil(price * 0.6)) + '</strong>'
+      : 'The customer will see this price and a 60% deposit amount.';
+  }
+  async function submitQuoteModal() {
+    const price = parseInt(quoteDigits(document.getElementById('quote-price-input').value), 10) || 0;
+    const err = document.getElementById('quote-error');
+    if (price <= 0) { err.textContent = 'Enter the price in UGX.'; err.style.display = 'block'; return; }
+    if (price < 1000) { err.textContent = 'That looks too small. Enter the full amount in UGX (for example 450,000).'; err.style.display = 'block'; return; }
+    const id = quoteModalReqId;
+    const btn = document.getElementById('quote-send-btn');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    closeQuoteModal();
+    await saveImportQuote(id, price);
+  }
+
+  function quoteImportRequest(reqId) { openQuoteModal(reqId); }
+
+  async function saveImportQuote(reqId, price) {
     if (!window.fbDb || !window.fbFns) return;
     const { doc, updateDoc, getDoc } = window.fbFns;
     try {

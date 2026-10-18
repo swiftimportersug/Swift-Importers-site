@@ -49,6 +49,30 @@
     }
   }
 
+  // ── 0. Colour of the phone's clock / battery / signal icons ──
+  // 'dark' = light icons (for a dark header), 'light' = dark icons (for a light header). Pages declare theirs with
+  // <meta name="swift-bars" content="dark|light"> and can change it at any time with SwiftApp.setBars('light').
+  var SystemBarsPlugin = getPlugin('SystemBars');
+  window.SwiftApp.setBars = function (kind) {
+    window.SwiftApp._bars = kind;
+    try {
+      if (SystemBarsPlugin && SystemBarsPlugin.setStyle) {
+        var r = SystemBarsPlugin.setStyle({ style: kind === 'light' ? 'LIGHT' : 'DARK' });
+        if (r && typeof r.catch === 'function') r.catch(function () {});
+      }
+    } catch (e) { /* older Capacitor without SystemBars: the theme colours set by install-fullscreen.js apply instead */ }
+  };
+  function applyBarsFromMeta() {
+    try {
+      var m = document.querySelector('meta[name="swift-bars"]');
+      var want = window.SwiftApp._bars || (m && m.getAttribute('content'));
+      if (want) window.SwiftApp.setBars(want);
+    } catch (e) {}
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyBarsFromMeta); else applyBarsFromMeta();
+  setTimeout(applyBarsFromMeta, 800);
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') applyBarsFromMeta(); });
+
   // ── 1. Hardware Back button ──
   var AppPlugin = getPlugin('App');
   window.SwiftApp.exit = function () {

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
+  <meta name="swift-bars" content="dark"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>Swift Importers — Electronics & Retail Uganda</title>
   <meta name="google-site-verification" content="4irIN6YCE150cyqu7nOkATnRZJ3XQb4J1v6g-n-SzvY" />
@@ -123,6 +124,15 @@
       background:var(--red); opacity:0.7;
       animation:navBadgePing 1.6s cubic-bezier(0,0,0.2,1) infinite;
     }
+    /* A price has come in for an Import Request: the Import Requests buttons glow and show a small "1 quote" tag until opened */
+    @keyframes iqGlow{ 0%,100%{ box-shadow:0 0 0 0 rgba(199,162,72,0.0), 0 0 0 1.5px rgba(199,162,72,0.8);} 50%{ box-shadow:0 0 0 7px rgba(199,162,72,0.28), 0 0 0 1.5px var(--gold);} }
+    @keyframes iqWiggle{ 0%,100%{transform:rotate(0)} 15%{transform:rotate(-14deg)} 30%{transform:rotate(12deg)} 45%{transform:rotate(-8deg)} 60%{transform:rotate(5deg)} 75%{transform:rotate(0)} }
+    .iq-glow{ animation:iqGlow 1.5s ease-in-out infinite; position:relative; }
+    .iq-glow .iq-ico{ display:inline-block; animation:iqWiggle 2.4s ease-in-out infinite; transform-origin:50% 20%; }
+    .iq-tag{ display:none; position:absolute; top:-8px; right:-6px; background:var(--gold); color:#1a1305; font-size:0.62rem; font-weight:900; letter-spacing:0.03em; padding:3px 8px; border-radius:20px; box-shadow:0 2px 6px rgba(0,0,0,0.35); pointer-events:none; }
+    .iq-glow .iq-tag{ display:block; }
+    .iq-dd-tag{ display:none; background:var(--gold); color:#1a1305; font-size:0.6rem; font-weight:900; padding:2px 7px; border-radius:20px; animation:iqGlow 1.5s ease-in-out infinite; }
+    .iq-glow .iq-dd-tag{ display:inline-block; }
     @keyframes navBadgePing{
       0%{ transform:scale(1); opacity:0.7; }
       75%, 100%{ transform:scale(2.4); opacity:0; }
@@ -1089,7 +1099,7 @@
     }
   </style>
   <!-- Firebase -->
-  <script src="/app-bridge.js"></script>
+  <script src="/app-bridge.js?v=2"></script>
   <script src="/swift-map.js?v=7"></script>
   <script src="/swift-call.js?v=6"></script>
   <script src="/swift-setup.js?v=1"></script>
@@ -1183,7 +1193,7 @@
         <button onclick="closeAccountDropdown();openAccountEntry();">👤 <span style="flex:1;">Profile</span><span id="nav-dropdown-profile-badge" class="nav-dropdown-badge" style="display:none;">!</span></button>
         <button onclick="closeAccountDropdown();openMyOrdersModal();">🧾 <span style="flex:1;">My Orders</span><span id="nav-dropdown-orders-badge" class="nav-dropdown-badge" style="display:none;background:#2a9d50;"></span></button>
         <button onclick="closeAccountDropdown();openActiveOrdersModal();">⚡ <span style="flex:1;">Active Orders</span><span id="nav-dropdown-active-badge" class="nav-dropdown-badge" style="display:none;background:#2a9d50;"></span></button>
-        <button onclick="closeAccountDropdown();openMyImportRequestsModal();">📦 <span style="flex:1;">My Import Requests</span></button>
+        <button class="iq-btn" onclick="closeAccountDropdown();openMyImportRequestsModal();"><span class="iq-ico">📦</span> <span style="flex:1;">My Import Requests</span><span class="iq-dd-tag" id="iq-dd-tag">Quoted!</span></button>
         <button onclick="closeAccountDropdown();openSavedPage();">🔖 <span>Saved</span></button>
         <button onclick="closeAccountDropdown();openMessagesPage();">💬 <span style="flex:1;">Messages</span><span id="nav-dropdown-messages-badge" class="nav-dropdown-badge" style="display:none;"></span></button>
       </div>
@@ -2128,8 +2138,9 @@
           <div style="font-size:1.1rem;margin-bottom:2px;">⚡</div>
           <div style="font-size:0.78rem;font-weight:800;">Active Orders</div>
         </button>
-        <button onclick="openMyImportRequestsModal()" style="background:var(--black);color:#fff;border:none;border-radius:10px;padding:13px 10px;text-align:center;cursor:pointer;font-family:'Inter',sans-serif;">
-          <div style="font-size:1.1rem;margin-bottom:2px;">📦</div>
+        <button class="iq-btn" onclick="openMyImportRequestsModal()" style="background:var(--black);color:#fff;border:none;border-radius:10px;padding:13px 10px;text-align:center;cursor:pointer;font-family:'Inter',sans-serif;position:relative;">
+          <span class="iq-tag" id="iq-tag">💰 Quoted!</span>
+          <div class="iq-ico" style="font-size:1.1rem;margin-bottom:2px;">📦</div>
           <div style="font-size:0.78rem;font-weight:800;">Import Requests</div>
         </button>
       </div>
@@ -6306,8 +6317,63 @@
     if (footerEl) footerEl.innerHTML = buildOrderReferenceAndCancelHtml(o);
   }
 
+  // ── IMPORT QUOTES ──
+  // When we put a price on one of the customer's Import Requests it arrives live: the message tone plays, a toast shows, and the
+  // Import Requests buttons glow with a "Quoted!" tag until the customer opens the list.
+  var unsubscribeImportQuotes = null, importQuotesFirstSeen = false, importQuotedNow = [];
+  function seenQuotesKey() { return 'swiftSeenQuotes_' + (currentAccount && currentAccount.fbDocId); }
+  function readSeenQuotes() { try { return JSON.parse(localStorage.getItem(seenQuotesKey()) || '[]'); } catch (e) { return []; } }
+  function writeSeenQuotes(a) { try { localStorage.setItem(seenQuotesKey(), JSON.stringify(a.slice(-200))); } catch (e) {} }
+  function refreshImportQuoteIndicators() {
+    var seen = readSeenQuotes();
+    var unseen = importQuotedNow.filter(function (id) { return seen.indexOf(id) === -1; });
+    hasUnseenImportQuote = unseen.length > 0;
+    Array.prototype.forEach.call(document.querySelectorAll('.iq-btn'), function (b) { b.classList.toggle('iq-glow', hasUnseenImportQuote); });
+    var t = document.getElementById('iq-tag'), d = document.getElementById('iq-dd-tag');
+    var label = unseen.length > 1 ? ('💰 ' + unseen.length + ' quotes!') : '💰 Quoted!';
+    if (t) t.textContent = label;
+    if (d) d.textContent = unseen.length > 1 ? (unseen.length + ' quotes!') : 'Quoted!';
+    updateReviewNotificationBadges();
+  }
+  function markImportQuotesSeen() {
+    var seen = readSeenQuotes();
+    importQuotedNow.forEach(function (id) { if (seen.indexOf(id) === -1) seen.push(id); });
+    writeSeenQuotes(seen);
+    refreshImportQuoteIndicators();
+  }
+  function startImportQuotesListener() {
+    if (!currentAccount || !window.fbDb || !window.fbFns || !window.fbFns.query || !window.fbFns.where) return;
+    if (unsubscribeImportQuotes) { unsubscribeImportQuotes(); unsubscribeImportQuotes = null; }
+    importQuotesFirstSeen = false;
+    var f = window.fbFns;
+    var q = f.query(f.collection(window.fbDb, 'import_requests'), f.where('customerId', '==', currentAccount.fbDocId));
+    unsubscribeImportQuotes = f.onSnapshot(q, function (snap) {
+      var before = importQuotedNow.slice();
+      importQuotedNow = snap.docs.filter(function (d) { return d.data().status === 'quoted'; }).map(function (d) { return d.id; });
+      var seen = readSeenQuotes();
+      var fresh = importQuotedNow.filter(function (id) { return before.indexOf(id) === -1 && seen.indexOf(id) === -1; });
+      if (importQuotesFirstSeen && fresh.length) {
+        playMessageAlertSound();
+        var d0 = snap.docs.filter(function (d) { return d.id === fresh[0]; })[0];
+        var price = d0 && d0.data().quotedPrice;
+        showToastMessage('💰 Your import request has been quoted' + (price ? ': ' + fmtPrice(price) : '') + '. Tap Import Requests to see it.', '#C7A248');
+        if (document.visibilityState !== 'visible') showBrowserNotification({ text: 'Your import request has been quoted.' }, 'Import quote — Swift Importers', function () { openMyImportRequestsModal(); });
+      }
+      importQuotesFirstSeen = true;
+      refreshImportQuoteIndicators();
+      var m = document.getElementById('my-import-requests-modal');
+      if (m && m.classList.contains('open')) { markImportQuotesSeen(); renderMyImportRequestsModalContent(); }
+    }, function (e) { console.warn('[import] quote listener failed:', e && e.message); });
+  }
+  function stopImportQuotesListener() {
+    if (unsubscribeImportQuotes) { unsubscribeImportQuotes(); unsubscribeImportQuotes = null; }
+    importQuotedNow = []; importQuotesFirstSeen = false; hasUnseenImportQuote = false;
+    refreshImportQuoteIndicators();
+  }
+
   function startMessagesListener() {
     if (!currentAccount || !window.fbDb || !window.fbFns || !window.fbFns.query || !window.fbFns.where) return;
+    startImportQuotesListener();
     startCustomerRiderMsgsListener();
     syncPushTokenToAccount();
     if (unsubscribeMessages) { unsubscribeMessages(); unsubscribeMessages = null; }
@@ -6337,6 +6403,7 @@
   }
 
   function stopMessagesListener() {
+    stopImportQuotesListener();
     if (unsubscribeMessages) { unsubscribeMessages(); unsubscribeMessages = null; }
     stopCustomerRiderMsgsListener();
     customerMessages = [];
@@ -6367,12 +6434,13 @@
   // customer notices something's waiting for them (an unread message or a pending
   // review) without needing to open the dropdown first.
   var hasUnseenOrderUpdate = false;
+  var hasUnseenImportQuote = false;
 
   function updateMainAccountBadge() {
     var unreadMessages = customerMessages.filter(function(m){ return m.sender === 'admin' && !m.read; }).length > 0 || riderUnreadTotal() > 0;
     var hasPendingReview = !!pendingReviewTarget;
     var mainBadge = document.getElementById('nav-account-main-badge');
-    if (mainBadge) mainBadge.style.display = (unreadMessages || hasPendingReview || hasUnseenOrderUpdate) ? 'block' : 'none';
+    if (mainBadge) mainBadge.style.display = (unreadMessages || hasPendingReview || hasUnseenOrderUpdate || hasUnseenImportQuote) ? 'block' : 'none';
   }
 
   function toggleAccountDropdown(evt) {
@@ -6914,7 +6982,7 @@
 
   function updateReviewNotificationBadges() {
     var hasPending = !!pendingReviewTarget;
-    var showBadge = hasPending || hasUnseenOrderUpdate;
+    var showBadge = hasPending || hasUnseenOrderUpdate || hasUnseenImportQuote;
     ['mbn-profile-badge','nav-dropdown-profile-badge'].forEach(function(id){
       var el = document.getElementById(id);
       if (el) el.style.display = showBadge ? 'flex' : 'none';
@@ -7418,6 +7486,7 @@
     body.innerHTML = '<div style="font-size:0.85rem;color:var(--grey);text-align:center;padding:20px 0;">Loading...</div>';
     openOverlayEl(document.getElementById('my-import-requests-modal'));
     renderMyImportRequestsModalContent();
+    markImportQuotesSeen();
   }
 
   async function renderMyImportRequestsModalContent() {
@@ -9170,6 +9239,22 @@
 
   // Re-apply when modal opens
   var _origOpenModal = window.openPdModal;
+</script>
+
+<script>
+  // The phone's clock/battery icons turn dark while one of the white full-screen sheets (Account, Saved, Messages) is open, and back to light on the dark storefront.
+  (function () {
+    var ids = ['account-modal', 'saved-modal', 'messages-modal'];
+    function sync() {
+      if (!window.SwiftApp || !window.SwiftApp.setBars) return;
+      var white = ids.some(function (id) { var e = document.getElementById(id); return e && e.classList.contains('open'); });
+      window.SwiftApp.setBars(white ? 'light' : 'dark');
+    }
+    function watch() {
+      ids.forEach(function (id) { var e = document.getElementById(id); if (e) new MutationObserver(sync).observe(e, { attributes: true, attributeFilter: ['class'] }); });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch); else watch();
+  })();
 </script>
 </body>
 </html>
