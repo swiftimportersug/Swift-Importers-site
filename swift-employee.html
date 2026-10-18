@@ -4060,12 +4060,21 @@
     if (!docId || !window.fbDb || !window.fbFns) return;
     try {
       const { doc, updateDoc } = window.fbFns;
-      await updateDoc(doc(window.fbDb, 'orders', docId), { postedToBodaBoard: true });
+      const o = orders.find(x => x.fbDocId === docId);
+      const locationText = o ? [o.deliveryArea, o.exactLocation].filter(Boolean).join(' — ') : '';
+      const alertInfo = o ? {
+        refCode: o.refCode || (o.fbDocId ? o.fbDocId.slice(-6).toUpperCase() : ''),
+        itemsSummary: buildOrderItemsDisplay(o),
+        location: locationText
+      } : null;
+      // postedAt starts the 5-minute clock: if no rider claims the job in that time the server
+      // takes it down and reposts it with a fresh alert (see order-alert-worker.js).
+      const upd = { postedToBodaBoard: true, postedAt: new Date().toISOString() };
+      if (alertInfo) upd.bodaAlert = alertInfo;
+      await updateDoc(doc(window.fbDb, 'orders', docId), upd);
       showSuccessToast('📢 Posted to the boda claim board.');
 
-      const o = orders.find(x => x.fbDocId === docId);
       if (o) {
-        const locationText = [o.deliveryArea, o.exactLocation].filter(Boolean).join(' — ');
         fetch(CUSTOMER_NOTIFY_WORKER_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Notify-Key': CUSTOMER_NOTIFY_SHARED_KEY },

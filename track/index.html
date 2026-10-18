@@ -98,6 +98,39 @@
     .status-msg { font-size: 0.85rem; color: var(--led-red); margin-top: 12px; display: none; text-align: center; }
     .loading { text-align: center; color: var(--ink-dim); padding: 30px 0; display: none; }
 
+
+    /* ── Cover photo: the delivery picture sits behind the whole page, faded into the dark dashboard
+       colour so it reads as part of the design rather than a pasted-in image. ── */
+    body { position: relative; overflow-x: hidden; }
+    body::before {
+      content: ''; position: fixed; inset: -4%; z-index: -2;
+      background: url('/track-hero.jpg') center 18% / cover no-repeat;
+      background: image-set(url('/track-hero.webp') type('image/webp'), url('/track-hero.jpg') type('image/jpeg')) center 18% / cover no-repeat;
+      opacity: .5; filter: saturate(1.1) contrast(1.05);
+      animation: coverDrift 28s ease-in-out infinite alternate;
+    }
+    body::after {
+      content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(ellipse at 50% 22%, rgba(240,169,59,.16) 0%, rgba(240,169,59,0) 55%),
+        linear-gradient(180deg, rgba(16,14,12,.35) 0%, rgba(16,14,12,.72) 48%, #100E0C 92%);
+    }
+    @keyframes coverDrift { from { transform: scale(1) translate3d(0,0,0); } to { transform: scale(1.07) translate3d(-1.2%, -1%, 0); } }
+    @media (prefers-reduced-motion: reduce) { body::before { animation: none; } }
+    .card { background: rgba(28,24,21,.72); -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2); border-color: rgba(247,241,230,.14); }
+    .brand-badge { background: rgba(16,14,12,.35); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+    .hero-live { display: inline-flex; align-items: center; gap: 7px; margin: 0 auto 12px; padding: 5px 12px; border-radius: 20px; font-size: .64rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--amber); background: rgba(16,14,12,.55); border: 1px solid rgba(240,169,59,.35); }
+    .hero-live i { width: 7px; height: 7px; border-radius: 50%; background: var(--led-green); box-shadow: 0 0 0 0 rgba(61,220,132,.7); animation: liveDot 1.8s ease-out infinite; }
+    @keyframes liveDot { 0% { box-shadow: 0 0 0 0 rgba(61,220,132,.7); } 100% { box-shadow: 0 0 0 9px rgba(61,220,132,0); } }
+    .hero-title { font-size: 1.7rem; line-height: 1.1; text-align: center; margin-bottom: 8px; color: var(--ink); text-shadow: 0 2px 18px rgba(0,0,0,.6); }
+    .hero-title span { color: var(--amber); }
+    .hero-sub { text-align: center; color: #d9d0c1; font-size: .88rem; line-height: 1.5; margin: 0 auto 22px; max-width: 300px; text-shadow: 0 1px 10px rgba(0,0,0,.7); }
+    .hero-route { display: block; width: 100%; height: 34px; margin: 0 0 14px; overflow: visible; }
+    .hero-route path { fill: none; stroke: var(--amber); stroke-width: 2; stroke-linecap: round; stroke-dasharray: 2 7; opacity: .85; animation: routeFlow 2.4s linear infinite; }
+    @keyframes routeFlow { to { stroke-dashoffset: -18; } }
+    .hero-wrap { text-align: center; padding-top: 6px; }
+    .lookup-box input { background: rgba(16,14,12,.72); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+
     #order-result { display: none; }
     .order-badge { text-align: center; font-weight: 800; font-size: 0.9rem; padding: 10px 14px; border-radius: 10px; margin-bottom: 16px; }
     .steps-wrap { background: var(--bezel); border: 1px solid var(--chrome); border-radius: 12px; padding: 18px 16px; margin-bottom: 16px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.4); }
@@ -128,12 +161,12 @@
 
   <div class="card">
     <div id="lookup-section" class="lookup-box">
-      <picture>
-        <source srcset="/track-hero.webp" type="image/webp"/>
-        <img src="/track-hero.jpg" alt="Track your Swift Importers delivery live on the map" width="1376" height="768" style="display:block; width:100%; height:auto; border-radius:14px; margin-bottom:16px;" onerror="this.parentElement.style.display='none';"/>
-      </picture>
-      <h2 style="text-align:center; margin-bottom:6px; font-size:1.1rem; color:var(--ink);">📦 Track Your Order</h2>
-      <p style="text-align:center; color:var(--ink-dim); font-size:0.85rem; margin-bottom:18px;">Enter your tracking number below to see live progress.</p>
+      <div class="hero-wrap">
+        <div class="hero-live"><i></i> Live tracking</div>
+        <h2 class="hero-title">📦 Track Your <span>Order</span></h2>
+        <p class="hero-sub">Enter your tracking number below to see live progress.</p>
+        <svg class="hero-route" viewBox="0 0 300 34" preserveAspectRatio="none" aria-hidden="true"><path d="M6 26 C 60 2, 110 34, 160 16 S 250 4, 294 14"/><circle cx="6" cy="26" r="4" fill="#F0A93B"/><circle cx="294" cy="14" r="4" fill="#3ddc84"/></svg>
+      </div>
       <input type="text" id="track-code-input" placeholder="e.g. GDRHHX" maxlength="6" oninput="this.value=this.value.toUpperCase();"/>
       <button onclick="lookupOrder()">Track Order</button>
       <div class="status-msg" id="status-msg"></div>
