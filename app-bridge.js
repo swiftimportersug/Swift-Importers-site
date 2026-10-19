@@ -365,4 +365,20 @@
       return false;
     });
   };
+
+  // Saves a file straight into the phone's Downloads folder (needs the FileSave piece from install-file-save.js).
+  // Resolves { uri, name } or false when unavailable, so the caller can fall back to the share sheet.
+  window.SwiftApp.saveToDownloads = function (blob, filename, mime) {
+    var FSV = pluginIf('FileSave');
+    if (!FSV) return Promise.resolve(false);
+    return blobToBase64(blob).then(function (b64) {
+      return FSV.saveToDownloads({ data: b64, filename: filename, mime: mime || blob.type || 'application/octet-stream' });
+    }).then(function (r) { return r && r.uri ? { uri: r.uri, name: r.name || filename, mime: mime || blob.type } : false; },
+      function (e) { console.error('[app-bridge] saveToDownloads failed:', e); return false; });
+  };
+  window.SwiftApp.openDownloaded = function (uri, mime) {
+    var FSV = pluginIf('FileSave');
+    if (!FSV) return Promise.resolve(false);
+    return FSV.openFile({ uri: uri, mime: mime || '' }).then(function () { return true; }, function () { return false; });
+  };
 })();

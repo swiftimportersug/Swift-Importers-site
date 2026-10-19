@@ -534,8 +534,32 @@
     return Promise.resolve();
   }
 
+  // A small bar at the bottom: "Saved to Downloads — Open"
+  function savedBar(saved) {
+    var old = document.getElementById('sr-saved'); if (old) old.remove();
+    var d = document.createElement('div');
+    d.id = 'sr-saved';
+    d.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:100003;background:#1f2937;color:#fff;border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:10px;font:600 .85rem system-ui,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.4);';
+    d.innerHTML = '<span style="flex:1;line-height:1.35;">✅ Saved to your Downloads folder<br><span style="font-weight:500;opacity:.8;font-size:.74rem;word-break:break-all;">' + esc(saved.name) + '</span></span>' +
+      '<button id="sr-saved-open" style="border:0;border-radius:8px;padding:9px 14px;background:#25a244;color:#fff;font-weight:800;">Open</button>' +
+      '<button id="sr-saved-x" style="border:0;background:none;color:#fff;font-size:1.1rem;padding:4px 6px;">✕</button>';
+    document.body.appendChild(d);
+    var close = function () { d.remove(); };
+    d.querySelector('#sr-saved-x').onclick = close;
+    d.querySelector('#sr-saved-open').onclick = function () { window.SwiftApp.openDownloaded(saved.uri, saved.mime).then(function (ok) { if (!ok) toast('No app found to open PDFs — find it in Files → Downloads'); }); };
+    setTimeout(close, 9000);
+  }
+
   function download(snap, docId) {
     return buildPdf(snap).then(function (blob) {
+      var A = window.SwiftApp;
+      // inside our app: a real download into the Downloads folder (share sheet only if that isn't available)
+      if (A && A.saveToDownloads) {
+        return A.saveToDownloads(blob, fileName(snap), 'application/pdf').then(function (saved) {
+          if (saved) { savedBar(saved); return; }
+          return saveFiles([{ blob: blob, filename: fileName(snap) }], 'Receipt #' + snap.no, docId);
+        });
+      }
       return saveFiles([{ blob: blob, filename: fileName(snap) }], 'Receipt #' + snap.no, docId);
     });
   }
