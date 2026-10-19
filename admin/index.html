@@ -17,7 +17,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
   <!-- Firebase -->
   <script src="/app-bridge.js?v=3"></script>
-  <script src="/receipt.js?v=2"></script>
+  <script src="/receipt.js?v=3"></script>
   <script src="/image-upload.js?v=2"></script>
   <script src="/swift-map.js?v=7"></script>
   <script src="/swift-call.js?v=6"></script>
@@ -1105,8 +1105,18 @@
             <input type="text" id="dlv-location" placeholder="e.g. Opposite Shoprite, Ntinda"/>
           </div>
           <div id="dlv-customer-notes" style="display:none; background:#fff8e6; border:1.5px solid var(--gold); border-radius:8px; padding:9px 11px; margin:-10px 0 16px; font-size:0.78rem; color:#6b5410; line-height:1.5;"></div>
+          <div id="dlv-leg1-wrap" style="display:none; background:#f4f7ff; border:1.5px dashed #9db3e6; border-radius:8px; padding:10px 12px; margin-bottom:14px;">
+            <label style="display:flex; gap:8px; align-items:flex-start; font-weight:700; font-size:0.8rem; cursor:pointer; margin:0; line-height:1.4;">
+              <input type="checkbox" id="dlv-leg1-on" onchange="onDeliveryTypeChange()" style="width:auto; margin:2px 0 0;"/>
+              <span>🏍️ A boda takes it to the taxi/bus first<br/><span style="font-weight:500; color:#666; font-size:0.72rem;">Shows 2 transport entries on the receipt</span></span>
+            </label>
+            <div id="dlv-leg1-fields" style="display:none; margin-top:10px;">
+              <label style="font-size:0.76rem;">Boda fee: warehouse → taxi/bus stage (UGX)</label>
+              <input type="number" id="dlv-leg1-fee" min="0" placeholder="e.g. 3000"/>
+            </div>
+          </div>
           <div class="form-group" style="margin-bottom:0;">
-            <label>Delivery Fee (optional, UGX)</label>
+            <label id="dlv-fee-label">Delivery Fee (optional, UGX)</label>
             <input type="number" id="dlv-fee" min="0" placeholder="e.g. 5000"/>
           </div>
         </div>
@@ -6269,6 +6279,7 @@
               ${o.delivery.plateNumber ? '<br/><span style="color:#999;">🔖 Plate Number: </span><span style="color:#333;font-weight:600;">' + o.delivery.plateNumber + '</span>' : ''}
               ${o.delivery.eta ? '<br/><span style="color:#999;">⏱️ Expected In: </span><span style="color:#333;font-weight:600;">' + o.delivery.eta + '</span>' : ''}
               ${o.delivery.location ? '<br/><span style="color:#999;">📍 Delivering to: </span><span style="color:#333;font-weight:600;">' + o.delivery.location + '</span>' : ''}
+              ${o.delivery.firstLegFee ? '<br/><span style="color:#999;">🏍️ Boda to stage: </span><span style="color:#333;font-weight:600;">' + fmt(o.delivery.firstLegFee) + '</span>' : ''}
               ${o.delivery.bodaFee ? '<br/><span style="color:#999;">💵 Fee: </span><span style="color:#333;font-weight:600;">' + fmt(o.delivery.bodaFee) + '</span>' : ''}
             </div>
           ` : ''}
@@ -6801,6 +6812,8 @@
     document.getElementById('dlv-location').value =
       d.location || [o.deliveryArea, o.exactLocation].filter(Boolean).join(' — ') || '';
     document.getElementById('dlv-fee').value = d.bodaFee || '';
+    document.getElementById('dlv-leg1-fee').value = d.firstLegFee || '';
+    document.getElementById('dlv-leg1-on').checked = Number(d.firstLegFee) > 0;
     const notesEl = document.getElementById('dlv-customer-notes');
     if (notesEl) {
       if (o.notes && o.notes.trim()) {
@@ -6818,6 +6831,13 @@
     const type = document.getElementById('dlv-type').value;
     document.getElementById('dlv-driver-fields').style.display = type === 'selfpick' ? 'none' : 'block';
     document.getElementById('dlv-plate-wrap').style.display = (type === 'taxi' || type === 'bus') ? 'block' : 'none';
+    const vehicle = type === 'taxi' || type === 'bus';
+    document.getElementById('dlv-leg1-wrap').style.display = vehicle ? 'block' : 'none';
+    const twoLegs = vehicle && document.getElementById('dlv-leg1-on').checked;
+    document.getElementById('dlv-leg1-fields').style.display = twoLegs ? 'block' : 'none';
+    document.getElementById('dlv-fee-label').textContent = twoLegs
+      ? (type === 'taxi' ? 'Taxi' : 'Bus') + ' fee: stage → customer (UGX)'
+      : 'Delivery Fee (optional, UGX)';
   }
 
   async function saveDeliveryUpdate() {
@@ -6831,11 +6851,18 @@
       plateNumber: (type === 'taxi' || type === 'bus') ? document.getElementById('dlv-plate').value.trim().toUpperCase() : '',
       eta: document.getElementById('dlv-eta').value.trim(),
       location: document.getElementById('dlv-location').value.trim(),
-      bodaFee: parseInt(document.getElementById('dlv-fee').value) || 0
+      bodaFee: parseInt(document.getElementById('dlv-fee').value) || 0,
+      // second transport: a boda first takes the parcel to the taxi/bus stage (only for taxi/bus deliveries)
+      firstLegFee: ((type === 'taxi' || type === 'bus') && document.getElementById('dlv-leg1-on').checked) ? (parseInt(document.getElementById('dlv-leg1-fee').value) || 0) : 0
     };
     try {
       const { doc, updateDoc } = window.fbFns;
       await updateDoc(doc(window.fbDb, 'orders', docId), { delivery });
+      // an already-issued receipt follows the new transport cost(s) straight away
+      try {
+        const oo = orders.find(x => x.fbDocId === docId);
+        if (oo && oo.receipt && oo.receipt.no && window.SwiftReceipt) await SwiftReceipt.syncTransport(docId, Object.assign({}, oo, { delivery }));
+      } catch (e) { console.warn('[receipt] transport sync failed', e); }
       document.getElementById('delivery-update-modal').classList.remove('open');
       showSuccessToast('✅ Delivery info updated — the customer will see this live.');
     } catch(e) {
@@ -9702,12 +9729,65 @@
 
   document.getElementById('finance-entry-modal').addEventListener('click', function(e) { if(e.target===this) closeFinanceEntryModal(); });
 
+  // ── ANDROID APP: what the hardware Back button does ──
+  // 1) closes whatever popup/window is open (Delivery Info, receipts, dialogs...), most recent first
+  // 2) otherwise steps back to the page you were on before
+  // 3) on the Dashboard (home) it takes three presses to leave, so a stray tap can't close the app
+  var appBackPresses = 0, appBackResetTimer = null, appBackLastPress = 0;
+  function appTopOpenOverlay() {
+    var best = null, bestZ = -1;
+    document.querySelectorAll('.modal-overlay.open').forEach(function (el) {
+      var z = parseInt(getComputedStyle(el).zIndex, 10) || 0;
+      if (z >= bestZ) { best = el; bestZ = z; }
+    });
+    return best;
+  }
   window.appHandleBack = function() {
+    var now = Date.now();
+    if (now - appBackLastPress < 250) return true;     // a duplicate event for the same physical press
+    appBackLastPress = now;
+
     var rtm = document.getElementById('rider-track-modal');
-    if (rtm && rtm.classList.contains('open')) { closeRiderTrackModal(); return true; }
+    if (rtm && rtm.classList.contains('open')) { closeRiderTrackModal(); appBackPresses = 0; return true; }
     var dlg = document.getElementById('app-dialog-overlay');
-    if (dlg && dlg.classList.contains('open')) { dlg.classList.remove('open'); return true; }
-    return false; // nothing app-specific open — let app-bridge.js's default history/exit logic run
+    if (dlg && dlg.classList.contains('open')) { dlg.classList.remove('open'); appBackPresses = 0; return true; }
+    var help = document.getElementById('sr-help');
+    if (help) { help.remove(); appBackPresses = 0; return true; }
+    var srm = document.getElementById('sr-modal');
+    if (srm && srm.classList.contains('open')) { if (window.SwiftReceipt) SwiftReceipt.closeModal(); appBackPresses = 0; return true; }
+    var sim = document.getElementById('sim-modal');
+    if (sim && sim.style.display === 'flex') { sim.style.display = 'none'; appBackPresses = 0; return true; }
+
+    var top = appTopOpenOverlay();
+    if (top) {
+      if (top.id === 'customer-detail-modal') { history.back(); }
+      else {
+        var x = top.querySelector('.modal-close-btn');
+        if (x) x.click(); else top.classList.remove('open');
+      }
+      appBackPresses = 0;
+      return true;
+    }
+    var sb = document.getElementById('sidebar');
+    if (sb && sb.classList.contains('open')) { closeSidebar(); appBackPresses = 0; return true; }
+
+    if (!document.body.classList.contains('on-dashboard-page')) {
+      appBackPresses = 0;
+      history.back();
+      return true;
+    }
+
+    appBackPresses++;
+    clearTimeout(appBackResetTimer);
+    appBackResetTimer = setTimeout(function(){ appBackPresses = 0; }, 3000);
+    if (appBackPresses >= 3) {
+      appBackPresses = 0;
+      if (window.SwiftApp && typeof window.SwiftApp.exit === 'function') window.SwiftApp.exit();
+      return true;
+    }
+    var remaining = 3 - appBackPresses;
+    showToast('Press back ' + remaining + ' more time' + (remaining === 1 ? '' : 's') + ' to exit the app', 'info', 2500);
+    return true;
   };
 
   document.getElementById('app-dialog-overlay').addEventListener('click', function(e) {

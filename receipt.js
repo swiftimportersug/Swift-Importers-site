@@ -130,19 +130,53 @@
       lines.push({ name: shortName(order.productsWanted || order.products || 'Order items'), desc: 'General Items', qty: 1, unit: Math.round(amt), price: Math.round(amt) });
     }
 
-    var transport = null;
-    var d = order.delivery;
-    if (d && Number(d.bodaFee) > 0) {
-      transport = { label: TRANSPORT_LABEL[d.type] || 'Delivery', amount: Math.round(Number(d.bodaFee)) };
-    }
-    var total = lines.reduce(function (s, l) { return s + l.price; }, 0) + (transport ? transport.amount : 0);
+    var transports = transportsFor(order);
+    var total = lines.reduce(function (s, l) { return s + l.price; }, 0) + sumAmounts(transports);
 
     return {
       no: meta.no || null,
       date: meta.date || fmtDate(new Date()),
       billTo: String(order.customerName || order.name || 'Customer').trim(),
-      lines: lines, transport: transport, total: total
+      lines: lines, transports: transports, transport: transports[0] || null, total: total
     };
+  }
+
+  // Transport rows for the receipt, taken from the order's Delivery Info:
+  //  - one transport:  "Transport" / "Boda delivery" (or Taxi / Bus delivery)
+  //  - two transports (a boda takes it to a taxi/bus stage first): "Transport 1" Boda to taxi stage, "Transport 2" Taxi to customer
+  function transportsFor(order) {
+    var d = order && order.delivery, out = [];
+    if (!d || d.type === 'selfpick') return out;
+    var mode = TRANSPORT_LABEL[d.type] || 'Delivery';
+    var fee = Math.round(Number(d.bodaFee) || 0), first = Math.round(Number(d.firstLegFee) || 0);
+    var vehicle = d.type === 'taxi' || d.type === 'bus';
+    if (first > 0 && vehicle) {
+      out.push({ name: 'Transport 1', label: 'Boda to ' + mode.toLowerCase() + ' stage', amount: first });
+      if (fee > 0) out.push({ name: 'Transport 2', label: mode + ' to customer', amount: fee });
+    } else if (fee > 0) {
+      out.push({ name: 'Transport', label: mode + ' delivery', amount: fee });
+    }
+    return out;
+  }
+  function sumAmounts(list) { return (list || []).reduce(function (x, t) { return x + (Number(t.amount) || 0); }, 0); }
+  function snapTransports(snap) { return snap && (snap.transports || (snap.transport ? [snap.transport] : [])) || []; }
+  function sameTransports(a, b) {
+    var k = function (l) { return JSON.stringify((l || []).map(function (t) { return [t.name || '', t.label, Number(t.amount)]; })); };
+    return k(a) === k(b);
+  }
+  // Keeps an already-issued receipt in step with the order's Delivery Info (receipt number and date never change).
+  function syncTransport(docId, order) {
+    var snap = order && order.receipt;
+    if (!snap || !snap.no) return Promise.resolve(snap || null);
+    var want = transportsFor(order);
+    if (sameTransports(want, snapTransports(snap))) return Promise.resolve(snap);
+    var total = (snap.lines || []).reduce(function (x, l) { return x + (Number(l.price) || 0); }, 0) + sumAmounts(want);
+    snap.transports = want; snap.transport = want[0] || null; snap.total = total;
+    var f = window.fbFns, db = window.fbDb;
+    if (!f || !db || !f.updateDoc || !docId) return Promise.resolve(snap);
+    return f.updateDoc(f.doc(db, 'orders', docId), { 'receipt.transports': want, 'receipt.transport': want[0] || null, 'receipt.total': total })
+      .then(function () { return snap; })
+      .catch(function (e) { console.warn('[receipt] could not update transport on the receipt', e); return snap; });
   }
 
   // ---------- font metrics (enough for right-aligning numbers & fitting names) ----------
@@ -160,7 +194,7 @@
   // ---------- layout: list of drawing operations per page (PDF coordinates, origin bottom-left) ----------
   function layout(snap) {
     var rows = snap.lines.map(function (l) { return { kind: 'item', l: l }; });
-    if (snap.transport) rows.push({ kind: 'transport', t: snap.transport });
+    snapTransports(snap).forEach(function (t) { rows.push({ kind: 'transport', t: t }); });
     // Up to 5 rows use the template's own sizes. More rows -> every row shrinks so they all fit
     // on one page; only beyond what fits at the smallest size does it continue on a second page.
     var maxPerPage = Math.floor(ROW_SPAN / (ROW_PITCH * MIN_SCALE)) + 1;
@@ -187,7 +221,7 @@
         var nb = 567.4 - ROW_PITCH * scale * i;               // name baseline
         var name, desc, unit, price, qty = null;
         if (r.kind === 'item') { name = r.l.name; desc = r.l.desc; unit = r.l.unit; price = r.l.price; qty = r.l.qty; }
-        else { name = 'Transport'; desc = r.t.label; unit = r.t.amount; price = r.t.amount; }
+        else { name = r.t.name || 'Transport'; desc = r.t.label; unit = r.t.amount; price = r.t.amount; }
         // bullet
         T('F1', 13 * scale, BLACK, 56.2, nb - 2 * scale, '°');
         // name (shrinks to fit the column before the quantity)
@@ -555,7 +589,7 @@
     m.classList.add('open');
     body.innerHTML = '<div id="sr-msg">Preparing receipt…</div>';
     var btns = ['sr-dl', 'sr-img', 'sr-wa', 'sr-share', 'sr-copy'].map(function (i) { var b = document.getElementById(i); b.disabled = true; return b; });
-    var p = order && order.receipt && order.receipt.no ? Promise.resolve(order.receipt) : ensure(docId, order, products);
+    var p = order && order.receipt && order.receipt.no ? syncTransport(docId, order) : ensure(docId, order, products);
     return p.then(function (snap) {
       document.getElementById('sr-title').textContent = '🧾 Receipt #' + snap.no;
       var n = layout(snap).length, jobs = [];
@@ -590,7 +624,7 @@
   window.SwiftReceipt = {
     build: buildSnapshot, shortName: shortName, describe: describe, layout: layout,
     renderPage: renderPage, pdfBlob: buildPdf, pageCount: function (s) { return layout(s).length; },
-    isEligible: isEligible, ensure: ensure, watch: watch, link: link, download: download, saveImages: saveImages, saveFiles: saveFiles,
+    isEligible: isEligible, ensure: ensure, watch: watch, link: link, syncTransport: syncTransport, transportsFor: transportsFor, download: download, saveImages: saveImages, saveFiles: saveFiles,
     openModal: openModal, closeModal: closeModal, fmtDate: fmtDate,
     setOnGenerated: function (fn) { onGenerated = fn; }
   };
