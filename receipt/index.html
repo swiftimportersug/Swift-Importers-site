@@ -27,7 +27,8 @@
   <button class="a" id="dl">⬇️ Download PDF</button>
   <button class="b" id="img">🖼️ Save as image</button>
 </div>
-<script src="/receipt.js?v=1"></script>
+<script src="/app-bridge.js?v=3"></script>
+<script src="/receipt.js?v=2"></script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -52,18 +53,8 @@
       msg.remove();
       document.title = 'Receipt #' + snap.no + ' — Swift Importers';
       document.getElementById('bar').style.display = 'flex';
-      document.getElementById('dl').onclick = async () => {
-        const b = await SwiftReceipt.pdfBlob(snap), u = URL.createObjectURL(b), a = document.createElement('a');
-        a.href = u; a.download = 'Swift-Importers-Receipt-' + snap.no + '.pdf'; document.body.appendChild(a); a.click();
-        setTimeout(() => { URL.revokeObjectURL(u); a.remove(); }, 4000);
-      };
-      document.getElementById('img').onclick = () => {
-        cvs.forEach((c, i) => c.toBlob(b => {
-          const u = URL.createObjectURL(b), a = document.createElement('a');
-          a.href = u; a.download = 'Swift-Importers-Receipt-' + snap.no + (n > 1 ? '-p' + (i + 1) : '') + '.png'; document.body.appendChild(a); a.click();
-          setTimeout(() => { URL.revokeObjectURL(u); a.remove(); }, 4000);
-        }));
-      };
+      document.getElementById('dl').onclick = () => SwiftReceipt.download(snap, id).catch(e => alert('Could not create the PDF: ' + e.message));
+      document.getElementById('img').onclick = () => SwiftReceipt.saveImages(snap, id).catch(e => alert('Could not create the picture: ' + e.message));
     } catch (e) { msg.textContent = e.message || 'Could not load this receipt.'; }
   })();
 </script>

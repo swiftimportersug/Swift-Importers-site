@@ -16,9 +16,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
   <!-- Firebase -->
-  <script src="/app-bridge.js?v=2"></script>
-  <script src="/receipt.js?v=1"></script>
-  <script src="/image-upload.js?v=1"></script>
+  <script src="/app-bridge.js?v=3"></script>
+  <script src="/receipt.js?v=2"></script>
+  <script src="/image-upload.js?v=2"></script>
   <script src="/swift-map.js?v=7"></script>
   <script src="/swift-call.js?v=6"></script>
   <script src="/swift-setup.js?v=1"></script>
@@ -1675,8 +1675,10 @@
 
       <div class="form-group">
         <label>📦 Warehouse Cover Photo (staff-only, up to 2)</label>
-        <input type="text" id="f-warehouse-cover-image" placeholder="Image URL — what the box/item looks like in storage" oninput="updateWarehouseCoverPreview()" style="margin-bottom:8px;"/>
+        <input type="text" id="f-warehouse-cover-image" placeholder="Upload a photo below, or paste an image link" oninput="updateWarehouseCoverPreview()" style="margin-bottom:8px;"/>
+        <button type="button" onclick="SwiftImages.pickInto('f-warehouse-cover-image', this)" style="margin-top:6px; background:#fff; border:1.5px solid #25a244; color:#14532d; padding:8px 12px; border-radius:8px; font-size:0.76rem; font-weight:700; cursor:pointer;">📷 Upload photo</button>
         <input type="text" id="f-warehouse-cover-image-2" placeholder="Second image URL (optional)" oninput="updateWarehouseCoverPreview()"/>
+        <button type="button" onclick="SwiftImages.pickInto('f-warehouse-cover-image-2', this)" style="margin-top:6px; background:#fff; border:1.5px solid #25a244; color:#14532d; padding:8px 12px; border-radius:8px; font-size:0.76rem; font-weight:700; cursor:pointer;">📷 Upload photo</button>
         <div style="font-size:0.7rem; color:#888; margin-top:4px;">Only visible to admin/staff when finding this product's location — never shown to customers. Helps whoever's fetching it recognize the box/packaging at a glance.</div>
         <div id="f-warehouse-cover-preview" style="display:none; margin-top:8px; gap:8px;">
           <img id="f-warehouse-cover-preview-img" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);" onerror="this.style.display='none';"/>
@@ -1910,6 +1912,7 @@
           <div class="form-group" style="margin-bottom:0;">
             <label>Bundle Preview Picture (optional)</label>
             <input type="text" id="f-bundle-image" placeholder="Image URL for the bundle listing"/>
+            <button type="button" onclick="SwiftImages.pickInto('f-bundle-image', this)" style="margin-top:6px; background:#fff; border:1.5px solid #25a244; color:#14532d; padding:8px 12px; border-radius:8px; font-size:0.76rem; font-weight:700; cursor:pointer;">📷 Upload photo</button>
           </div>
           <div class="form-group" style="margin-bottom:0;">
             <label>Bundle Price (optional)</label>
@@ -6022,6 +6025,7 @@
               onblur="this.style.borderColor='#ddd';"
               oninput="updateVariantThumb(this, 'vthumb_${variantId}')"/>
             <div style="font-size:0.68rem; color:#999; margin-top:4px;">Shows as a tiny image on the variant selector on the storefront</div>
+            <button type="button" onclick="SwiftImages.pickInto(this.parentElement.querySelector('[data-field=variantImage]'), this)" style="margin-top:6px; background:#fff; border:1.5px solid #25a244; color:#14532d; padding:8px 12px; border-radius:8px; font-size:0.76rem; font-weight:700; cursor:pointer;">📷 Upload photo</button>
           </div>
         </div>
       </div>

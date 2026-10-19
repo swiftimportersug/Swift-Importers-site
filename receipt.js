@@ -425,12 +425,86 @@
   function link(docId) { return 'https://swiftimporters.com/receipt/?o=' + encodeURIComponent(docId); }
   function fileName(snap) { return 'Swift-Importers-Receipt-' + (snap.no || 'draft') + '.pdf'; }
   function isNative() { return !!(window.SwiftApp && window.SwiftApp.isNative) || !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); }
+  function isMobileWeb() { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || ''); }
+  function isInAppView() { return isNative() || /FBAN|FBAV|Instagram|WhatsApp|Line\/|MicroMessenger|; wv\)/i.test(navigator.userAgent || ''); }
+
+  // Saves one or more files the way each kind of device can actually do it:
+  //  1. inside our Android apps: the phone's share sheet (via app-bridge.js + the Filesystem/Share plugins)
+  //  2. a phone's own browser: its share sheet if it can share files, else a normal download
+  //  3. a computer: a normal download
+  //  4. anywhere a download can't work (in-app browsers): a picture of the receipt to press-and-hold, plus the link
+  function saveFiles(items, title, docId) {
+    var A = window.SwiftApp;
+    var viaApp = A && A.shareFiles ? A.shareFiles(items, title).catch(function () { return false; }) : Promise.resolve(false);
+    return viaApp.then(function (done) {
+      if (done) return true;
+      if (isMobileWeb() && navigator.canShare && window.File) {
+        try {
+          var files = items.map(function (it) { return new File([it.blob], it.filename, { type: it.blob.type }); });
+          if (navigator.canShare({ files: files })) {
+            return navigator.share({ files: files, title: title }).then(function () { return true; }, function (e) { return !!(e && e.name === 'AbortError'); });
+          }
+        } catch (e) {}
+      }
+      return false;
+    }).then(function (done) {
+      if (done) return;
+      items.forEach(function (it, i) {
+        setTimeout(function () {
+          var url = URL.createObjectURL(it.blob), a = document.createElement('a');
+          a.href = url; a.download = it.filename; a.style.display = 'none'; document.body.appendChild(a); a.click();
+          setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 8000);
+        }, i * 400);
+      });
+      if (isInAppView()) showSaveHelp(items, docId);
+    });
+  }
+
+  function showSaveHelp(items, docId) {
+    var old = document.getElementById('sr-help'); if (old) old.remove();
+    var url = docId ? link(docId) : '';
+    var d = document.createElement('div');
+    d.id = 'sr-help';
+    d.style.cssText = 'position:fixed;inset:0;z-index:100002;background:rgba(10,12,20,.82);display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,sans-serif;';
+    d.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:420px;width:100%;max-height:90vh;overflow:auto;padding:18px;text-align:center;">' +
+      '<div style="font-weight:800;color:#012e7b;font-size:1.05rem;margin-bottom:8px;">Saving needs your browser</div>' +
+      '<div style="font-size:.84rem;color:#444;line-height:1.55;margin-bottom:12px;">This screen can\'t save files by itself. Copy the receipt link and open it in Chrome, then tap Download PDF or Save as image there.</div>' +
+      (url ? '<input readonly value="' + url + '" style="width:100%;padding:10px;border:1.5px solid #ccd;border-radius:8px;font-size:.78rem;text-align:center;margin-bottom:8px;" onfocus="this.select()"/>' +
+        '<button id="sr-help-copy" style="width:100%;border:0;border-radius:10px;padding:12px;background:#012e7b;color:#fff;font-weight:800;margin-bottom:8px;">🔗 Copy link</button>' : '') +
+      '<button id="sr-help-x" style="width:100%;border:0;border-radius:10px;padding:11px;background:#eee;color:#333;font-weight:700;">Close</button></div>';
+    document.body.appendChild(d);
+    d.querySelector('#sr-help-x').onclick = function () { d.remove(); };
+    var c = d.querySelector('#sr-help-copy');
+    if (c) c.onclick = function () {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(function () { c.textContent = '✓ Copied'; }, function () { d.querySelector('input').select(); });
+      else d.querySelector('input').select();
+    };
+  }
+
   function download(snap, docId) {
-    if (isNative() && docId) { window.open(link(docId), '_blank'); return Promise.resolve(); }
     return buildPdf(snap).then(function (blob) {
-      var url = URL.createObjectURL(blob), a = document.createElement('a');
-      a.href = url; a.download = fileName(snap); document.body.appendChild(a); a.click();
-      setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 4000);
+      return saveFiles([{ blob: blob, filename: fileName(snap) }], 'Receipt #' + snap.no, docId);
+    });
+  }
+  function canvasBlob(c) { return new Promise(function (res) { c.toBlob(function (b) { res(b); }, 'image/png'); }); }
+  function saveImages(snap, docId) {
+    var n = layout(snap).length, jobs = [];
+    for (var i = 0; i < n; i++) jobs.push(renderPage(snap, i, 1100).then(canvasBlob));
+    return Promise.all(jobs).then(function (blobs) {
+      return saveFiles(blobs.map(function (b, i) {
+        return { blob: b, filename: 'Swift-Importers-Receipt-' + snap.no + (n > 1 ? '-p' + (i + 1) : '') + '.png' };
+      }), 'Receipt #' + snap.no, docId);
+    });
+  }
+  // Share a link + message: the phone's share sheet (apps), the browser's, or WhatsApp's own page.
+  function shareText(title, text, url, fallbackWa) {
+    var A = window.SwiftApp;
+    var app = A && A.shareText ? A.shareText(title, text, url).catch(function () { return false; }) : Promise.resolve(false);
+    return app.then(function (done) {
+      if (done) return;
+      if (navigator.share) return navigator.share({ title: title, text: text, url: url }).catch(function () {});
+      var wa = fallbackWa || ('https://wa.me/?text=' + encodeURIComponent(text + ' ' + url));
+      if (isNative()) window.location.href = wa; else window.open(wa, '_blank');
     });
   }
   function waPhone(p) {
@@ -468,7 +542,7 @@
     var m = document.createElement('div');
     m.id = 'sr-modal';
     m.innerHTML = '<div id="sr-box"><div id="sr-head"><span id="sr-title">🧾 Receipt</span><button onclick="SwiftReceipt.closeModal()">✕</button></div><div id="sr-body"><div id="sr-msg">Preparing receipt…</div></div>' +
-      '<div id="sr-actions"><button class="a" id="sr-dl">⬇️ Download PDF</button><button class="b" id="sr-wa">💬 Send on WhatsApp</button><button class="d" id="sr-share">📤 Share link</button><button class="c" id="sr-copy">🔗 Copy link</button></div></div>';
+      '<div id="sr-actions"><button class="a" id="sr-dl">⬇️ Download PDF</button><button class="a" id="sr-img">🖼️ Save as image</button><button class="b" id="sr-wa">💬 Send on WhatsApp</button><button class="d" id="sr-share">📤 Share link</button><button class="c" id="sr-copy">🔗 Copy link</button></div></div>';
     m.addEventListener('click', function (e) { if (e.target === m) closeModal(); });
     document.body.appendChild(m);
   }
@@ -480,7 +554,7 @@
     var m = document.getElementById('sr-modal'), body = document.getElementById('sr-body');
     m.classList.add('open');
     body.innerHTML = '<div id="sr-msg">Preparing receipt…</div>';
-    var btns = ['sr-dl', 'sr-wa', 'sr-share', 'sr-copy'].map(function (i) { var b = document.getElementById(i); b.disabled = true; return b; });
+    var btns = ['sr-dl', 'sr-img', 'sr-wa', 'sr-share', 'sr-copy'].map(function (i) { var b = document.getElementById(i); b.disabled = true; return b; });
     var p = order && order.receipt && order.receipt.no ? Promise.resolve(order.receipt) : ensure(docId, order, products);
     return p.then(function (snap) {
       document.getElementById('sr-title').textContent = '🧾 Receipt #' + snap.no;
@@ -491,11 +565,15 @@
         cvs.forEach(function (c) { body.appendChild(c); });
         btns.forEach(function (b) { b.disabled = false; });
         document.getElementById('sr-dl').onclick = function () { download(snap, docId).catch(function (e) { toast('Could not create the PDF: ' + e.message); }); };
-        document.getElementById('sr-wa').onclick = function () { window.open(waLink(order, snap, docId), '_blank'); };
+        document.getElementById('sr-img').onclick = function () { saveImages(snap, docId).catch(function (e) { toast('Could not create the picture: ' + e.message); }); };
+        document.getElementById('sr-wa').onclick = function () {
+          var msg = 'Hello ' + (snap.billTo || '') + ', thank you for shopping with Swift Importers! 🧾 Here is your receipt #' + snap.no + ':\n' + link(docId);
+          if (isNative()) shareText('Receipt #' + snap.no, msg, '', waLink(order, snap, docId));
+          else window.open(waLink(order, snap, docId), '_blank');
+        };
         document.getElementById('sr-share').onclick = function () {
           var url = link(docId), text = 'Your Swift Importers receipt #' + snap.no;
-          if (navigator.share) navigator.share({ title: text, text: text, url: url }).catch(function () {});
-          else window.open('https://wa.me/?text=' + encodeURIComponent(text + ' ' + url), '_blank');
+          shareText(text, text, url);
         };
         document.getElementById('sr-copy').onclick = function () {
           var url = link(docId);
@@ -512,7 +590,7 @@
   window.SwiftReceipt = {
     build: buildSnapshot, shortName: shortName, describe: describe, layout: layout,
     renderPage: renderPage, pdfBlob: buildPdf, pageCount: function (s) { return layout(s).length; },
-    isEligible: isEligible, ensure: ensure, watch: watch, link: link, download: download,
+    isEligible: isEligible, ensure: ensure, watch: watch, link: link, download: download, saveImages: saveImages, saveFiles: saveFiles,
     openModal: openModal, closeModal: closeModal, fmtDate: fmtDate,
     setOnGenerated: function (fn) { onGenerated = fn; }
   };

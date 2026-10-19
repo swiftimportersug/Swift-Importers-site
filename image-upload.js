@@ -102,6 +102,35 @@
     inp.click();
   }
 
+  // ---- single "Upload" button next to a link box (warehouse cover photos, bundle picture, variant picture) ----
+  // target: an <input> element or its id. The uploaded picture's link is written into the box and the
+  // box's own "input" handlers run, so previews and saving behave exactly as if the link had been pasted.
+  function pickInto(target, btn) {
+    var box = typeof target === 'string' ? document.getElementById(target) : target;
+    if (!box) return;
+    var inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*';
+    inp.onchange = function () {
+      var f = inp.files && inp.files[0];
+      if (!f) return;
+      var label = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = 'Uploading\u2026'; }
+      uploadFile(f).then(function (url) {
+        box.value = url;
+        box.dispatchEvent(new Event('input', { bubbles: true }));
+        box.dispatchEvent(new Event('change', { bubbles: true }));
+        if (btn) btn.textContent = '\u2705 Uploaded';
+        setTimeout(function () { if (btn) { btn.textContent = label; btn.disabled = false; } }, 1800);
+      }).catch(function (e) {
+        console.error('[images]', e);
+        if (btn) { btn.textContent = label; btn.disabled = false; }
+        var msg = 'Could not upload the picture: ' + e.message;
+        try { if (typeof window.showAppAlert === 'function') window.showAppAlert(msg); else alert(msg); } catch (x) {}
+      });
+    };
+    inp.click();
+  }
+
   // ---- moving old pictures (admin) ----
   var OLD_HOST = /^https?:\/\/(?:[a-z0-9-]+\.)?(?:ibb\.co|imgbb\.com)\/|^https?:\/\/drive\.google\.com\/uc\?/i;
   function isOld(u) { return typeof u === 'string' && OLD_HOST.test(u.trim()); }
@@ -189,5 +218,5 @@
     go.onclick = function () { document.getElementById('sim-modal').style.display = 'none'; };
   }
 
-  window.SwiftImages = { pickAndUpload: pickAndUpload, openMigrate: openMigrate, upload: uploadFile };
+  window.SwiftImages = { pickInto: pickInto, pickAndUpload: pickAndUpload, openMigrate: openMigrate, upload: uploadFile };
 })();

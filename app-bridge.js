@@ -323,4 +323,46 @@
     openLocationSettings: function () { return LocationSharePlugin.openLocationSettings(); },
     openAppSettings: function () { return LocationSharePlugin.openAppSettings(); }
   } : { available: false };
+
+  // ── 6. Saving / sharing files and links (receipt PDF + pictures) ──
+  // A WebView cannot download a file the page creates itself, so the file is written to the app's
+  // cache and handed to Android's share sheet (Save to Files/Drive, WhatsApp, ...). Needs the two
+  // official plugins @capacitor/filesystem and @capacitor/share in the app build; without them these
+  // resolve false and the page falls back to something else.
+  function pluginIf(name) {
+    try { return (typeof cap.isPluginAvailable === 'function' && cap.isPluginAvailable(name)) ? getPlugin(name) : null; } catch (e) { return null; }
+  }
+  function blobToBase64(blob) {
+    return new Promise(function (resolve, reject) {
+      var r = new FileReader();
+      r.onload = function () { var d = String(r.result || ''); resolve(d.slice(d.indexOf(',') + 1)); };
+      r.onerror = function () { reject(r.error || new Error('read failed')); };
+      r.readAsDataURL(blob);
+    });
+  }
+  function isCancel(e) { return /cancel/i.test(String(e && (e.message || e))); }
+  // items: [{ blob, filename }]  → resolves true once the share sheet was shown (or cancelled), false if unavailable
+  window.SwiftApp.shareFiles = function (items, title) {
+    var FS = pluginIf('Filesystem'), SH = pluginIf('Share');
+    if (!FS || !SH || !items || !items.length) return Promise.resolve(false);
+    return Promise.all(items.map(function (it) {
+      return blobToBase64(it.blob).then(function (b64) {
+        return FS.writeFile({ path: it.filename, data: b64, directory: 'CACHE' });
+      }).then(function (r) { return r.uri; });
+    })).then(function (uris) {
+      return SH.share({ title: title || '', dialogTitle: title || 'Save or send', files: uris });
+    }).then(function () { return true; }, function (e) {
+      if (isCancel(e)) return true;
+      console.error('[app-bridge] shareFiles failed:', e);
+      return false;
+    });
+  };
+  window.SwiftApp.shareText = function (title, text, url) {
+    var SH = pluginIf('Share');
+    if (!SH) return Promise.resolve(false);
+    return SH.share({ title: title || '', text: text || '', url: url || undefined, dialogTitle: title || 'Share' }).then(function () { return true; }, function (e) {
+      if (isCancel(e)) return true;
+      return false;
+    });
+  };
 })();
