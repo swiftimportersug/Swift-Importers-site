@@ -11,12 +11,12 @@
   body{margin:0;background:#eef1f6;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#222;}
   header{background:#0b0b0b;color:#fff;padding:14px 16px;font-weight:800;letter-spacing:.04em;text-align:center;}
   header span{color:#4a9a38;}
-  main{max-width:640px;margin:0 auto;padding:14px 12px 120px;}
+  main{max-width:640px;margin:0 auto;padding:14px 12px 150px;}
   #msg{text-align:center;padding:60px 12px;font-weight:600;color:#555;}
   canvas{width:100%;height:auto;display:block;background:#fff;border-radius:6px;box-shadow:0 2px 14px rgba(0,0,0,.18);margin-bottom:12px;}
-  .bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #ddd;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));display:flex;gap:8px;justify-content:center;}
-  .bar button{flex:1;max-width:280px;border:0;border-radius:10px;padding:13px 8px;font-weight:800;font-size:.9rem;color:#fff;cursor:pointer;}
-  .bar .a{background:var(--navy);} .bar .b{background:#555;}
+  .bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #ddd;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:640px;margin:0 auto;}
+  .bar button{border:0;border-radius:10px;padding:13px 8px;font-weight:800;font-size:.85rem;color:#fff;cursor:pointer;}
+  .bar .a{background:var(--navy);} .bar .b{background:#555;} .bar .g{background:#25a244;} .bar .p{background:#8a6fd6;}
   .bar button:disabled{opacity:.5;}
 </style>
 </head>
@@ -25,10 +25,12 @@
 <main><div id="msg">Loading your receipt…</div><div id="pages"></div></main>
 <div class="bar" id="bar" style="display:none">
   <button class="a" id="dl">⬇️ Download PDF</button>
-  <button class="b" id="img">🖼️ Save as image</button>
+  <button class="g" id="wa">💬 Send on WhatsApp</button>
+  <button class="p" id="sh">📤 Share link</button>
+  <button class="b" id="cp">🔗 Copy link</button>
 </div>
 <script src="/app-bridge.js?v=3"></script>
-<script src="/receipt.js?v=3"></script>
+<script src="/receipt.js?v=4"></script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -54,7 +56,9 @@
       document.title = 'Receipt #' + snap.no + ' — Swift Importers';
       document.getElementById('bar').style.display = 'flex';
       document.getElementById('dl').onclick = () => SwiftReceipt.download(snap, id).catch(e => alert('Could not create the PDF: ' + e.message));
-      document.getElementById('img').onclick = () => SwiftReceipt.saveImages(snap, id).catch(e => alert('Could not create the picture: ' + e.message));
+      document.getElementById('wa').onclick = () => SwiftReceipt.whatsapp(null, snap, id);
+      document.getElementById('sh').onclick = () => SwiftReceipt.shareLink(snap, id);
+      document.getElementById('cp').onclick = () => SwiftReceipt.copyLink(id);
     } catch (e) { msg.textContent = e.message || 'Could not load this receipt.'; }
   })();
 </script>

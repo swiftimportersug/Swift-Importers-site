@@ -55,16 +55,16 @@
   };
   var KEYWORD_DESC = [
     [/\b(iem|iems|in[- ]?ear|earphone|earphones|earbud|earbuds)\b/i, 'In-Ear Monitors'],
-    [/\bheadphone|headset\b/i, 'Headphones'],
-    [/\bspeaker|soundbar|subwoofer\b/i, 'Speakers'],
-    [/\bmicrophone|\bmic\b/i, 'Microphones'],
-    [/\bcable|cord|wire|extension\b/i, 'Cables & Cords'],
-    [/\bcharger|adapter|adaptor\b/i, 'Chargers & Adapters'],
+    [/\b(headphones?|headsets?)\b/i, 'Headphones'],
+    [/\b(speakers?|soundbars?|subwoofers?)\b/i, 'Speakers'],
+    [/\b(microphones?|mics?)\b/i, 'Microphones'],
+    [/\b(cables?|cords?|wires?|extensions?)\b/i, 'Cables & Cords'],
+    [/\b(chargers?|adapters?|adaptors?)\b/i, 'Chargers & Adapters'],
     [/\bpower ?bank\b/i, 'Power Banks'],
-    [/\bcase|cover|protector\b/i, 'Protective Cases'],
-    [/\bkeyboard|mouse\b/i, 'Computer Accessories'],
-    [/\bwatch|band\b/i, 'Smart Wearables'],
-    [/\bprinter|toner|ink\b/i, 'Printing']
+    [/\b(cases?|covers?|protectors?)\b/i, 'Protective Cases'],
+    [/\b(keyboards?|mouse|mice)\b/i, 'Computer Accessories'],
+    [/\b(watch|watches|bands?)\b/i, 'Smart Wearables'],
+    [/\b(printers?|toner|ink)\b/i, 'Printing']
   ];
   function describe(category, name) {
     var n = String(name || '');
@@ -180,15 +180,18 @@
   }
 
   // ---------- font metrics (enough for right-aligning numbers & fitting names) ----------
+  // Exact character widths (per 1000 units) of the standard PDF fonts, ASCII 32-126, so names are fitted
+  // to the real width they will have on the page and can never run into the quantity.
+  var AFM = {"F1":[278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584],"F2":[278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584],"F3":[250,333,408,500,500,833,778,180,333,333,500,564,250,333,250,278,500,500,500,500,500,500,500,500,500,500,278,278,564,564,564,444,921,722,667,667,722,611,556,722,722,333,389,722,611,889,722,722,556,722,667,556,611,722,722,944,722,722,611,333,278,333,469,500,333,444,500,444,500,444,333,500,500,278,278,500,278,778,500,500,500,500,333,389,278,500,500,722,500,500,444,480,200,480,541],"F4":[250,333,555,500,500,1000,833,278,333,333,500,570,250,333,250,278,500,500,500,500,500,500,500,500,500,500,333,333,570,570,570,500,930,722,667,722,722,667,611,778,778,389,500,778,667,944,722,778,611,778,722,556,667,722,722,1000,722,722,667,333,278,333,581,500,333,500,556,444,556,444,333,500,556,278,333,556,278,833,556,500,556,556,444,389,333,556,500,722,500,500,444,394,220,394,520]};
   function textWidth(font, size, str) {
-    var w = 0, i, ch;
+    str = String(str);
     if (font === 'F5' || font === 'F6' || font === 'F7') return str.length * 0.6 * size;
-    if (font === 'F3' || font === 'F4') {
-      for (i = 0; i < str.length; i++) { ch = str.charAt(i); w += /[A-Z]/.test(ch) ? 0.70 : /[ ]/.test(ch) ? 0.25 : /[iljtf.,'|]/.test(ch) ? 0.30 : /[mw]/.test(ch) ? 0.76 : 0.50; }
-      return w * size;
+    var tbl = AFM[font] || AFM.F1, w = 0;
+    for (var i = 0; i < str.length; i++) {
+      var c = str.charCodeAt(i);
+      w += (c >= 32 && c <= 126) ? tbl[c - 32] : 556;
     }
-    for (i = 0; i < str.length; i++) { ch = str.charAt(i); w += /[0-9]/.test(ch) ? 0.556 : /[,.\/ ]/.test(ch) ? 0.278 : 0.6; }
-    return w * size;
+    return w * size / 1000;
   }
 
   // ---------- layout: list of drawing operations per page (PDF coordinates, origin bottom-left) ----------
@@ -502,7 +505,7 @@
     d.style.cssText = 'position:fixed;inset:0;z-index:100002;background:rgba(10,12,20,.82);display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,sans-serif;';
     d.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:420px;width:100%;max-height:90vh;overflow:auto;padding:18px;text-align:center;">' +
       '<div style="font-weight:800;color:#012e7b;font-size:1.05rem;margin-bottom:8px;">Saving needs your browser</div>' +
-      '<div style="font-size:.84rem;color:#444;line-height:1.55;margin-bottom:12px;">This screen can\'t save files by itself. Copy the receipt link and open it in Chrome, then tap Download PDF or Save as image there.</div>' +
+      '<div style="font-size:.84rem;color:#444;line-height:1.55;margin-bottom:12px;">This screen can\'t save files by itself. Copy the receipt link and open it in Chrome, then tap Download PDF there.</div>' +
       (url ? '<input readonly value="' + url + '" style="width:100%;padding:10px;border:1.5px solid #ccd;border-radius:8px;font-size:.78rem;text-align:center;margin-bottom:8px;" onfocus="this.select()"/>' +
         '<button id="sr-help-copy" style="width:100%;border:0;border-radius:10px;padding:12px;background:#012e7b;color:#fff;font-weight:800;margin-bottom:8px;">🔗 Copy link</button>' : '') +
       '<button id="sr-help-x" style="width:100%;border:0;border-radius:10px;padding:11px;background:#eee;color:#333;font-weight:700;">Close</button></div>';
@@ -513,6 +516,22 @@
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(function () { c.textContent = '✓ Copied'; }, function () { d.querySelector('input').select(); });
       else d.querySelector('input').select();
     };
+  }
+
+  // The four buttons shared by the staff receipt window and the customer receipt page
+  function actWhatsApp(order, snap, docId) {
+    var url = waLink(order || {}, snap, docId);
+    if (isNative()) window.location.href = url; else window.open(url, '_blank');
+  }
+  function actShare(snap, docId) {
+    var text = 'Your Swift Importers receipt #' + snap.no;
+    return shareText(text, text, link(docId));
+  }
+  function actCopy(docId) {
+    var url = link(docId);
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(url).then(function () { toast('🔗 Receipt link copied'); }, function () { prompt('Copy this link', url); });
+    prompt('Copy this link', url);
+    return Promise.resolve();
   }
 
   function download(snap, docId) {
@@ -576,7 +595,7 @@
     var m = document.createElement('div');
     m.id = 'sr-modal';
     m.innerHTML = '<div id="sr-box"><div id="sr-head"><span id="sr-title">🧾 Receipt</span><button onclick="SwiftReceipt.closeModal()">✕</button></div><div id="sr-body"><div id="sr-msg">Preparing receipt…</div></div>' +
-      '<div id="sr-actions"><button class="a" id="sr-dl">⬇️ Download PDF</button><button class="a" id="sr-img">🖼️ Save as image</button><button class="b" id="sr-wa">💬 Send on WhatsApp</button><button class="d" id="sr-share">📤 Share link</button><button class="c" id="sr-copy">🔗 Copy link</button></div></div>';
+      '<div id="sr-actions"><button class="a" id="sr-dl">⬇️ Download PDF</button><button class="b" id="sr-wa">💬 Send on WhatsApp</button><button class="d" id="sr-share">📤 Share link</button><button class="c" id="sr-copy">🔗 Copy link</button></div></div>';
     m.addEventListener('click', function (e) { if (e.target === m) closeModal(); });
     document.body.appendChild(m);
   }
@@ -588,7 +607,7 @@
     var m = document.getElementById('sr-modal'), body = document.getElementById('sr-body');
     m.classList.add('open');
     body.innerHTML = '<div id="sr-msg">Preparing receipt…</div>';
-    var btns = ['sr-dl', 'sr-img', 'sr-wa', 'sr-share', 'sr-copy'].map(function (i) { var b = document.getElementById(i); b.disabled = true; return b; });
+    var btns = ['sr-dl', 'sr-wa', 'sr-share', 'sr-copy'].map(function (i) { var b = document.getElementById(i); b.disabled = true; return b; });
     var p = order && order.receipt && order.receipt.no ? syncTransport(docId, order) : ensure(docId, order, products);
     return p.then(function (snap) {
       document.getElementById('sr-title').textContent = '🧾 Receipt #' + snap.no;
@@ -599,21 +618,9 @@
         cvs.forEach(function (c) { body.appendChild(c); });
         btns.forEach(function (b) { b.disabled = false; });
         document.getElementById('sr-dl').onclick = function () { download(snap, docId).catch(function (e) { toast('Could not create the PDF: ' + e.message); }); };
-        document.getElementById('sr-img').onclick = function () { saveImages(snap, docId).catch(function (e) { toast('Could not create the picture: ' + e.message); }); };
-        document.getElementById('sr-wa').onclick = function () {
-          var msg = 'Hello ' + (snap.billTo || '') + ', thank you for shopping with Swift Importers! 🧾 Here is your receipt #' + snap.no + ':\n' + link(docId);
-          if (isNative()) shareText('Receipt #' + snap.no, msg, '', waLink(order, snap, docId));
-          else window.open(waLink(order, snap, docId), '_blank');
-        };
-        document.getElementById('sr-share').onclick = function () {
-          var url = link(docId), text = 'Your Swift Importers receipt #' + snap.no;
-          shareText(text, text, url);
-        };
-        document.getElementById('sr-copy').onclick = function () {
-          var url = link(docId);
-          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(function () { toast('🔗 Receipt link copied'); }, function () { prompt('Copy this link', url); });
-          else prompt('Copy this link', url);
-        };
+        document.getElementById('sr-wa').onclick = function () { actWhatsApp(order, snap, docId); };
+        document.getElementById('sr-share').onclick = function () { actShare(snap, docId); };
+        document.getElementById('sr-copy').onclick = function () { actCopy(docId); };
       });
     }).catch(function (e) {
       body.innerHTML = '<div id="sr-msg">Could not prepare the receipt.<br><small>' + esc(e && e.message) + '</small></div>';
@@ -624,7 +631,7 @@
   window.SwiftReceipt = {
     build: buildSnapshot, shortName: shortName, describe: describe, layout: layout,
     renderPage: renderPage, pdfBlob: buildPdf, pageCount: function (s) { return layout(s).length; },
-    isEligible: isEligible, ensure: ensure, watch: watch, link: link, syncTransport: syncTransport, transportsFor: transportsFor, download: download, saveImages: saveImages, saveFiles: saveFiles,
+    isEligible: isEligible, ensure: ensure, watch: watch, link: link, syncTransport: syncTransport, transportsFor: transportsFor, download: download, saveFiles: saveFiles, whatsapp: actWhatsApp, shareLink: actShare, copyLink: actCopy,
     openModal: openModal, closeModal: closeModal, fmtDate: fmtDate,
     setOnGenerated: function (fn) { onGenerated = fn; }
   };
