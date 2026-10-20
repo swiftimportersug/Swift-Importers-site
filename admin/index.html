@@ -19,6 +19,7 @@
   <script src="/app-bridge.js?v=4"></script>
   <script src="/receipt.js?v=5"></script>
   <script src="/image-upload.js?v=2"></script>
+  <script src="/describe-ai.js?v=1"></script>
   <script src="/swift-map.js?v=7"></script>
   <script src="/swift-call.js?v=6"></script>
   <script src="/swift-setup.js?v=1"></script>
@@ -2201,6 +2202,7 @@
           ✨ <strong>You can format your text:</strong> start a line with <code># </code> for a big heading, <code>## </code> for a subheading, and wrap words in <code>**double asterisks**</code> to make them <strong>bold</strong>. Use the "🖼️ Insert Image" button to drop in a picture anywhere, "🎨 Color Text" to color a word or sentence, and "📊 Insert Table" to add a specifications table like AliExpress listings have — write some text, add an image or table, write more, as many times as you like. Inside a table cell, pressing Enter starts a new row, but typing <code>&lt;br&gt;</code> starts a new line within that same cell instead.
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+          <button type="button" onclick="SwiftAI.writeClick(this)" style="background:#fff; border:1.5px solid #8a6fd6; color:#5b3fb0; padding:7px 14px; border-radius:7px; font-size:0.76rem; font-weight:700; cursor:pointer;">✨ Auto-write</button>
           <button type="button" onclick="insertDescriptionImage('f-description')" style="background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:7px 14px; border-radius:7px; font-size:0.76rem; font-weight:700; cursor:pointer;">🖼️ Insert Image</button>
           <button type="button" onclick="insertDescriptionColor('f-description')" style="background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:7px 14px; border-radius:7px; font-size:0.76rem; font-weight:700; cursor:pointer;">🎨 Color Text</button>
           <button type="button" onclick="insertDescriptionTable('f-description')" style="background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:7px 14px; border-radius:7px; font-size:0.76rem; font-weight:700; cursor:pointer;">📊 Insert Table</button>
@@ -8016,6 +8018,7 @@
     document.getElementById('f-promo-eligible').checked = true;
     updatePromoEligibleSliderStyle();
     document.getElementById('f-description').value = '';
+    descAutoPass = false;
     var wc = document.getElementById('desc-word-count');
     if (wc) { wc.textContent = '0 words'; wc.style.color = 'var(--grey)'; }
     document.getElementById('f-hotdeal').checked = false;
@@ -8455,6 +8458,7 @@
     });
   }
 
+  let descAutoPass = false;
   function saveProduct() {
     const name = document.getElementById('f-name').value.trim();
     const cat = document.getElementById('f-cat').value;
@@ -8462,6 +8466,14 @@
     if (!name || !cat || cat === '__add_new__') { showAppAlert('Please enter a product name and category.'); return; }
     if (!store || store === '__add_new__') { showAppAlert('Please select which store this product belongs to.'); return; }
 
+    // New products always get a description: if it's still empty, write one from the product name first.
+    if (!editingId && !descAutoPass && window.SwiftAI && !document.getElementById('f-description').value.trim()) {
+      descAutoPass = true;
+      showInfoToast('✨ Writing the description…');
+      SwiftAI.fillDescription().catch(function (e) { console.warn('[describe] auto description failed', e); showErrorToast('Saved without a description: ' + e.message); })
+        .then(function () { saveProduct(); });
+      return;
+    }
     const duplicateMatch = products.find(p => p.id !== editingId && p.name.trim().toLowerCase() === name.toLowerCase());
     if (duplicateMatch) {
       showAppConfirm('A product named "' + duplicateMatch.name + '" already exists. Create a duplicate anyway?', function(){

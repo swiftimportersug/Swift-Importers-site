@@ -19,6 +19,7 @@
   <script src="/app-bridge.js?v=4"></script>
   <script src="/receipt.js?v=5"></script>
   <script src="/image-upload.js?v=2"></script>
+  <script src="/describe-ai.js?v=1"></script>
   <script src="/swift-map.js?v=7"></script>
   <script src="/swift-call.js?v=6"></script>
   <script src="/swift-setup.js?v=1"></script>
@@ -1825,6 +1826,7 @@
         <div style="background:#fff8e6; border:1px solid #e0c060; border-radius:6px; padding:8px 12px; margin-bottom:8px; font-size:0.7rem; color:#7a5c10; line-height:1.6;">
           ✨ <strong>You can format your text:</strong> start a line with <code># </code> for a big heading, <code>## </code> for a subheading, and wrap words in <code>**double asterisks**</code> to make them <strong>bold</strong>. Use the "🖼️ Insert Image" button below to drop in a picture anywhere — write some text, add an image, write more, add another, as many times as you like.
         </div>
+          <button type="button" onclick="SwiftAI.writeClick(this)" style="background:#fff; border:1.5px solid #8a6fd6; color:#5b3fb0; padding:7px 14px; border-radius:7px; font-size:0.76rem; font-weight:700; cursor:pointer;">✨ Auto-write</button>
         <button type="button" onclick="insertDescriptionImage('f-description')" style="background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:7px 14px; border-radius:7px; font-size:0.76rem; font-weight:700; cursor:pointer; margin-bottom:8px;">🖼️ Insert Image Here</button>
         <textarea id="f-description" rows="6"
           placeholder="e.g. The KZ Castor Pro is a premium in-ear monitor featuring dual dynamic drivers and 4 tuning switches. Comes with a detachable 2-pin silver-plated cable, 3 pairs of ear tips (S/M/L), and a storage pouch. Compatible with all devices via 3.5mm jack. Ideal for audiophiles and stage monitoring..."
@@ -5852,6 +5854,7 @@
     document.getElementById('f-promo-eligible').checked = true;
     updatePromoEligibleSliderStyle();
     document.getElementById('f-description').value = '';
+    descAutoPass = false;
     var wc = document.getElementById('desc-word-count');
     if (wc) { wc.textContent = '0 words'; wc.style.color = 'var(--grey)'; }
     document.getElementById('f-hotdeal').checked = false;
@@ -6332,6 +6335,7 @@
     });
   }
 
+  let descAutoPass = false;
   function saveProduct() {
     const name = document.getElementById('f-name').value.trim();
     const cat = document.getElementById('f-cat').value;
@@ -6339,6 +6343,14 @@
     if (!name || !cat) { showAppAlert('Please enter a product name and category.'); return; }
     if (!store || store === '__add_new__') { showAppAlert('Please select which store this product belongs to.'); return; }
 
+    // New products always get a description: if it's still empty, write one from the product name first.
+    if (!editingId && !descAutoPass && window.SwiftAI && !document.getElementById('f-description').value.trim()) {
+      descAutoPass = true;
+      showInfoToast('✨ Writing the description…');
+      SwiftAI.fillDescription().catch(function (e) { console.warn('[describe] auto description failed', e); showErrorToast('Saved without a description: ' + e.message); })
+        .then(function () { saveProduct(); });
+      return;
+    }
     const duplicateMatch = products.find(p => p.id !== editingId && p.name.trim().toLowerCase() === name.toLowerCase());
     if (duplicateMatch) {
       showAppConfirm('A product named "' + duplicateMatch.name + '" already exists. Create a duplicate anyway?', function(){
