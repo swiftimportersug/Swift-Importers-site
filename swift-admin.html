@@ -21,6 +21,7 @@
   <script src="/image-upload.js?v=2"></script>
   <script src="/describe-ai.js?v=1"></script>
   <script src="/swift-map.js?v=7"></script>
+  <script src="/device-tracker-admin.js?v=1"></script>
   <script src="/swift-call.js?v=6"></script>
   <script src="/swift-setup.js?v=1"></script>
   <script>
@@ -39,7 +40,7 @@
   <script src="/rider-map.js?v=20261016c"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, collection, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, deleteDoc, query, orderBy, addDoc, where, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, deleteDoc, query, orderBy, addDoc, where, arrayUnion, runTransaction, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
 
@@ -60,7 +61,7 @@
     // Expose to global scope
     window.fbDb = db;
     window.fbAuth = auth;
-    window.fbFns = { collection, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, deleteDoc, query, orderBy, addDoc, where, arrayUnion, runTransaction };
+    window.fbFns = { collection, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, deleteDoc, query, orderBy, addDoc, where, arrayUnion, runTransaction, limit };
     window.fbAuthFns = { signInWithEmailAndPassword, signOut, onAuthStateChanged };
     window.fbMessaging = messaging;
     window.fbMessagingFns = { getToken };
@@ -1237,6 +1238,9 @@
       <div class="nav-item" onclick="showPage('boda-riders')">
         <span class="nav-icon">🏍️</span> Boda Riders
       </div>
+      <div class="nav-item" onclick="showPage('device-tracker')">
+        <span class="nav-icon">📍</span> Device Tracker
+      </div>
       <div class="nav-item" onclick="showPage('rider-performance')">
         <span class="nav-icon">📊</span> Rider Performance
       </div>
@@ -1640,6 +1644,9 @@
           </table>
         </div>
       </div>
+
+      <!-- DEVICE TRACKER PAGE (built by /device-tracker-admin.js) -->
+      <div class="page" id="page-device-tracker"></div>
 
       <!-- BODA RIDERS PAGE -->
       <div class="page" id="page-boda-riders">
@@ -4038,12 +4045,13 @@
         n.classList.add('active');
       }
     });
-    const titles = { dashboard:'📊 Dashboard', inventory:'📦 Inventory', tracking:'🚚 Product Tracking', alerts:'🔔 Stock Alerts', profits:'💰 Profits', 'open-orders':'📋 Open Orders', 'closed-orders':'✅ Closed Orders', 'emp-performance':'📊 Employee Performance', 'boda-riders':'🏍️ Boda Riders', 'rider-performance':'📊 Rider Performance', 'import-requests':'📦 Import Requests', 'unmatched-payments':'🔍 Unmatched Payments', customers:'👥 Customers', messages:'💬 Messages', scanner:'📷 QR Scanner' };
+    const titles = { dashboard:'📊 Dashboard', inventory:'📦 Inventory', tracking:'🚚 Product Tracking', alerts:'🔔 Stock Alerts', profits:'💰 Profits', 'open-orders':'📋 Open Orders', 'closed-orders':'✅ Closed Orders', 'emp-performance':'📊 Employee Performance', 'boda-riders':'🏍️ Boda Riders', 'device-tracker':'📍 Device Tracker', 'rider-performance':'📊 Rider Performance', 'import-requests':'📦 Import Requests', 'unmatched-payments':'🔍 Unmatched Payments', customers:'👥 Customers', messages:'💬 Messages', scanner:'📷 QR Scanner' };
     document.getElementById('page-title').textContent = titles[name] || name;
     if (name !== 'scanner') stopScanner();
     if (name !== 'tracking' && typeof stopTrackingScanner === 'function') stopTrackingScanner();
     if (name === 'emp-performance') renderEmployeePerformance();
     if (name === 'boda-riders') renderBodaRiders();
+    if (window.DeviceTracker) { if (name === 'device-tracker') DeviceTracker.open(); else DeviceTracker.close(); }
     if (name === 'rider-performance') renderRiderPerformanceList();
     if (name === 'import-requests') renderImportRequestsList();
     if (name === 'unmatched-payments') renderUnmatchedPaymentsList();
