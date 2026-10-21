@@ -96,7 +96,7 @@
       '.dt-live{background:#dff5e6;color:#14532d;}.dt-off{background:#eceff3;color:#555;}' +
       '.dt-btn{background:#fff;border:1.5px solid var(--gold);color:var(--gold-dark);padding:8px 12px;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer;}' +
       '.dt-btn.red{border-color:#e0a0a0;color:#b03030;}' +
-      '.dt-compass{position:absolute;right:10px;top:10px;z-index:5;width:36px;height:36px;border:0;border-radius:10px;background:rgba(255,255,255,.95);box-shadow:0 2px 8px rgba(0,0,0,.3);font-size:18px;line-height:1;cursor:pointer;align-items:center;justify-content:center;touch-action:manipulation;}' +
+      '.dt-compass{position:absolute;right:10px;top:54px;z-index:5;width:36px;height:36px;border:0;border-radius:10px;background:rgba(255,255,255,.95);box-shadow:0 2px 8px rgba(0,0,0,.3);font-size:18px;line-height:1;cursor:pointer;align-items:center;justify-content:center;touch-action:manipulation;}' +
       '.dt-compass span{display:block;transition:transform .15s linear;}';
     document.head.appendChild(st);
   }
@@ -174,6 +174,17 @@
         '<input type="text" id="dt-name" value="' + esc(d.label || d.name || '') + '" placeholder="Device name" maxlength="40" style="flex:1 1 180px; padding:9px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:.85rem;"/>' +
         '<button class="dt-btn" onclick="DeviceTracker.rename()">💾 Rename</button>' +
         '<button class="dt-btn red" onclick="DeviceTracker.remove()">🗑️ Remove device</button>' +
+      '</div>' +
+      '<div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border);">' +
+        '<div style="color:#888;font-size:.7rem;font-weight:700;margin-bottom:6px;">REMOTE ACTIONS <span style="font-weight:500;">— the phone checks for these about every 1–2 min, so there is a short delay</span></div>' +
+        '<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">' +
+          '<button class="dt-btn" onclick="DeviceTracker.sendCmd(\'alarm\')">🔔 Ring phone</button>' +
+          '<button class="dt-btn" onclick="DeviceTracker.sendCmd(\'bt_on\')">📶 Bluetooth on</button>' +
+          '<button class="dt-btn" onclick="DeviceTracker.sendCmd(\'bt_off\')">📶 Bluetooth off</button>' +
+        '</div>' +
+        (d.cmd ? ('<div style="font-size:.72rem;color:#666;margin-top:6px;">Last sent: <b>' + esc(d.cmd) + '</b>' +
+          (d.cmdDone ? (' — done ' + esc(ago(d.cmdDoneAt)) + (d.cmdResult ? ' (' + esc(d.cmdResult) + ')' : '')) : ' — waiting for the phone…') + '</div>') : '') +
+        '<div style="font-size:.7rem;color:#999;margin-top:4px;">Bluetooth control only works on older Android versions — Android 13+ blocks apps from switching it silently, so "blocked_by_os" there is the phone\'s OS refusing it, not a bug.</div>' +
       '</div>' +
       '<div style="font-size:.72rem;color:#888;margin-top:8px;">Trail: ' + trail.length + ' point' + (trail.length === 1 ? '' : 's') + ' · the phone reports about every 15 s while moving and every 2 min when still.</div>';
   }
@@ -263,6 +274,13 @@
     faceNorth: function () {
       headingOn = false;
       if (map && map.canRotate) map.setBearing(0, { animate: true, duration: 0.5 });
+    },
+    sendCmd: function (cmd) {
+      if (!selectedId) return;
+      var f = fns();
+      f.updateDoc(f.doc(db(), 'tracked_devices', selectedId), { cmd: cmd, cmdAt: new Date().toISOString(), cmdDone: false, cmdResult: '' })
+        .then(function () { say('📨 Sent — the phone will pick it up shortly'); })
+        .catch(function (e) { say('Could not send: ' + (e && e.message || e), 'error'); });
     }
   };
 })();
