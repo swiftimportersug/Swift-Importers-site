@@ -766,7 +766,11 @@
       .menu-toggle { display: block; }
       .content { padding: 16px; }
       #topbar-dashboard-controls{ display:none !important; }
-      body.on-dashboard-page #topbar-dashboard-controls{ display:flex !important; }
+      body.on-dashboard-page #topbar-dashboard-controls{
+        display:flex !important; flex-direction:column !important; align-items:stretch !important;
+        width:100%; gap:8px !important;
+      }
+      body.on-dashboard-page #topbar-dashboard-controls > * { width:100%; justify-content:center; }
       .admin-messages-layout{ grid-template-columns:1fr !important; height:calc(100vh - 140px) !important; }
       .admin-conversation-panel{ display:none !important; }
       body.admin-thread-open .admin-conversation-panel{ display:flex !important; }
@@ -4109,6 +4113,26 @@
     document.getElementById('sidebar-overlay').classList.remove('open');
     document.body.style.overflow = '';
   }
+
+  // Swipe left anywhere on the sidebar to close it (a clear horizontal swipe, not just scrolling
+  // the menu list up/down).
+  (function initSidebarSwipe() {
+    const sb = document.getElementById('sidebar');
+    if (!sb || sb.dataset.swipeInit) return;
+    sb.dataset.swipeInit = '1';
+    let sx = 0, sy = 0, tracking = false;
+    sb.addEventListener('touchstart', function (e) {
+      if (!e.touches || e.touches.length !== 1) return;
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY; tracking = true;
+    }, { passive: true });
+    sb.addEventListener('touchend', function (e) {
+      if (!tracking) return;
+      tracking = false;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - sx, dy = t.clientY - sy;
+      if (dx < -60 && Math.abs(dx) > Math.abs(dy) * 1.5) closeSidebar();
+    }, { passive: true });
+  })();
 
   // ── SAVE / LOAD ──
   function previewImage(url) {
@@ -7624,10 +7648,24 @@
     document.getElementById('fin-breakdown-modal').classList.remove('open');
   }
 
+  // The chart always shows the same trailing 24 real months — selecting a bar never moves this window.
+  function financeWindowMonths() {
+    const now = new Date();
+    const months = [];
+    for (let i=23; i>=0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+      months.push(d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'));
+    }
+    return months;
+  }
+
   function shiftFinanceMonth(delta) {
+    const months = financeWindowMonths();
     const [y,m] = financeSelectedMonth.split('-').map(Number);
     const d = new Date(y, m-1+delta, 1);
-    financeSelectedMonth = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    const next = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    if (next < months[0] || next > months[months.length-1]) return; // stay within the visible window
+    financeSelectedMonth = next;
     renderFinanceOverview();
   }
 
@@ -7705,14 +7743,10 @@
       </div>
     `;
 
-    // Trailing 24-month scrollable chart, ending at selected month. Rendering more months than
-    // fit on screen guarantees there is always something to drag/swipe through, not just the <> buttons.
-    const [sy, sm] = financeSelectedMonth.split('-').map(Number);
-    const months = [];
-    for (let i=23; i>=0; i--) {
-      const d = new Date(sy, sm-1-i, 1);
-      months.push(d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'));
-    }
+    // Fixed trailing 24-month window ending at the real current month — NOT at whatever month is
+    // selected. Clicking an older bar only changes which column is highlighted (and the stats above),
+    // it never re-anchors the window, so the months after it stay put instead of disappearing.
+    const months = financeWindowMonths();
     const monthData = months.map(ms => computeMonthFinance(ms));
     const maxVal = Math.max(1, ...monthData.map(md => Math.max(md.totalIncome, md.totalExpense)));
     const chart = document.getElementById('fin-chart');
