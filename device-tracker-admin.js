@@ -14,6 +14,8 @@
   var root = null, devices = {}, selectedId = null;
   var unsubDevices = null, unsubPoints = null, tickTimer = null;
   var map = null, mapReady = null, marker = null, circle = null, line = null, follow = true, trail = [];
+  var headingOn = true;             // while on, the camera turns to face the way the phone is travelling
+  var HEADING_MIN_SPEED = 1.3;      // m/s (~4.7 km/h) — below this, a GPS bearing is too noisy to trust
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function fns() { return window.fbFns; }
@@ -42,6 +44,7 @@
         '<div id="dt-list" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;"></div>' +
         '<div id="dt-map-wrap" style="position:relative; height:56vh; min-height:340px; border-radius:12px; overflow:hidden; border:1.5px solid var(--border); background:#e9edf3;">' +
           '<div id="dt-map" style="position:absolute; inset:0;"></div>' +
+          '<button type="button" id="dt-compass" class="dt-compass" aria-label="Face north" onclick="DeviceTracker.faceNorth()" style="display:none;"><span>🧭</span></button>' +
           '<div id="dt-empty" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:24px; color:#555; font-weight:600; font-size:0.9rem; background:rgba(255,255,255,.85);">No device has reported yet.<br/>Install the Swift Tracker app on the phone and open it once.</div>' +
         '</div>' +
         '<div id="dt-detail" style="margin-top:12px;"></div>' +
@@ -53,8 +56,32 @@
     if (mapReady) return mapReady;
     var el = document.getElementById('dt-map');
     if (!el || !window.SwiftMap) return Promise.reject(new Error('Map not available'));
-    mapReady = window.SwiftMap.create(el, { center: [0.3476, 32.5825], zoom: 13, zoomControl: true, zoomPosition: 'bottomright' }).then(function (m) { map = m; return m; });
+    mapReady = window.SwiftMap.create(el, { center: [0.3476, 32.5825], zoom: 13, zoomControl: true, zoomPosition: 'bottomright', pitch: 35, rotate: true })
+      .then(function (m) {
+        map = m;
+        try {
+          if (m.canRotate) {
+            var compassBtn = document.getElementById('dt-compass');
+            if (compassBtn) compassBtn.style.display = 'flex';
+            // Dragging the map by hand to turn it takes over from auto-facing the direction of travel.
+            m.on('rotatestart', function (ev) { if (ev && ev.originalEvent) headingOn = false; });
+            m.on('rotate', updateCompass);
+          }
+        } catch (e) {}
+        return m;
+      });
     return mapReady;
+  }
+  function updateCompass() {
+    var btn = document.getElementById('dt-compass');
+    if (!map || !map.canRotate || !btn) return;
+    var sp = btn.firstChild;
+    if (sp) sp.style.transform = 'rotate(' + (-map.getBearing()).toFixed(1) + 'deg)';
+  }
+  // How far down from centre to put the phone, so more of the road ahead is visible while facing its heading.
+  function camOffsetY() {
+    var el = document.getElementById('dt-map');
+    return el ? Math.round(el.clientHeight * 0.14) : 0;
   }
   var DOT = '<div style="position:relative;width:28px;height:28px;">' +
     '<span style="position:absolute;inset:0;border-radius:50%;background:rgba(37,99,235,.28);animation:dtPulse 1.8s ease-out infinite;"></span>' +
@@ -68,7 +95,9 @@
       '.dt-chip{display:inline-block;font-size:.66rem;font-weight:800;padding:2px 8px;border-radius:10px;}' +
       '.dt-live{background:#dff5e6;color:#14532d;}.dt-off{background:#eceff3;color:#555;}' +
       '.dt-btn{background:#fff;border:1.5px solid var(--gold);color:var(--gold-dark);padding:8px 12px;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer;}' +
-      '.dt-btn.red{border-color:#e0a0a0;color:#b03030;}';
+      '.dt-btn.red{border-color:#e0a0a0;color:#b03030;}' +
+      '.dt-compass{position:absolute;right:10px;top:10px;z-index:5;width:36px;height:36px;border:0;border-radius:10px;background:rgba(255,255,255,.95);box-shadow:0 2px 8px rgba(0,0,0,.3);font-size:18px;line-height:1;cursor:pointer;align-items:center;justify-content:center;touch-action:manipulation;}' +
+      '.dt-compass span{display:block;transition:transform .15s linear;}';
     document.head.appendChild(st);
   }
 
@@ -83,8 +112,16 @@
       if (!circle) circle = m.addCircle(ll, r, { color: '#2563eb', weight: 1, opacity: 0.5, fillOpacity: 0.1 });
       else { circle.setLatLng(ll); circle.setRadius(r); }
       drawTrail(m);
-      if (recenter) m.setView(ll, 17, { animate: true });
-      else if (follow) { try { m.panInside(ll, { padding: [80, 80] }); } catch (e) { m.setView(ll, m.getZoom()); } }
+      var moving = typeof d.speed === 'number' && d.speed >= HEADING_MIN_SPEED;
+      var bearing = (headingOn && m.canRotate && moving && typeof d.bearing === 'number') ? d.bearing : null;
+      if (recenter) {
+        if (bearing != null) m.follow(ll, bearing, camOffsetY(), { animate: true, duration: 600 });
+        else m.setView(ll, 17, { animate: true });
+      } else if (follow) {
+        if (bearing != null) m.follow(ll, bearing, camOffsetY(), { animate: true });
+        else { try { m.panInside(ll, { padding: [80, 80] }); } catch (e) { m.setView(ll, m.getZoom()); } }
+      }
+      updateCompass();
       try { m.invalidateSize(); } catch (e) {}
     }).catch(function (e) { console.warn('[tracker] map failed', e); });
   }
@@ -221,7 +258,11 @@
 
   window.DeviceTracker = {
     open: open, close: close, select: select, rename: rename, remove: remove, clearTrail: clearTrail,
-    center: function () { drawSelected(true); },
-    setFollow: function (v) { follow = !!v; }
+    center: function () { headingOn = true; drawSelected(true); },
+    setFollow: function (v) { follow = !!v; if (v) headingOn = true; },
+    faceNorth: function () {
+      headingOn = false;
+      if (map && map.canRotate) map.setBearing(0, { animate: true, duration: 0.5 });
+    }
   };
 })();
