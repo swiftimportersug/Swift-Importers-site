@@ -183,7 +183,7 @@
       width: var(--sidebar-w);
       background: rgba(10,10,8,0.78);
       border-right: 1px solid rgba(255,255,255,0.07);
-      min-height: 100vh;
+      height: 100vh; height: 100dvh;
       display: flex; flex-direction: column; position: fixed; top: 0; left: 0; z-index: 100;
       transition: transform 0.3s;
     }
@@ -222,7 +222,7 @@
       text-transform: uppercase; letter-spacing: 0.08em; margin-top: 8px;
       display: inline-block;
     }
-    .sidebar-nav { flex: 1; padding: 16px 0; }
+    .sidebar-nav { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 16px 0; }
     .nav-item {
       display: flex; align-items: center; gap: 12px; padding: 11px 20px;
       color: #888; cursor: pointer; transition: all 0.2s; font-size: 0.85rem;
@@ -254,13 +254,18 @@
       flex-wrap: wrap; gap: 10px;
     }
     .topbar-title { font-family: 'Inter', sans-serif; font-size: 1.1rem; font-weight: 800; }
-    .topbar-right { display: flex; align-items: center; gap: 12px; }
-    .whatsapp-alert-btn {
-      background: #25D366; color: #fff; border: none; padding: 8px 16px;
-      border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;
-      display: flex; align-items: center; gap: 6px; transition: background 0.2s;
+    .topbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    /* All of the pills in the topbar (status + the three action buttons) share one size and shape. */
+    #fb-status, .whatsapp-alert-btn, .notif-btn {
+      height: 36px; padding: 0 14px; border-radius: 8px; font-size: 0.78rem; font-weight: 700;
+      font-family: 'Inter', sans-serif; letter-spacing: 0.01em; white-space: nowrap; line-height: 1;
+      display: flex; align-items: center; gap: 7px; box-sizing: border-box; transition: all 0.2s;
     }
-    .whatsapp-alert-btn:hover { background: #1aaa52; }
+    #fb-status { border: 1.5px solid var(--border); background: #f7f7f7; color: var(--grey); cursor: default; }
+    .whatsapp-alert-btn {
+      background: #25D366; color: #fff; border: 1.5px solid #25D366; cursor: pointer;
+    }
+    .whatsapp-alert-btn:hover { background: #1aaa52; border-color: #1aaa52; }
     .content { padding: 28px; }
 
     /* ── PAGES ── */
@@ -330,10 +335,11 @@
     .fin-chart-legend span { display: inline-flex; align-items: center; gap: 5px; }
     .fin-chart-legend i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
     .fin-chart-scroll {
-      overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch;
+      overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; touch-action: pan-x;
       background: var(--light); border: 1px solid var(--border); border-radius: 12px;
-      padding: 18px 16px 10px;
+      padding: 18px 16px 10px; cursor: grab; user-select: none;
     }
+    .fin-chart-scroll.dragging { cursor: grabbing; }
     .fin-chart-scroll::-webkit-scrollbar { height: 6px; }
     .fin-chart-scroll::-webkit-scrollbar-thumb { background: #d4cfbe; border-radius: 3px; }
     .fin-chart { display: flex; align-items: flex-end; gap: 20px; height: 160px; padding: 0 6px; border-bottom: 1.5px solid var(--border); width: max-content; min-width: 100%; }
@@ -681,14 +687,10 @@
       60% { transform: translateX(-50%) translateY(4px) scale(1.03); }
       100% { transform: translateX(-50%) translateY(0) scale(1); }
     }
-    .notif-btn {
-      background: #1a1a1a; border: 1px solid #333; color: #888;
-      padding: 7px 12px; border-radius:6px; font-size:0.8rem;
-      cursor:pointer; font-family:'Inter',sans-serif;
-      display:flex; align-items:center; gap:5px; transition:all 0.2s;
-    }
-    .notif-btn.enabled { background:var(--gold); color:var(--black); border-color:var(--gold); font-weight:700; }
+    .notif-btn { background: #1a1a1a; border: 1.5px solid #333; color: #888; cursor: pointer; }
+    .notif-btn.enabled { background:var(--gold); color:var(--black); border-color:var(--gold); }
     .notif-btn:hover { border-color:var(--gold); color:var(--gold); }
+    .notif-btn.enabled:hover { color: var(--black); }
     .order-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin-bottom:12px; border-left:4px solid var(--gold); }
     .order-card.closed { border-left-color:var(--green); opacity:0.85; }
     .order-card-hdr { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
@@ -1270,11 +1272,8 @@
         <span class="topbar-title" id="page-title">Dashboard</span>
       </div>
       <div class="topbar-right" id="topbar-dashboard-controls">
-        <span id="fb-status" style="font-size:0.75rem; font-weight:600; color:var(--grey);">⏳ Connecting...</span>
-        <button id="notif-btn" class="notif-btn enabled" onclick="toggleNotifications()" title="Enable order sound alerts">
-          🔔 Alerts On
-          🔔 Alerts Off
-        </button>
+        <span id="fb-status">⏳ Connecting...</span>
+        <button id="notif-btn" class="notif-btn enabled" onclick="toggleNotifications()" title="Enable order sound alerts">🔔 Alerts On</button>
         <button class="whatsapp-alert-btn" onclick="sendWAAlert()">📲 Send Stock Alert</button>
         <button class="whatsapp-alert-btn" style="background:var(--gold); border-color:var(--gold-dark); color:var(--black);" onclick="openFinanceEntryModal()">💵 Add Income/Expense</button>
       </div>
@@ -1408,7 +1407,7 @@
 
           <div class="fin-chart-wrap">
             <div class="fin-chart-title-row">
-              <div class="fin-chart-title">Income vs Expenses &mdash; last 12 months</div>
+              <div class="fin-chart-title">Income vs Expenses &mdash; last 24 months <span style="font-weight:500; text-transform:none; letter-spacing:0; color:#999;">(drag or swipe to scroll)</span></div>
               <div style="display:flex; align-items:center; gap:14px;">
                 <div class="fin-chart-legend">
                   <span><i style="background:var(--green);"></i> Income</span>
@@ -2063,8 +2062,8 @@
         <button type="button" onclick="SwiftImages.pickInto('f-warehouse-cover-image-2', this)" style="margin-top:6px; background:#fff; border:1.5px solid #25a244; color:#14532d; padding:8px 12px; border-radius:8px; font-size:0.76rem; font-weight:700; cursor:pointer;">📷 Upload photo</button>
         <div style="font-size:0.7rem; color:#888; margin-top:4px;">Only visible to admin/staff when finding this product's location — never shown to customers. Helps whoever's fetching it recognize the box/packaging at a glance.</div>
         <div id="f-warehouse-cover-preview" style="display:none; margin-top:8px; gap:8px;">
-          <img id="f-warehouse-cover-preview-img" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);" onerror="this.style.display='none';"/>
-          <img id="f-warehouse-cover-preview-img-2" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);display:none;" onerror="this.style.display='none';"/>
+          <img id="f-warehouse-cover-preview-img" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);cursor:zoom-in;" title="Click to enlarge" onclick="if(this.src) openCoverLightbox(this.src, document.getElementById('f-name').value || 'Warehouse cover photo')" onerror="this.style.display='none';"/>
+          <img id="f-warehouse-cover-preview-img-2" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);display:none;cursor:zoom-in;" title="Click to enlarge" onclick="if(this.src) openCoverLightbox(this.src, document.getElementById('f-name').value || 'Warehouse cover photo')" onerror="this.style.display='none';"/>
         </div>
       </div>
 
@@ -2375,8 +2374,9 @@
         <div class="form-row-2">
           <div class="form-group" style="margin-bottom:0;">
             <label>Bundle Preview Picture (optional)</label>
-            <input type="text" id="f-bundle-image" placeholder="Image URL for the bundle listing"/>
+            <input type="text" id="f-bundle-image" placeholder="Image URL for the bundle listing" oninput="updateBundleImagePreview()"/>
             <button type="button" onclick="SwiftImages.pickInto('f-bundle-image', this)" style="margin-top:6px; background:#fff; border:1.5px solid #25a244; color:#14532d; padding:8px 12px; border-radius:8px; font-size:0.76rem; font-weight:700; cursor:pointer;">📷 Upload photo</button>
+            <img id="f-bundle-image-preview-img" style="display:none; margin-top:8px; width:56px;height:56px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);cursor:zoom-in;" title="Click to enlarge" onclick="openCoverLightbox(this.src, 'Bundle preview picture')" onerror="this.style.display='none';"/>
           </div>
           <div class="form-group" style="margin-bottom:0;">
             <label>Bundle Price (optional)</label>
@@ -2412,6 +2412,14 @@
     const knob = document.createElement('span');
     knob.style.cssText = 'position:absolute; height:20px; width:20px; left:' + (on ? '23px' : '3px') + '; top:3px; background:#fff; border-radius:50%; transition:0.2s; box-shadow:0 1px 3px rgba(0,0,0,0.3);';
     slider.appendChild(knob);
+  }
+
+  function updateBundleImagePreview() {
+    const input = document.getElementById('f-bundle-image');
+    const img = document.getElementById('f-bundle-image-preview-img');
+    if (!input || !img) return;
+    const url = input.value.trim();
+    if (url) { img.src = url; img.style.display = 'block'; } else { img.style.display = 'none'; }
   }
 
   function updateWarehouseCoverPreview() {
@@ -4092,12 +4100,14 @@
   });
 
   function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('open');
-    document.getElementById('sidebar-overlay').classList.toggle('open');
+    const open = document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebar-overlay').classList.toggle('open', open);
+    document.body.style.overflow = open ? 'hidden' : '';
   }
   function closeSidebar() {
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('sidebar-overlay').classList.remove('open');
+    document.body.style.overflow = '';
   }
 
   // ── SAVE / LOAD ──
@@ -7632,6 +7642,31 @@
     return new Date(y, m-1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
   }
 
+  // Click-and-drag scrolling with a mouse (touch already scrolls natively via overflow-x).
+  // Only reacts to mouse input, so it never interferes with a finger swipe on a tablet/phone.
+  function initFinChartDrag() {
+    const el = document.getElementById('fin-chart-scroll');
+    if (!el || el.dataset.dragInit) return;
+    el.dataset.dragInit = '1';
+    let down = false, moved = false, startX = 0, startScroll = 0;
+    el.addEventListener('pointerdown', function (e) {
+      if (e.pointerType !== 'mouse') return;
+      down = true; moved = false; startX = e.clientX; startScroll = el.scrollLeft;
+      el.classList.add('dragging');
+    });
+    el.addEventListener('pointermove', function (e) {
+      if (!down) return;
+      const dx = e.clientX - startX;
+      if (Math.abs(dx) > 4) moved = true;
+      el.scrollLeft = startScroll - dx;
+    });
+    function stopDrag() { if (down) { down = false; el.classList.remove('dragging'); } }
+    el.addEventListener('pointerup', stopDrag);
+    el.addEventListener('pointerleave', stopDrag);
+    // A drag that actually moved the chart shouldn't also fire the column's "select month" click.
+    el.addEventListener('click', function (e) { if (moved) { e.stopPropagation(); moved = false; } }, true);
+  }
+
   // PC mouse wheels only scroll vertically by default, which made the horizontal chart
   // strip feel unresponsive/weird when hovering and scrolling normally — this redirects
   // that vertical scroll into horizontal movement while the cursor is over the chart.
@@ -7670,10 +7705,11 @@
       </div>
     `;
 
-    // Trailing 12-month scrollable chart, ending at selected month
+    // Trailing 24-month scrollable chart, ending at selected month. Rendering more months than
+    // fit on screen guarantees there is always something to drag/swipe through, not just the <> buttons.
     const [sy, sm] = financeSelectedMonth.split('-').map(Number);
     const months = [];
-    for (let i=11; i>=0; i--) {
+    for (let i=23; i>=0; i--) {
       const d = new Date(sy, sm-1-i, 1);
       months.push(d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'));
     }
@@ -7681,6 +7717,7 @@
     const maxVal = Math.max(1, ...monthData.map(md => Math.max(md.totalIncome, md.totalExpense)));
     const chart = document.getElementById('fin-chart');
     if (chart) {
+      initFinChartDrag();
       chart.innerHTML = months.map((ms, i) => {
         const md = monthData[i];
         const incH = Math.round((md.totalIncome / maxVal) * 100);
@@ -7812,7 +7849,7 @@
       `).join('');
 
       const thumb = p.image
-        ? `<img src="${p.image}" alt="${p.name}" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;" onerror="this.style.display='none'"/>`
+        ? `<img src="${p.image}" alt="${p.name}" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;cursor:zoom-in;" onclick="openCoverLightbox('${p.image.replace(/'/g,"\\'")}','${p.name.replace(/'/g,"\\'")}')" title="Click to enlarge" onerror="this.style.display='none'"/>`
         : `<div style="width:48px;height:48px;background:var(--light);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0;">${catIcons[p.category]||'📦'}</div>`;
 
       return `
@@ -7900,7 +7937,7 @@
           <span style="font-size:0.72rem;font-weight:700;color:var(--red);">${parseInt(v.stock)||0} pcs</span>
           <button class="btn-sm" style="background:#e8f5e9;color:var(--green);font-size:0.68rem;padding:3px 8px;" onclick="openAdjustModal('${p.id}', ${i}, true)">⚡ Adjust</button>
         </div>`).join('');
-      const thumb = p.image ? `<img src="${p.image}" alt="${p.name}" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;" onerror="this.style.display='none'"/>` : `<div style="width:48px;height:48px;background:var(--light);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0;">${catIcons[p.category]||'📦'}</div>`;
+      const thumb = p.image ? `<img src="${p.image}" alt="${p.name}" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;cursor:zoom-in;" onclick="openCoverLightbox('${p.image.replace(/'/g,"\\'")}','${p.name.replace(/'/g,"\\'")}')" title="Click to enlarge" onerror="this.style.display='none'"/>` : `<div style="width:48px;height:48px;background:var(--light);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0;">${catIcons[p.category]||'📦'}</div>`;
       return `<tr>
         <td><div style="display:flex;align-items:center;gap:10px;">${thumb}<div><strong>${p.name}</strong>${p.sku?'<br/><span style="font-size:0.7rem;color:var(--grey);">SKU: '+p.sku+'</span>':''}
           <br/><div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
@@ -8043,6 +8080,7 @@
     const bundleSelAdd = document.getElementById('f-bundle-product');
     if (bundleSelAdd) { bundleSelAdd.innerHTML = bundleOptionsHtml(null, ''); updateBundlePreview(); }
     document.getElementById('f-bundle-image').value = '';
+    updateBundleImagePreview();
     document.getElementById('f-bundle-price').value = '';
     const giftExpiresAdd = document.getElementById('f-freegift-expires');
     if (giftExpiresAdd) { giftExpiresAdd.value = ''; updateDMYPreview(giftExpiresAdd); }
@@ -8140,6 +8178,7 @@
     const bundleSelEdit = document.getElementById('f-bundle-product');
     if (bundleSelEdit) { bundleSelEdit.innerHTML = bundleOptionsHtml(id, p.bundleProductId || ''); updateBundlePreview(); }
     document.getElementById('f-bundle-image').value = p.bundleImage || '';
+    updateBundleImagePreview();
     document.getElementById('f-bundle-price').value = p.bundlePrice || '';
     const giftExpiresEdit = document.getElementById('f-freegift-expires');
     if (giftExpiresEdit) { giftExpiresEdit.value = p.freeGiftExpiresAt ? toDatetimeLocalValue(new Date(p.freeGiftExpiresAt)) : ''; updateDMYPreview(giftExpiresEdit); }
@@ -8330,7 +8369,7 @@
         <div style="font-size:0.68rem;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">🖼️ Variant Preview Image</div>
         <div style="display:flex; gap:10px; align-items:center;">
           <div id="vthumb_${variantId}" style="width:56px; height:56px; border-radius:8px; border:2px solid #ddd; background:#eee; flex-shrink:0; overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:1.4rem;">
-            ${data.variantImage ? `<img src="${data.variantImage}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='📷'"/>` : '📷'}
+            ${data.variantImage ? `<img src="${data.variantImage}" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in;" title="Click to enlarge" onclick="openCoverLightbox(this.src, document.getElementById('f-name').value || 'Variant preview')" onerror="this.parentElement.innerHTML='📷'"/>` : '📷'}
           </div>
           <div style="flex:1;">
             <input type="text" data-field="variantImage" value="${data.variantImage||''}" placeholder="Paste image URL for this variant..."
@@ -8355,7 +8394,7 @@
     const thumb = document.getElementById(thumbId);
     if (!thumb) return;
     if (!input.value.trim()) { thumb.innerHTML = '📷'; return; }
-    thumb.innerHTML = `<img src="${input.value.trim()}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='❌'"/>`;
+    thumb.innerHTML = `<img src="${input.value.trim()}" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in;" title="Click to enlarge" onclick="openCoverLightbox(this.src, document.getElementById('f-name').value || 'Variant preview')" onerror="this.parentElement.innerHTML='❌'"/>`;
   }
 
   function updateDiscountPreview(input) {
