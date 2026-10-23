@@ -34,6 +34,14 @@
   function angleDiff(a, b) { return ((b - a + 540) % 360) - 180; }   // signed shortest turn from a to b
   function resetMotion() { shown = null; anim = null; heading = null; targetHeading = null; glideMs = 2500; lastFixAt = 0; if (rafId) { cancelAnimationFrame(rafId); rafId = null; } }
 
+  // Newer phones (with the compass-heading update) send an honest "hasHeading" flag — trust that.
+  // Older phones never send that field at all, so fall back to the old guess: only trust GPS
+  // bearing while clearly moving (it's noise or a silent 0 the rest of the time).
+  function headingIsTrustworthy(d) {
+    if (typeof d.hasHeading === 'boolean') return d.hasHeading;
+    return typeof d.speed === 'number' && d.speed >= HEADING_MIN_SPEED;
+  }
+
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function fns() { return window.fbFns; }
   function db() { return window.fbDb; }
@@ -154,7 +162,7 @@
   // A fresh fix arrived from Firestore: glide the arrow to it over about one reporting interval,
   // instead of snapping straight there. Jumps bigger than SNAP_DISTANCE_M (satellite re-lock,
   // coming back after the tab was hidden) still snap instantly.
-  function moveTo(lat, lng, brg, speed) {
+  function moveTo(lat, lng, brg, headingOk) {
     var target = { lat: lat, lng: lng }, now = Date.now();
     if (!shown || document.hidden) { shown = target; anim = null; }
     else {
@@ -167,9 +175,8 @@
       if (realGap > 300 && realGap < 20000) glideMs = glideMs * 0.5 + Math.min(realGap, 8000) * 0.5;
     }
     lastFixAt = now;
-    var moving = typeof speed === 'number' && speed >= HEADING_MIN_SPEED;
-    if (moving && typeof brg === 'number') { targetHeading = brg; if (heading == null) heading = brg; }
-    // While not clearly moving, keep whatever heading was last trusted rather than snapping to 0/north.
+    if (headingOk && typeof brg === 'number') { targetHeading = brg; if (heading == null) heading = brg; }
+    // Otherwise keep whatever heading was last trusted, rather than snapping to 0/north.
   }
 
   var lastPanAt = 0;
@@ -208,14 +215,13 @@
       if (recenter) {
         // A deliberate jump (picking a device, or "Centre on phone") — snap straight there, no glide.
         shown = { lat: d.lat, lng: d.lng }; anim = null;
-        var movingR = typeof d.speed === 'number' && d.speed >= HEADING_MIN_SPEED;
-        heading = targetHeading = (movingR && typeof d.bearing === 'number') ? d.bearing : null;
+        heading = targetHeading = (headingIsTrustworthy(d) && typeof d.bearing === 'number') ? d.bearing : null;
         place();
         var bearing = (headingOn && m.canRotate && heading != null) ? heading : null;
         if (bearing != null) m.follow([d.lat, d.lng], bearing, camOffsetY(), { animate: true, duration: 600 });
         else m.setView([d.lat, d.lng], 17, { animate: true });
       } else {
-        moveTo(d.lat, d.lng, d.bearing, d.speed);
+        moveTo(d.lat, d.lng, d.bearing, headingIsTrustworthy(d));
         ensureLoop();
       }
       updateCompass();
