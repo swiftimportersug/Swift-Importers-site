@@ -371,6 +371,65 @@
     }).then(function () { if (silent !== true) say('🧹 Trail cleared'); }, function (e) { if (silent !== true) say('Could not clear: ' + (e && e.message || e), 'error'); });
   }
 
+  // ---------- "device is back online" notification (always on, not just while this page is open) ----------
+  // The whole point of tracking a phone is to know the moment a lost/stolen one reconnects, so this
+  // watches tracked_devices for as long as the admin app is open — whichever page staff happen to be on —
+  // completely separate from the Device Tracker page's own listener above (open()/close()).
+  var liveState = {};         // deviceId -> true/false, last known "Live" state
+  var lastSeenData = {};      // deviceId -> last Firestore data we saw for it, so a pure timer tick (no new
+                               // write) can still re-check "has this one gone stale" using the real clock
+  var globalUnsub = null, globalRetry = null, audioCtx = null;
+
+  function noteLive(id, d) {
+    lastSeenData[id] = d;
+    var liveNow = isLive(d);
+    if (liveState[id] === false && liveNow === true) playBackOnlineChime(nameOf(id, d));
+    liveState[id] = liveNow;
+  }
+  function recheckLiveState() {
+    Object.keys(lastSeenData).forEach(function (id) { noteLive(id, lastSeenData[id]); });
+  }
+
+  // A short, synthesized two-note rising chime (A5 → E6) — made entirely in the browser with the Web
+  // Audio API, so no sound file is needed and nothing to upload. It's deliberately distinct from every
+  // other alert in the app (the boda delivery chime, the tracker's own "ring phone" alarm), so staff
+  // instantly know it means "a tracked device just reconnected."
+  function playTone(freq, startAt, dur, peakGain) {
+    var osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, startAt);
+    gain.gain.setValueAtTime(0, startAt);
+    gain.gain.linearRampToValueAtTime(peakGain, startAt + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + dur);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(startAt); osc.stop(startAt + dur + 0.03);
+  }
+  function playBackOnlineChime(name) {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume().catch(function () {});
+      var now = audioCtx.currentTime;
+      playTone(880.0, now, 0.16, 0.22);          // A5
+      playTone(1318.5, now + 0.17, 0.18, 0.22);  // E6 — a perfect fifth up, "connected" feel
+    } catch (e) { /* Web Audio unsupported or blocked — the toast below still shows */ }
+    say('📡 ' + (name || 'A tracked device') + ' is back online', 'success');
+  }
+
+  function startGlobalWatch() {
+    if (globalUnsub) return;
+    if (!fns() || !db()) { globalRetry = setTimeout(startGlobalWatch, 1500); return; }
+    var f = fns();
+    try {
+      globalUnsub = f.onSnapshot(f.collection(db(), 'tracked_devices'), function (snap) {
+        snap.docs.forEach(function (x) { noteLive(x.id, x.data()); });
+      }, function (e) { console.warn('[tracker] global watch failed', e); });
+    } catch (e) { console.warn('[tracker] could not start global watch', e); }
+    // Re-checks every 30s so a device that's gone quiet (no new writes at all) is correctly marked
+    // offline from the clock alone — otherwise its later "I'm back" write wouldn't look like a transition.
+    setInterval(recheckLiveState, 30000);
+  }
+  startGlobalWatch();
+
   window.DeviceTracker = {
     open: open, close: close, select: select, rename: rename, remove: remove, clearTrail: clearTrail,
     center: function () { headingOn = true; drawSelected(true); },
