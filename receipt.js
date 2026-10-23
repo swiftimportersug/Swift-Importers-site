@@ -115,7 +115,10 @@
       running += price;
       var prod = products.filter(function (p) { return p && p.id === c.id; })[0];
       var category = (prod && prod.category) || c.category || '';
-      return { name: shortName(c.name), desc: describe(category, c.name), qty: qty, unit: Math.round(unit), price: Math.round(price) };
+      // A manual receipt line can give its own small description text directly; real cart items
+      // never set c.desc, so this never changes their usual auto-derived one.
+      var desc = (c.desc != null && String(c.desc).trim()) ? String(c.desc).trim() : describe(category, c.name);
+      return { name: shortName(c.name), desc: desc, qty: qty, unit: Math.round(unit), price: Math.round(price) };
     });
 
     // orders saved without per-item prices (older converted import orders): fall back to the order total
@@ -402,7 +405,10 @@
     for (var i = 0; i < 20; i++) out += chars.charAt(Math.floor(Math.random() * chars.length));
     return out;
   }
-  // data = { customerName, phone, items:[{name, qty, unit}], transportType, transportAmount }
+  // data = { customerName, phone, items:[{name, desc, qty, unit, paid}], transportType, transportAmount }
+  // "unit" is the normal per-unit price (shown in the Unit Price column); "paid" is what the customer
+  // actually paid for that whole line — leave it out/0 for no discount (defaults to qty * unit), or
+  // set it lower than qty * unit for a discounted sale. "desc" is the small text under the item name.
   function createManual(data) {
     data = data || {};
     var f = window.fbFns, db = window.fbDb;
@@ -417,9 +423,12 @@
       customerName: customerName,
       cartItems: items.map(function (it) {
         // price/listPrice are PER-UNIT (buildSnapshot multiplies by qty itself); lineTotal pins the
-        // exact total so its own discount-splitting math is bypassed — there's no discount here.
+        // exact total actually charged, bypassing its own discount-splitting math — we already know
+        // the real discounted total, there's nothing for it to work out.
         var qty = Math.max(1, Math.round(Number(it.qty) || 1)), unit = Math.max(0, Number(it.unit) || 0);
-        return { name: it.name, qty: qty, price: unit, listPrice: unit, lineTotal: unit * qty };
+        var full = unit * qty;
+        var paid = (it.paid != null && String(it.paid).trim() !== '') ? Math.max(0, Number(it.paid)) : full;
+        return { name: it.name, desc: it.desc || '', qty: qty, price: unit, listPrice: unit, lineTotal: paid };
       }),
       delivery: (Number(data.transportAmount) > 0) ? { type: data.transportType || 'courier', bodaFee: Number(data.transportAmount) } : null
     };
@@ -519,16 +528,21 @@
   function isInAppView() { return isNative() || /FBAN|FBAV|Instagram|WhatsApp|Line\/|MicroMessenger|; wv\)/i.test(navigator.userAgent || ''); }
 
   // Saves one or more files the way each kind of device can actually do it:
-  //  1. inside our Android apps: the phone's share sheet (via app-bridge.js + the Filesystem/Share plugins)
-  //  2. a phone's own browser: its share sheet if it can share files, else a normal download
-  //  3. a computer: a normal download
-  //  4. anywhere a download can't work (in-app browsers): a picture of the receipt to press-and-hold, plus the link
-  function saveFiles(items, title, docId) {
+  //  1. inside our Android apps: the phone's share sheet (via app-bridge.js + the Filesystem/Share plugins) —
+  //     only used as a fallback if a real on-device save (saveToDownloads) isn't available there.
+  //  2. a phone's own browser: a normal download, same as a computer — UNLESS forceDownload is false
+  //     and the browser can share files, in which case the share sheet is offered instead.
+  //  3. a computer: a normal download.
+  //  4. anywhere a download can't work (in-app browsers): a picture of the receipt to press-and-hold, plus the link.
+  // forceDownload: true for the "Download PDF" button specifically — that button means "save this
+  // file", not "share it", so on an ordinary phone browser it should act like any other download link
+  // rather than popping up the share sheet. The WhatsApp/Share/Copy-link buttons are unaffected.
+  function saveFiles(items, title, docId, forceDownload) {
     var A = window.SwiftApp;
     var viaApp = A && A.shareFiles ? A.shareFiles(items, title).catch(function () { return false; }) : Promise.resolve(false);
     return viaApp.then(function (done) {
       if (done) return true;
-      if (isMobileWeb() && navigator.canShare && window.File) {
+      if (!forceDownload && isMobileWeb() && navigator.canShare && window.File) {
         try {
           var files = items.map(function (it) { return new File([it.blob], it.filename, { type: it.blob.type }); });
           if (navigator.canShare({ files: files })) {
@@ -610,10 +624,10 @@
       if (A && A.saveToDownloads) {
         return A.saveToDownloads(blob, fileName(snap), 'application/pdf').then(function (saved) {
           if (saved) { savedBar(saved); return; }
-          return saveFiles([{ blob: blob, filename: fileName(snap) }], 'Receipt #' + snap.no, docId);
+          return saveFiles([{ blob: blob, filename: fileName(snap) }], 'Receipt #' + snap.no, docId, true);
         });
       }
-      return saveFiles([{ blob: blob, filename: fileName(snap) }], 'Receipt #' + snap.no, docId);
+      return saveFiles([{ blob: blob, filename: fileName(snap) }], 'Receipt #' + snap.no, docId, true);
     });
   }
   function canvasBlob(c) { return new Promise(function (res) { c.toBlob(function (b) { res(b); }, 'image/png'); }); }

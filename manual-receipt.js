@@ -37,12 +37,14 @@
       '#mr-head button{border:0;background:#f1f1f1;border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer;}' +
       '#mr-body{overflow:auto;padding:14px 16px;background:#fff;flex:1;font-family:system-ui,sans-serif;}' +
       '.mr-label{font-size:.74rem;font-weight:700;color:#666;margin:12px 0 5px;}' +
+      '.mr-sublabel{font-size:.68rem;font-weight:600;color:#999;margin:6px 0 3px;}' +
       '.mr-input{width:100%;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:.88rem;box-sizing:border-box;}' +
-      '.mr-row{display:flex;gap:6px;margin-bottom:6px;align-items:center;}' +
+      '.mr-card{border:1.5px solid #e8e8ec;border-radius:10px;padding:10px;margin-bottom:8px;background:#fafbfc;}' +
+      '.mr-row{display:flex;gap:6px;align-items:center;}' +
       '.mr-row input{flex:1;min-width:0;}' +
-      '.mr-row input.mr-qty{flex:0 0 56px;}' +
-      '.mr-row input.mr-unit{flex:0 0 110px;}' +
       '.mr-row button{flex:0 0 auto;border:0;background:#fdeaea;color:#b03030;border-radius:8px;width:34px;height:34px;font-size:1rem;cursor:pointer;}' +
+      '.mr-nums{display:grid;grid-template-columns:1fr 1.3fr 1.3fr;gap:6px;margin-top:6px;}' +
+      '.mr-nums div{font-size:.66rem;font-weight:700;color:#999;margin-bottom:2px;}' +
       '#mr-add{margin-top:4px;border:1.5px dashed #bbb;background:#fafafa;color:#555;border-radius:8px;padding:9px;font-weight:700;font-size:.8rem;cursor:pointer;width:100%;}' +
       '#mr-total{margin-top:14px;padding-top:12px;border-top:1px solid #eee;text-align:right;font-weight:800;font-size:1rem;color:#012e7b;}' +
       '#mr-actions{padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid #eee;background:#fff;}' +
@@ -54,11 +56,18 @@
   }
 
   function rowHtml(id) {
-    return '<div class="mr-row" data-row="' + id + '">' +
-      '<input class="mr-input" placeholder="Item name" id="mr-name-' + id + '"/>' +
-      '<input class="mr-input mr-qty" type="number" min="1" value="1" placeholder="Qty" id="mr-qty-' + id + '"/>' +
-      '<input class="mr-input mr-unit" type="number" min="0" placeholder="Unit price" id="mr-unit-' + id + '"/>' +
-      '<button type="button" title="Remove" onclick="ManualReceipt.removeRow(' + id + ')">✕</button>' +
+    return '<div class="mr-card" data-row="' + id + '">' +
+      '<div class="mr-row">' +
+        '<input class="mr-input" placeholder="Item name" id="mr-name-' + id + '"/>' +
+        '<button type="button" title="Remove" onclick="ManualReceipt.removeRow(' + id + ')">✕</button>' +
+      '</div>' +
+      '<div class="mr-sublabel">Small text under the name (optional — leave blank for the usual auto one)</div>' +
+      '<input class="mr-input" placeholder="e.g. In-Ear Monitors" id="mr-desc-' + id + '"/>' +
+      '<div class="mr-nums">' +
+        '<div><div>Qty</div><input class="mr-input" type="number" min="1" value="1" id="mr-qty-' + id + '"/></div>' +
+        '<div><div>Unit price</div><input class="mr-input" type="number" min="0" placeholder="0" id="mr-unit-' + id + '"/></div>' +
+        '<div><div>Price paid</div><input class="mr-input" type="number" min="0" placeholder="= qty × unit" id="mr-paid-' + id + '"/></div>' +
+      '</div>' +
     '</div>';
   }
 
@@ -112,15 +121,22 @@
     document.querySelectorAll('#mr-rows [data-row]').forEach(function (el) {
       var id = el.getAttribute('data-row');
       var name = (document.getElementById('mr-name-' + id) || {}).value || '';
+      var desc = (document.getElementById('mr-desc-' + id) || {}).value || '';
       var qty = Number((document.getElementById('mr-qty-' + id) || {}).value) || 1;
       var unit = Number((document.getElementById('mr-unit-' + id) || {}).value) || 0;
-      if (name.trim()) out.push({ name: name.trim(), qty: qty, unit: unit });
+      var paidRaw = (document.getElementById('mr-paid-' + id) || {}).value;
+      if (name.trim()) out.push({ name: name.trim(), desc: desc.trim(), qty: qty, unit: unit, paid: (paidRaw === '' || paidRaw == null) ? null : Number(paidRaw) });
     });
     return out;
   }
+  // "Price paid" defaults to qty × unit when left blank — only fill it in to record a discount.
+  function lineTotal(it) {
+    var full = Math.max(1, Math.round(it.qty)) * Math.max(0, it.unit);
+    return (it.paid != null && !isNaN(it.paid)) ? Math.max(0, it.paid) : full;
+  }
   function recalc() {
     var items = readRows();
-    var sum = items.reduce(function (s, it) { return s + Math.max(1, Math.round(it.qty)) * Math.max(0, it.unit); }, 0);
+    var sum = items.reduce(function (s, it) { return s + lineTotal(it); }, 0);
     var fee = Number((document.getElementById('mr-transport-amount') || {}).value) || 0;
     var t = document.getElementById('mr-total');
     if (t) t.textContent = 'Total: ' + fmt(sum + fee);
