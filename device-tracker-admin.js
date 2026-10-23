@@ -17,6 +17,23 @@
   var headingOn = true;             // while on, the camera turns to face the way the phone is travelling
   var HEADING_MIN_SPEED = 1.3;      // m/s (~4.7 km/h) — below this, a GPS bearing is too noisy to trust
 
+  // ---- smooth motion (glide the arrow between fixes instead of snapping, like the rider map) ----
+  var shown = null;                 // {lat,lng} the position actually drawn right now (eases toward the real one)
+  var anim = null;                  // {from,to,t0,dur} an in-progress glide
+  var heading = null, targetHeading = null;   // degrees; `heading` eases toward `targetHeading` each frame
+  var rafId = null;
+  var glideMs = 2500;                // learned from the real gap between fixes as they arrive
+  var lastFixAt = 0;
+  var SNAP_DISTANCE_M = 400;          // farther than this in one jump = snap instead of gliding across it
+
+  function metresBetween(a, b) {
+    var dLat = (b[0] - a[0]) * 111320;
+    var dLng = (b[1] - a[1]) * 111320 * Math.cos(((a[0] + b[0]) / 2) * Math.PI / 180);
+    return Math.sqrt(dLat * dLat + dLng * dLng);
+  }
+  function angleDiff(a, b) { return ((b - a + 540) % 360) - 180; }   // signed shortest turn from a to b
+  function resetMotion() { shown = null; anim = null; heading = null; targetHeading = null; glideMs = 2500; lastFixAt = 0; if (rafId) { cancelAnimationFrame(rafId); rafId = null; } }
+
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function fns() { return window.fbFns; }
   function db() { return window.fbDb; }
@@ -83,13 +100,23 @@
     var el = document.getElementById('dt-map');
     return el ? Math.round(el.clientHeight * 0.14) : 0;
   }
-  var DOT = '<div style="position:relative;width:28px;height:28px;">' +
+  // A triangle arrow sits inside a halo; it turns to face the phone's heading once one is known.
+  // While no reliable heading exists yet (just started / stopped), the triangle hides and only
+  // the plain circle shows, so it never implies a direction that isn't real.
+  var ARROW = '<div style="position:relative;width:30px;height:30px;">' +
     '<span style="position:absolute;inset:0;border-radius:50%;background:rgba(37,99,235,.28);animation:dtPulse 1.8s ease-out infinite;"></span>' +
-    '<span style="position:absolute;left:7px;top:7px;width:14px;height:14px;border-radius:50%;background:#2563eb;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.45);"></span></div>';
+    '<div class="dt-arrow" style="position:absolute;left:0;top:0;width:30px;height:30px;will-change:transform;">' +
+      '<svg viewBox="0 0 30 30" width="30" height="30" style="display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));">' +
+        '<circle cx="15" cy="15" r="9" fill="#2563eb" stroke="#fff" stroke-width="2.5"/>' +
+        '<path class="dt-arrow-tri" d="M15 2 L21 14 L15 10.5 L9 14 Z" fill="#2563eb" stroke="#fff" stroke-width="1.2"/>' +
+      '</svg>' +
+    '</div></div>';
+  var lastAccuracy = 0;
   function injectCss() {
     if (document.getElementById('dt-css')) return;
     var st = document.createElement('style'); st.id = 'dt-css';
     st.textContent = '@keyframes dtPulse{0%{transform:scale(.5);opacity:.9}100%{transform:scale(1.6);opacity:0}}' +
+      '.dt-arrow{transition:none;}' +
       '.dt-card{flex:1 1 200px;max-width:320px;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;background:#fff;cursor:pointer;}' +
       '.dt-card.sel{border-color:var(--gold);background:#fff8e6;}' +
       '.dt-chip{display:inline-block;font-size:.66rem;font-weight:800;padding:2px 8px;border-radius:10px;}' +
@@ -101,25 +128,95 @@
     document.head.appendChild(st);
   }
 
+  // Draws the arrow at its current in-between (glided) position, and rotates it to the current
+  // smoothed heading, matching the pattern used for the live rider map.
+  function place() {
+    if (!map || !shown) return;
+    var ll = [shown.lat, shown.lng];
+    if (!marker) marker = map.addMarker({ latlng: ll, html: ARROW, size: [30, 30], z: 5 });
+    else marker.setLatLng(ll);
+    var el = marker.getElement && marker.getElement();
+    var arrowEl = el && el.querySelector && el.querySelector('.dt-arrow');
+    var triEl = el && el.querySelector && el.querySelector('.dt-arrow-tri');
+    if (arrowEl) {
+      if (heading == null) { arrowEl.style.transform = ''; if (triEl) triEl.style.display = 'none'; }
+      else {
+        var camB = (map.canRotate && map.getBearing) ? map.getBearing() : 0;
+        arrowEl.style.transform = 'rotate(' + (((heading - camB + 360) % 360)).toFixed(1) + 'deg)';
+        if (triEl) triEl.style.display = '';
+      }
+    }
+    var r = Math.max(5, lastAccuracy || 0);
+    if (!circle) circle = map.addCircle(ll, r, { color: '#2563eb', weight: 1, opacity: 0.5, fillOpacity: 0.1 });
+    else { circle.setLatLng(ll); circle.setRadius(r); }
+  }
+
+  // A fresh fix arrived from Firestore: glide the arrow to it over about one reporting interval,
+  // instead of snapping straight there. Jumps bigger than SNAP_DISTANCE_M (satellite re-lock,
+  // coming back after the tab was hidden) still snap instantly.
+  function moveTo(lat, lng, brg, speed) {
+    var target = { lat: lat, lng: lng }, now = Date.now();
+    if (!shown || document.hidden) { shown = target; anim = null; }
+    else {
+      var gap = metresBetween([shown.lat, shown.lng], [lat, lng]);
+      if (gap > SNAP_DISTANCE_M) { shown = target; anim = null; }
+      else if (gap > 0.3) anim = { from: { lat: shown.lat, lng: shown.lng }, to: target, t0: performance.now(), dur: glideMs };
+    }
+    if (lastFixAt) {
+      var realGap = now - lastFixAt;
+      if (realGap > 300 && realGap < 20000) glideMs = glideMs * 0.5 + Math.min(realGap, 8000) * 0.5;
+    }
+    lastFixAt = now;
+    var moving = typeof speed === 'number' && speed >= HEADING_MIN_SPEED;
+    if (moving && typeof brg === 'number') { targetHeading = brg; if (heading == null) heading = brg; }
+    // While not clearly moving, keep whatever heading was last trusted rather than snapping to 0/north.
+  }
+
+  var lastPanAt = 0;
+  function frame(ts) {
+    rafId = null;
+    var busy = false;
+    if (anim) {
+      var p = Math.min(1, (performance.now() - anim.t0) / anim.dur);
+      shown = { lat: anim.from.lat + (anim.to.lat - anim.from.lat) * p, lng: anim.from.lng + (anim.to.lng - anim.from.lng) * p };
+      if (p >= 1) anim = null; else busy = true;
+    }
+    if (heading != null && targetHeading != null) {
+      var dAngle = angleDiff(heading, targetHeading);
+      if (Math.abs(dAngle) > 0.5) { heading = (heading + dAngle * 0.25 + 360) % 360; busy = true; }
+    }
+    try { place(); } catch (e) { console.warn('[tracker] draw failed', e); }
+    if (map && shown) {
+      if (headingOn && map.canRotate && follow && heading != null) {
+        try { map.follow([shown.lat, shown.lng], heading, camOffsetY(), { animate: false }); } catch (e) {}
+      } else if (follow && ts - lastPanAt > 120) {
+        lastPanAt = ts;
+        try { map.panInside([shown.lat, shown.lng], { padding: [80, 80] }); } catch (e) { try { map.setView([shown.lat, shown.lng], map.getZoom()); } catch (e2) {} }
+      }
+    }
+    if (busy) rafId = requestAnimationFrame(frame);
+  }
+  function ensureLoop() { if (!rafId) rafId = requestAnimationFrame(frame); }
+
   function drawSelected(recenter) {
     var d = devices[selectedId];
     if (!d || typeof d.lat !== 'number' || typeof d.lng !== 'number') return;
     document.getElementById('dt-empty').style.display = 'none';
+    lastAccuracy = Number(d.accuracy) || 0;
     ensureMap().then(function (m) {
-      var ll = [d.lat, d.lng];
-      if (!marker) marker = m.addMarker({ latlng: ll, html: DOT, size: [28, 28], z: 5 }); else marker.setLatLng(ll);
-      var r = Math.max(5, Number(d.accuracy) || 0);
-      if (!circle) circle = m.addCircle(ll, r, { color: '#2563eb', weight: 1, opacity: 0.5, fillOpacity: 0.1 });
-      else { circle.setLatLng(ll); circle.setRadius(r); }
       drawTrail(m);
-      var moving = typeof d.speed === 'number' && d.speed >= HEADING_MIN_SPEED;
-      var bearing = (headingOn && m.canRotate && moving && typeof d.bearing === 'number') ? d.bearing : null;
       if (recenter) {
-        if (bearing != null) m.follow(ll, bearing, camOffsetY(), { animate: true, duration: 600 });
-        else m.setView(ll, 17, { animate: true });
-      } else if (follow) {
-        if (bearing != null) m.follow(ll, bearing, camOffsetY(), { animate: true });
-        else { try { m.panInside(ll, { padding: [80, 80] }); } catch (e) { m.setView(ll, m.getZoom()); } }
+        // A deliberate jump (picking a device, or "Centre on phone") — snap straight there, no glide.
+        shown = { lat: d.lat, lng: d.lng }; anim = null;
+        var movingR = typeof d.speed === 'number' && d.speed >= HEADING_MIN_SPEED;
+        heading = targetHeading = (movingR && typeof d.bearing === 'number') ? d.bearing : null;
+        place();
+        var bearing = (headingOn && m.canRotate && heading != null) ? heading : null;
+        if (bearing != null) m.follow([d.lat, d.lng], bearing, camOffsetY(), { animate: true, duration: 600 });
+        else m.setView([d.lat, d.lng], 17, { animate: true });
+      } else {
+        moveTo(d.lat, d.lng, d.bearing, d.speed);
+        ensureLoop();
       }
       updateCompass();
       try { m.invalidateSize(); } catch (e) {}
@@ -209,7 +306,7 @@
     var changed = id !== selectedId;
     selectedId = id;
     renderList(); renderDetail();
-    if (changed) { if (marker) { marker.remove(); marker = null; } if (circle) { circle.remove(); circle = null; } listenPoints(); }
+    if (changed) { if (marker) { marker.remove(); marker = null; } if (circle) { circle.remove(); circle = null; } resetMotion(); listenPoints(); }
     drawSelected(true);
   }
 
@@ -240,6 +337,7 @@
     if (unsubDevices) { unsubDevices(); unsubDevices = null; }
     if (unsubPoints) { unsubPoints(); unsubPoints = null; }
     if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+    resetMotion();
   }
 
   // ---------- actions ----------
