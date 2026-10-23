@@ -391,6 +391,59 @@
     });
   }
 
+  // ---------- manual receipts (not tied to a storefront order — a counter sale, a phone order, etc.) ----------
+  // Stored in their own collection (never in "orders"), so they never touch stock, boda alerts, the
+  // open/closed orders lists or finance totals. Still numbered from the exact same shared counter as
+  // every other receipt, so numbers stay unique and sequential across the whole business.
+  var MANUAL_PREFIX = 'm_';
+  function isManualId(id) { return typeof id === 'string' && id.indexOf(MANUAL_PREFIX) === 0; }
+  function randomManualId() {
+    var chars = '0123456789abcdefghijklmnopqrstuvwxyz', out = MANUAL_PREFIX;
+    for (var i = 0; i < 20; i++) out += chars.charAt(Math.floor(Math.random() * chars.length));
+    return out;
+  }
+  // data = { customerName, phone, items:[{name, qty, unit}], transportType, transportAmount }
+  function createManual(data) {
+    data = data || {};
+    var f = window.fbFns, db = window.fbDb;
+    if (!f || !db || !f.runTransaction) return Promise.reject(new Error('Database not ready'));
+    var items = (data.items || []).filter(function (it) { return it && String(it.name || '').trim(); });
+    if (!items.length) return Promise.reject(new Error('Add at least one item'));
+    var id = randomManualId();
+    var manualRef = f.doc(db, 'manual_receipts', id);
+    var counterRef = f.doc(db, 'counters', 'receipts');
+    var customerName = String(data.customerName || '').trim() || 'Customer';
+    var fakeOrder = {
+      customerName: customerName,
+      cartItems: items.map(function (it) {
+        // price/listPrice are PER-UNIT (buildSnapshot multiplies by qty itself); lineTotal pins the
+        // exact total so its own discount-splitting math is bypassed — there's no discount here.
+        var qty = Math.max(1, Math.round(Number(it.qty) || 1)), unit = Math.max(0, Number(it.unit) || 0);
+        return { name: it.name, qty: qty, price: unit, listPrice: unit, lineTotal: unit * qty };
+      }),
+      delivery: (Number(data.transportAmount) > 0) ? { type: data.transportType || 'courier', bodaFee: Number(data.transportAmount) } : null
+    };
+    return f.runTransaction(db, function (tx) {
+      return tx.get(counterRef).then(function (cs) {
+        var cd = cs.exists() ? cs.data() : null;
+        var no = cd && cd.next ? cd.next : FIRST_NO;
+        var snap = buildSnapshot(fakeOrder, [], { no: no, date: fmtDate(new Date()) });
+        tx.set(counterRef, { next: no + 1, startedAt: (cd && cd.startedAt) || new Date().toISOString(), updatedAt: new Date().toISOString() });
+        tx.set(manualRef, { receipt: snap, customerName: customerName, phone: String(data.phone || '').trim(), manual: true, createdAt: new Date().toISOString() });
+        return { id: id, snap: snap };
+      });
+    });
+  }
+  function fetchManual(docId) {
+    var f = window.fbFns, db = window.fbDb;
+    if (!f || !db || !f.getDoc) return Promise.reject(new Error('Database not ready'));
+    return f.getDoc(f.doc(db, 'manual_receipts', docId)).then(function (s) {
+      var d = s.exists() ? s.data() : null;
+      if (!d || !d.receipt || !d.receipt.no) throw new Error('This receipt is not available.');
+      return { snap: d.receipt, order: { customerName: d.customerName, phone: d.phone } };
+    });
+  }
+
   // ---------- numbering + saving the receipt on the order ----------
   function isEligible(o) {
     if (!o || o.status === 'cancelled') return false;
@@ -632,7 +685,9 @@
     m.classList.add('open');
     body.innerHTML = '<div id="sr-msg">Preparing receipt…</div>';
     var btns = ['sr-dl', 'sr-wa', 'sr-share', 'sr-copy'].map(function (i) { var b = document.getElementById(i); b.disabled = true; return b; });
-    var p = order && order.receipt && order.receipt.no ? syncTransport(docId, order) : ensure(docId, order, products);
+    var manual = isManualId(docId);
+    var p = manual ? fetchManual(docId).then(function (r) { order = r.order; return r.snap; })
+      : (order && order.receipt && order.receipt.no ? syncTransport(docId, order) : ensure(docId, order, products));
     return p.then(function (snap) {
       document.getElementById('sr-title').textContent = '🧾 Receipt #' + snap.no;
       var n = layout(snap).length, jobs = [];
@@ -657,6 +712,7 @@
     renderPage: renderPage, pdfBlob: buildPdf, pageCount: function (s) { return layout(s).length; },
     isEligible: isEligible, ensure: ensure, watch: watch, link: link, syncTransport: syncTransport, transportsFor: transportsFor, download: download, saveFiles: saveFiles, whatsapp: actWhatsApp, shareLink: actShare, copyLink: actCopy,
     openModal: openModal, closeModal: closeModal, fmtDate: fmtDate,
-    setOnGenerated: function (fn) { onGenerated = fn; }
+    setOnGenerated: function (fn) { onGenerated = fn; },
+    createManual: createManual, isManualId: isManualId
   };
 })();

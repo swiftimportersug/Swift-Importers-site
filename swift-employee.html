@@ -18,6 +18,7 @@
   <!-- Firebase -->
   <script src="/app-bridge.js?v=4"></script>
   <script src="/receipt.js?v=5"></script>
+  <script src="/manual-receipt.js?v=1"></script>
   <script src="/image-upload.js?v=2"></script>
   <script src="/describe-ai.js?v=1"></script>
   <script src="/swift-map.js?v=7"></script>
@@ -1202,6 +1203,9 @@
       <div class="nav-item" data-page="closed-orders" onclick="showPage('closed-orders')">
         <span class="nav-icon">✅</span> Closed Orders
         <span id="cancelled-orders-badge" style="margin-left:auto;background:var(--red);color:#fff;font-size:0.65rem;font-weight:700;padding:2px 7px;border-radius:20px;display:none;"></span>
+      </div>
+      <div class="nav-item" onclick="ManualReceipt.open()">
+        <span class="nav-icon">🧾</span> Manual Receipt
       </div>
       <div class="nav-item" data-page="import-requests" onclick="showPage('import-requests')">
         <span class="nav-icon">📦</span> Import Requests

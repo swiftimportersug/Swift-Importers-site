@@ -45,7 +45,8 @@
   (async () => {
     try {
       if (!id) throw new Error('This receipt link is incomplete.');
-      const s = await getDoc(doc(db, 'orders', id));
+      const manual = id.indexOf('m_') === 0;
+      const s = await getDoc(doc(db, manual ? 'manual_receipts' : 'orders', id));
       const o = s.exists() ? s.data() : null;
       if (!o || !o.receipt || !o.receipt.no) throw new Error('This receipt is not available yet.');
       const snap = o.receipt;
