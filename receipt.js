@@ -406,9 +406,10 @@
     return out;
   }
   // data = { customerName, phone, items:[{name, desc, qty, unit, paid}], transportType, transportAmount }
-  // "unit" is the normal per-unit price (shown in the Unit Price column); "paid" is what the customer
-  // actually paid for that whole line — leave it out/0 for no discount (defaults to qty * unit), or
-  // set it lower than qty * unit for a discounted sale. "desc" is the small text under the item name.
+  // "unit" and "paid" are both PER ITEM, like a normal unit price. "unit" is shown in the Unit Price
+  // column; "paid" is what was actually charged per item — leave it blank for no discount (defaults
+  // to "unit"), or set it lower than "unit" for a discounted sale. Either way the line's total on the
+  // receipt is paid * qty. "desc" is the small text under the item name.
   function createManual(data) {
     data = data || {};
     var f = window.fbFns, db = window.fbDb;
@@ -422,13 +423,13 @@
     var fakeOrder = {
       customerName: customerName,
       cartItems: items.map(function (it) {
-        // price/listPrice are PER-UNIT (buildSnapshot multiplies by qty itself); lineTotal pins the
-        // exact total actually charged, bypassing its own discount-splitting math — we already know
-        // the real discounted total, there's nothing for it to work out.
+        // price/listPrice are PER-UNIT (buildSnapshot multiplies by qty itself). "paid" is also
+        // PER-UNIT (what was actually charged for one), so the real line total is paid * qty —
+        // passed as lineTotal to bypass buildSnapshot's own discount-splitting math, since we
+        // already know the real discounted total.
         var qty = Math.max(1, Math.round(Number(it.qty) || 1)), unit = Math.max(0, Number(it.unit) || 0);
-        var full = unit * qty;
-        var paid = (it.paid != null && String(it.paid).trim() !== '') ? Math.max(0, Number(it.paid)) : full;
-        return { name: it.name, desc: it.desc || '', qty: qty, price: unit, listPrice: unit, lineTotal: paid };
+        var paidPerUnit = (it.paid != null && String(it.paid).trim() !== '') ? Math.max(0, Number(it.paid)) : unit;
+        return { name: it.name, desc: it.desc || '', qty: qty, price: unit, listPrice: unit, lineTotal: paidPerUnit * qty };
       }),
       delivery: (Number(data.transportAmount) > 0) ? { type: data.transportType || 'courier', bodaFee: Number(data.transportAmount) } : null
     };

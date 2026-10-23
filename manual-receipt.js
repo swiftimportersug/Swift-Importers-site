@@ -66,7 +66,7 @@
       '<div class="mr-nums">' +
         '<div><div>Qty</div><input class="mr-input" type="number" min="1" value="1" id="mr-qty-' + id + '"/></div>' +
         '<div><div>Unit price</div><input class="mr-input" type="number" min="0" placeholder="0" id="mr-unit-' + id + '"/></div>' +
-        '<div><div>Price paid</div><input class="mr-input" type="number" min="0" placeholder="= qty × unit" id="mr-paid-' + id + '"/></div>' +
+        '<div><div>Price paid (per item)</div><input class="mr-input" type="number" min="0" placeholder="same as unit price" id="mr-paid-' + id + '"/></div>' +
       '</div>' +
     '</div>';
   }
@@ -129,10 +129,12 @@
     });
     return out;
   }
-  // "Price paid" defaults to qty × unit when left blank — only fill it in to record a discount.
+  // "Price paid" is PER ITEM, same as unit price — it defaults to the unit price when left blank,
+  // and the line's total is always (price paid × qty). Fill it in only to record a discount.
   function lineTotal(it) {
-    var full = Math.max(1, Math.round(it.qty)) * Math.max(0, it.unit);
-    return (it.paid != null && !isNaN(it.paid)) ? Math.max(0, it.paid) : full;
+    var qty = Math.max(1, Math.round(it.qty));
+    var paidPerUnit = (it.paid != null && !isNaN(it.paid)) ? Math.max(0, it.paid) : Math.max(0, it.unit);
+    return paidPerUnit * qty;
   }
   function recalc() {
     var items = readRows();
