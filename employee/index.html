@@ -40,7 +40,7 @@
   <script src="/rider-map.js?v=20261016c"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, collection, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, deleteDoc, query, orderBy, addDoc, where, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, getDoc, getDocs, onSnapshot, updateDoc, deleteDoc, query, orderBy, addDoc, where, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
 
@@ -63,7 +63,18 @@
     const MASTER_ADMIN_EMAIL = "swiftimportersug@gmail.com"; // Owner's email used in the main Admin Dashboard
 
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    // Firestore's own on-device cache (kept in IndexedDB) means that reopening or reloading this app
+    // only re-downloads documents that actually changed since the last time it was open, instead of
+    // re-reading every order/product/etc. from scratch on every single open — this is the main thing
+    // that was running the project's daily Firestore read quota out so fast. Falls back to the plain
+    // (non-cached) connection on browsers/webviews where this isn't available.
+    let db;
+    try {
+      db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+    } catch (e) {
+      console.warn('[firestore] offline cache unavailable, using the plain connection', e);
+      db = getFirestore(app);
+    }
     const auth = getAuth(app);
     const messaging = getMessaging(app);
 

@@ -1108,7 +1108,7 @@
   <script src="/pin-picker.js?v=6"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, collection, doc, getDoc, updateDoc, addDoc, onSnapshot, getDocs, increment, query, where, arrayUnion, arrayRemove, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, getDoc, updateDoc, addDoc, onSnapshot, getDocs, increment, query, where, arrayUnion, arrayRemove, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
     const firebaseConfig = {
       apiKey: "AIzaSyDqOE4NDmp3xJrTf71MzlClTZ201Uhyk0Q",
@@ -1119,7 +1119,18 @@
       appId: "1:223766904777:web:aae5780e08d0800aff7218"
     };
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    // Firestore's own on-device cache (kept in IndexedDB) means a visitor who reloads the page or
+    // comes back later only re-downloads products that actually changed since last time, instead of
+    // the whole catalog every single visit — this is a big share of what was running the project's
+    // daily Firestore read quota out so fast. Falls back to the plain connection on browsers where
+    // this isn't available (some private/incognito windows).
+    let db;
+    try {
+      db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+    } catch (e) {
+      console.warn('[firestore] offline cache unavailable, using the plain connection', e);
+      db = getFirestore(app);
+    }
     const messaging = getMessaging(app);
     window.fbDb = db;
     window.fbFns = { collection, doc, getDoc, updateDoc, addDoc, onSnapshot, getDocs, increment, query, where, arrayUnion, arrayRemove, orderBy };
