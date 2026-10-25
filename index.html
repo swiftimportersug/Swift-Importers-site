@@ -2799,13 +2799,27 @@
 
   function startLiveProducts() {
     loadCatalogOnce();
-    if (catalogPollTimer) clearInterval(catalogPollTimer);
-    catalogPollTimer = setInterval(loadCatalogOnce, CATALOG_POLL_MS);
-    // Catch up immediately if someone comes back to a tab left in the background for a while,
-    // rather than waiting for the next scheduled poll.
+    startCatalogPolling();
+    // A tab sitting in the background (minimized, a different tab focused, phone screen off)
+    // doesn't need to keep polling every CATALOG_POLL_MS forever — nobody's looking at it, so
+    // there's no reason to keep touching the Worker/cache on a timer. Pause while hidden, and
+    // catch up immediately (plus resume the timer) the moment it becomes visible again.
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible') loadCatalogOnce();
+      if (document.visibilityState === 'visible') {
+        loadCatalogOnce();
+        startCatalogPolling();
+      } else {
+        stopCatalogPolling();
+      }
     });
+  }
+
+  function startCatalogPolling() {
+    if (catalogPollTimer) return; // already running
+    catalogPollTimer = setInterval(loadCatalogOnce, CATALOG_POLL_MS);
+  }
+  function stopCatalogPolling() {
+    if (catalogPollTimer) { clearInterval(catalogPollTimer); catalogPollTimer = null; }
   }
 
   function loadCatalogOnce() {

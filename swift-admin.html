@@ -3612,6 +3612,28 @@
     'Printers':'🖨️','Accessories':'🔌','Cameras':'📷','Home Appliances':'🏠','Other':'📦'
   };
 
+  // ── CATALOG CACHE PUSH ──
+  // Tells the swift-catalog-cache Worker about a single product/promo change the moment it's
+  // saved, so the storefront sees it almost instantly instead of waiting out its own ~60s cache
+  // window — and so the Worker never has to re-read the WHOLE collection just to notice one edit,
+  // which matters once the catalog grows into the thousands. Best-effort: if this fails (offline,
+  // Worker hiccup, etc.) nothing breaks — the product has already saved to Firestore either way,
+  // and the Worker's own periodic refresh will pick up the change within ~60s regardless.
+  var CATALOG_WORKER_URL = 'https://swift-catalog-cache.swiftimportersug.workers.dev';
+  function pushCatalogUpdate(collectionName, id, docData, deleted) {
+    try {
+      var u = window.fbAuth && window.fbAuth.currentUser;
+      if (!u) return;
+      u.getIdToken().then(function (token) {
+        return fetch(CATALOG_WORKER_URL + '/update', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ collection: collectionName, id: String(id), doc: docData || undefined, deleted: !!deleted })
+        });
+      }).catch(function (e) { console.warn('[catalog-cache] push failed (non-fatal):', e); });
+    } catch (e) { console.warn('[catalog-cache] push failed (non-fatal):', e); }
+  }
+
   // ── FIREBASE HELPERS ──
   async function fbSaveProduct(product) {
     if (!window.fbDb) return;
@@ -3622,6 +3644,7 @@
       variants: product.variants.map(v => { const { buy, ...rest } = v; return rest; })
     };
     await setDoc(doc(window.fbDb, 'products', product.id), productForFirestore);
+    pushCatalogUpdate('products', product.id, productForFirestore, false);
     // The cost record is a secondary, owner-only record. If this write fails for any
     // reason (transient network blip, etc.), the product itself has already saved
     // successfully — so we log this instead of surfacing a false "save failed" error.
@@ -3636,6 +3659,7 @@
     if (!window.fbDb) return;
     const { doc, deleteDoc } = window.fbFns;
     await deleteDoc(doc(window.fbDb, 'products', id));
+    pushCatalogUpdate('products', id, null, true);
     try { await deleteDoc(doc(window.fbDb, 'product_costs', id)); } catch(e) { console.error('Error deleting cost record', e); }
   }
 
@@ -5496,7 +5520,9 @@
     if (!window.fbDb || !window.fbFns) { showAppAlert('Not connected. Check your internet connection.'); return; }
     const { collection, addDoc } = window.fbFns;
     try {
-      await addDoc(collection(window.fbDb, 'promo_codes'), { code, discountAmount: amount, minOrderValue, activatesAt, expiresAt, createdAt: new Date().toISOString() });
+      const promoData = { code, discountAmount: amount, minOrderValue, activatesAt, expiresAt, createdAt: new Date().toISOString() };
+      const newRef = await addDoc(collection(window.fbDb, 'promo_codes'), promoData);
+      pushCatalogUpdate('promo_codes', newRef.id, Object.assign({}, promoData, { id: newRef.id }), false);
       codeInput.value = ''; amountInput.value = ''; minOrderInput.value = ''; startsInput.value = ''; expiresInput.value = '';
       updateDMYPreview(startsInput); updateDMYPreview(expiresInput);
       showSuccessToast(activatesAt ? '✅ Scheduled! It\'ll go live automatically.' : '✅ Promo Code Added!');
@@ -5512,6 +5538,7 @@
       const { doc, deleteDoc } = window.fbFns;
       try {
         await deleteDoc(doc(window.fbDb, 'promo_codes', id));
+        pushCatalogUpdate('promo_codes', id, null, true);
       } catch(e) {
         showAppAlert('Error removing promo code.');
         console.error(e);

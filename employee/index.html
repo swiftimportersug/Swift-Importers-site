@@ -1985,6 +1985,26 @@
     'Printers':'🖨️','Accessories':'🔌','Cameras':'📷','Home Appliances':'🏠','Other':'📦'
   };
 
+  // ── CATALOG CACHE PUSH ──
+  // Same as the admin app: tells the swift-catalog-cache Worker about a single product change the
+  // moment it's saved, so the storefront sees it almost instantly and the Worker never has to
+  // re-read the whole collection just to notice one edit. Best-effort — a failed push never blocks
+  // or breaks a save; the product has already saved to Firestore regardless.
+  var CATALOG_WORKER_URL = 'https://swift-catalog-cache.swiftimportersug.workers.dev';
+  function pushCatalogUpdate(collectionName, id, docData, deleted) {
+    try {
+      var u = window.fbAuth && window.fbAuth.currentUser;
+      if (!u) return;
+      u.getIdToken().then(function (token) {
+        return fetch(CATALOG_WORKER_URL + '/update', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ collection: collectionName, id: String(id), doc: docData || undefined, deleted: !!deleted })
+        });
+      }).catch(function (e) { console.warn('[catalog-cache] push failed (non-fatal):', e); });
+    } catch (e) { console.warn('[catalog-cache] push failed (non-fatal):', e); }
+  }
+
   // ── FIREBASE HELPERS ──
   async function fbSaveProduct(product) {
     if (!window.fbDb) return;
@@ -1996,12 +2016,14 @@
       variants: product.variants.map(v => { const { buy, ...rest } = v; return rest; })
     };
     await setDoc(doc(window.fbDb, 'products', product.id), productForFirestore);
+    pushCatalogUpdate('products', product.id, productForFirestore, false);
   }
 
   async function fbDeleteProduct(id) {
     if (!window.fbDb) return;
     const { doc, deleteDoc } = window.fbFns;
     await deleteDoc(doc(window.fbDb, 'products', id));
+    pushCatalogUpdate('products', id, null, true);
   }
 
   // productCosts is fetched so sales can still log an accurate cost for the owner's profit
