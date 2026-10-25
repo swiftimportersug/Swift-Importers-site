@@ -2785,19 +2785,48 @@
     openProductDetail(pid);
   }
 
+  // The public catalog comes from the swift-catalog-cache Worker, not a direct live Firestore
+  // listener. Before this, every single visitor opened their own connection that re-read the whole
+  // products collection — that cost scales with VISITOR COUNT, which would mean millions of
+  // Firestore reads a day at real traffic. The Worker caches this collection at the edge and only
+  // re-reads Firestore itself at most once every CATALOG_POLL_MS, no matter how many visitors ask
+  // for it in that window, so Firestore cost stays flat as traffic grows instead of multiplying.
+  // The trade-off: a product/price/stock change can take up to ~CATALOG_POLL_MS to show up here
+  // instead of being instant — an accepted trade-off, same as virtually every real online store.
+  var CATALOG_WORKER_URL = 'https://swift-catalog-cache.swiftimportersug.workers.dev';
+  var CATALOG_POLL_MS = 45000;
+  var catalogPollTimer = null;
+
   function startLiveProducts() {
-    if (!window.fbDb || !window.fbFns) return;
-    var col = window.fbFns.collection;
-    var snap = window.fbFns.onSnapshot;
-    snap(col(window.fbDb, 'products'), function(snapshot) {
-      products = snapshot.docs.map(function(d){ return d.data(); });
+    loadCatalogOnce();
+    if (catalogPollTimer) clearInterval(catalogPollTimer);
+    catalogPollTimer = setInterval(loadCatalogOnce, CATALOG_POLL_MS);
+    // Catch up immediately if someone comes back to a tab left in the background for a while,
+    // rather than waiting for the next scheduled poll.
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') loadCatalogOnce();
+    });
+  }
+
+  function loadCatalogOnce() {
+    fetch(CATALOG_WORKER_URL + '/products').then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (data) {
+      if (!Array.isArray(data)) return;
+      products = data;
       renderAllProducts();
       checkForProductDeepLink();
-    });
-    snap(col(window.fbDb, 'promo_codes'), function(snapshot) {
-      globalPromoCodes = snapshot.docs.map(function(d){ return d.data(); });
+    }).catch(function (e) { console.warn('[catalog] could not load products', e); });
+
+    fetch(CATALOG_WORKER_URL + '/promo_codes').then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (data) {
+      if (!Array.isArray(data)) return;
+      globalPromoCodes = data;
       renderHomepagePromoCodes();
-    });
+    }).catch(function (e) { console.warn('[catalog] could not load promo codes', e); });
   }
 
   function renderAllProducts() {
