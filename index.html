@@ -2794,7 +2794,7 @@
   // The trade-off: a product/price/stock change can take up to ~CATALOG_POLL_MS to show up here
   // instead of being instant — an accepted trade-off, same as virtually every real online store.
   var CATALOG_WORKER_URL = 'https://swift-catalog-cache.swiftimportersug.workers.dev';
-  var CATALOG_POLL_MS = 45000;
+  var CATALOG_POLL_MS = 60000; // matches the Worker's own 60s cache window (Cloudflare KV's minimum)
   var catalogPollTimer = null;
 
   function startLiveProducts() {
