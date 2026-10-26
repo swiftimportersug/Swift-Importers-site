@@ -2140,13 +2140,13 @@
         <!-- CONVERTER TOOL -->
         <div style="background:#1a1a1a; border-radius:10px; padding:14px 16px; margin-bottom:12px;">
           <div style="font-size:0.72rem; font-weight:800; color:var(--gold); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:4px;">🔗 Image Link Converter</div>
-          <div style="font-size:0.7rem; color:#888; margin-bottom:8px;">Supports: ImgBB direct links, Google Drive share links, any direct .jpg/.png URL.<br/>⚠️ Imgur no longer works on websites — use <strong style="color:var(--gold);">imgbb.com</strong> instead (free, instant).</div>
+          <div style="font-size:0.7rem; color:#888; margin-bottom:8px;">Supports: ImgBB direct links, Google Drive share links, any direct .jpg/.png URL — paste just one, or a WHOLE batch at once (e.g. ImgBB's "Embed codes" box for a whole album) and every picture link in it gets added.<br/>⚠️ Imgur no longer works on websites — use <strong style="color:var(--gold);">imgbb.com</strong> instead (free, instant).</div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <input type="text" id="drive-converter-input" placeholder="Paste ImgBB direct link or Google Drive link..."
-              style="flex:1; min-width:0; padding:10px 12px; border:1.5px solid #333; border-radius:7px; font-size:0.82rem; font-family:'Inter',sans-serif; background:#111; color:#fff; outline:none;"
-              onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='#333'"/>
+            <textarea id="drive-converter-input" rows="2" placeholder="Paste one link, or a whole batch of ImgBB embed codes for an album..."
+              style="flex:1; min-width:0; padding:10px 12px; border:1.5px solid #333; border-radius:7px; font-size:0.82rem; font-family:'Inter',sans-serif; background:#111; color:#fff; outline:none; resize:vertical;"
+              onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='#333'"></textarea>
             <button type="button" onclick="convertDriveLink()"
-              style="background:var(--gold); color:var(--black); border:none; padding:10px 18px; border-radius:7px; font-weight:800; font-size:0.82rem; cursor:pointer; font-family:'Inter',sans-serif; white-space:nowrap;">
+              style="background:var(--gold); color:var(--black); border:none; padding:10px 18px; border-radius:7px; font-weight:800; font-size:0.82rem; cursor:pointer; font-family:'Inter',sans-serif; white-space:nowrap; align-self:flex-start;">
               ⚡ Convert & Add
             </button>
           </div>
@@ -10223,88 +10223,112 @@
     }
   }
 
+  // Figures out one pasted link: what it is, and what the real direct image URL is (or isn't).
+  // Shared by the single-link and batch-paste paths below so both recognize the exact same things.
+  function convertSingleImageLink(url) {
+    // ── IMGBB HANDLING ──
+    if (url.includes('ibb.co') || url.includes('imgbb.com')) {
+      if (url.includes('i.ibb.co')) return { converted: url, source: 'ImgBB (direct link ✅)' };
+      return { converted: null, error: `⚠️ On ImgBB, please copy the <strong>"Direct link"</strong> not the page link.<br/>
+        <span style="font-size:0.72rem;">It starts with <strong>https://i.ibb.co/...</strong> and ends in .jpg or .png</span>` };
+    }
+    // ── IMGUR HANDLING — now deprecated, guide user to ImgBB ──
+    if (url.includes('imgur.com')) {
+      return { converted: null, error: `⚠️ Imgur no longer supports direct image embedding on websites.<br/>
+        <span style="font-size:0.72rem;">Please use <strong>ImgBB (imgbb.com)</strong> instead — it's free, takes 30 seconds, and works perfectly. Upload your photo there and copy the <strong>Direct link</strong>.</span>` };
+    }
+    // ── GOOGLE DRIVE HANDLING ──
+    if (url.includes('drive.google.com') || url.includes('docs.google.com')) {
+      let fileId = null;
+      const match1 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if (match1) fileId = match1[1];
+      if (!fileId) { const match2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/); if (match2) fileId = match2[1]; }
+      if (!fileId) { const match3 = url.match(/open\?id=([a-zA-Z0-9_-]+)/); if (match3) fileId = match3[1]; }
+      if (fileId) return { converted: `https://drive.google.com/uc?export=view&id=${fileId}`, source: 'Google Drive' };
+      return { converted: null, error: null };
+    }
+    // ── ALREADY A DIRECT IMAGE ──
+    if (url.match(/\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i)) {
+      return { converted: url, source: 'Direct image link (no conversion needed)' };
+    }
+    return { converted: null, error: null };
+  }
+
   function convertDriveLink() {
     const input = document.getElementById('drive-converter-input');
     const resultBox = document.getElementById('converter-result');
     const outputEl = document.getElementById('converter-output');
     const errorEl = document.getElementById('converter-error');
-    const url = input.value.trim();
+    const raw = input.value.trim();
 
     resultBox.style.display = 'none';
     errorEl.style.display = 'none';
 
-    if (!url) {
+    if (!raw) {
       errorEl.textContent = '⚠️ Please paste an image link first.';
       errorEl.style.display = 'block';
       return;
     }
 
-    let converted = null;
-    let source = '';
+    // Pull out every link-looking thing in whatever was pasted. This is what makes it possible to
+    // paste a WHOLE batch at once — e.g. ImgBB's "Embed codes" box for an album, which hands back
+    // several lines of BBCode/HTML, one picture link wrapped in markup per line — instead of only
+    // ever accepting exactly one bare link.
+    const foundRaw = raw.match(/https?:\/\/[^\s"'<>\[\]()]+/g) || [];
+    const urls = foundRaw.map(u => u.replace(/[.,;:)\]]+$/, '')).filter(Boolean);
 
-    // ── IMGBB HANDLING ──
-    if (url.includes('ibb.co') || url.includes('imgbb.com')) {
-      // Direct link already e.g. https://i.ibb.co/XXXXX/name.jpg
-      if (url.includes('i.ibb.co')) {
-        converted = url;
-        source = 'ImgBB (direct link ✅)';
-      } else {
-        // Page link e.g. https://imgbb.com/XXXXX — can't auto-convert, guide user
-        errorEl.innerHTML = `⚠️ On ImgBB, please copy the <strong>"Direct link"</strong> not the page link.<br/>
-          <span style="font-size:0.72rem;">It starts with <strong>https://i.ibb.co/...</strong> and ends in .jpg or .png</span>`;
+    if (urls.length === 0) {
+      errorEl.innerHTML = `❌ Could not find a link in what was pasted.<br/>
+        <span style="font-size:0.72rem;">Supported: Google Drive share links, ImgBB direct links, or direct image URLs ending in .jpg/.png</span>`;
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    if (urls.length === 1) {
+      // Exactly one link — keep the original behavior, with its specific guidance for common mistakes.
+      const result = convertSingleImageLink(urls[0]);
+      if (!result.converted) {
+        errorEl.innerHTML = result.error || `❌ Could not convert this link.<br/>
+          <span style="font-size:0.72rem;">Supported: Google Drive share links, Imgur gallery links, or direct image URLs ending in .jpg/.png</span>`;
         errorEl.style.display = 'block';
         return;
       }
+      outputEl.textContent = result.converted;
+      document.getElementById('converter-source').textContent = '📌 Source detected: ' + result.source;
+      resultBox.style.display = 'block';
+      addImageRow(result.converted);
+      input.value = '';
+      return;
     }
 
-    // ── IMGUR HANDLING — now deprecated, guide user to ImgBB ──
-    else if (url.includes('imgur.com')) {
-      errorEl.innerHTML = `⚠️ Imgur no longer supports direct image embedding on websites.<br/>
-        <span style="font-size:0.72rem;">Please use <strong>ImgBB (imgbb.com)</strong> instead — it's free, takes 30 seconds, and works perfectly. Upload your photo there and copy the <strong>Direct link</strong>.</span>`;
+    // ── BATCH MODE — several links pasted at once (e.g. a whole ImgBB album's embed codes) ──
+    // Clean up any empty placeholder row first so the batch doesn't leave a stray blank box mixed in.
+    document.querySelectorAll('#images-list .img-url-input').forEach(function (el) {
+      if (!el.value.trim()) { const row = el.closest('.image-row'); if (row) row.remove(); }
+    });
+    const list = document.getElementById('images-list');
+    const room = Math.max(0, 10 - list.children.length);
+    let added = 0, skipped = 0, capped = 0;
+    for (const u of urls) {
+      if (added >= room) { capped++; continue; }
+      const result = convertSingleImageLink(u);
+      if (result.converted) { addImageRow(result.converted); added++; }
+      else skipped++;
+    }
+
+    if (added === 0) {
+      errorEl.innerHTML = `❌ Found ${urls.length} link(s) in that paste, but couldn't use any of them.<br/>
+        <span style="font-size:0.72rem;">Make sure they're ImgBB <strong>direct</strong> links (https://i.ibb.co/...), Google Drive share links, or direct image URLs.</span>`;
       errorEl.style.display = 'block';
       return;
     }
 
-    // ── GOOGLE DRIVE HANDLING ──
-    else if (url.includes('drive.google.com') || url.includes('docs.google.com')) {
-      let fileId = null;
-      const match1 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-      if (match1) fileId = match1[1];
-      if (!fileId) {
-        const match2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-        if (match2) fileId = match2[1];
-      }
-      if (!fileId) {
-        const match3 = url.match(/open\?id=([a-zA-Z0-9_-]+)/);
-        if (match3) fileId = match3[1];
-      }
-      if (fileId) {
-        converted = `https://drive.google.com/uc?export=view&id=${fileId}`;
-        source = 'Google Drive';
-      }
-    }
-
-    // ── ALREADY A DIRECT IMAGE ──
-    else if (url.match(/\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i)) {
-      converted = url;
-      source = 'Direct image link (no conversion needed)';
-    }
-
-    if (!converted) {
-      errorEl.innerHTML = `❌ Could not convert this link.<br/>
-        <span style="font-size:0.72rem;">Supported: Google Drive share links, Imgur gallery links, or direct image URLs ending in .jpg/.png</span>`;
-      errorEl.style.display = 'block';
-      return;
-    }
-
-    outputEl.textContent = converted;
-    document.getElementById('converter-source').textContent = '📌 Source detected: ' + source;
+    outputEl.textContent = added + ' image' + (added === 1 ? '' : 's') + ' added to the product below';
+    document.getElementById('converter-source').textContent =
+      '📌 Added ' + added + ' of ' + urls.length + ' link(s) found in that paste' +
+      (skipped ? ' — ' + skipped + " couldn't be recognized" : '') +
+      (capped ? ' — ' + capped + ' skipped (10-image limit reached)' : '');
     resultBox.style.display = 'block';
-
-    // Auto-add to images list
-    addImageRow(converted);
-
-    // Clear input
     input.value = '';
   }
 
