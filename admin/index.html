@@ -2876,6 +2876,7 @@
           <div style="margin-top:8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
             <div style="background:#e8f7ee; color:#1b7d40; font-size:0.72rem; font-weight:700; padding:5px 10px; border-radius:6px; display:inline-block;">✅ In stock — ready to set purchase price on the product</div>
             <button onclick="openTrackingExpensePrompt('${t.fbDocId}')" style="background:#fff; border:1.5px solid var(--gold); color:var(--gold-dark); padding:5px 12px; border-radius:6px; font-size:0.72rem; font-weight:700; cursor:pointer;">💰 Add Expense</button>
+            <button onclick="deleteTrackingItem('${t.fbDocId}')" style="background:#fff; border:1.5px solid #e0b8b8; color:#c0392b; padding:5px 10px; border-radius:6px; font-size:0.74rem; font-weight:700; cursor:pointer;">🗑️</button>
           </div>
         `}
       </div>
@@ -3118,7 +3119,13 @@
   }
 
   async function deleteTrackingItem(docId) {
-    showAppConfirm('Delete this tracking entry? This can\'t be undone.', async () => {
+    const item = trackingItems.find(t => t.fbDocId === docId);
+    // Deleting a received entry only removes the tracking record — any stock or buy-price
+    // change it already triggered in Inventory stays as-is, so make that explicit up front.
+    const message = (item && item.status === 'received')
+      ? 'Delete this tracking entry? This can\'t be undone.\n\n⚠️ This item was already marked received — any stock or buy-price change it made in Inventory is NOT reversed. If this was a real shipment, adjust Inventory separately.'
+      : 'Delete this tracking entry? This can\'t be undone.';
+    showAppConfirm(message, async () => {
       if (!window.fbDb || !window.fbFns) return;
       try {
         const { doc, deleteDoc } = window.fbFns;
