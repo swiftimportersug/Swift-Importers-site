@@ -991,7 +991,7 @@
       <input type="number" id="tracking-expense-amount" min="0" placeholder="e.g. 15000" style="width:100%; box-sizing:border-box; padding:11px 13px; border:1.5px solid var(--border); border-radius:8px; font-family:'Inter',sans-serif; margin-bottom:8px;"/>
       <input type="text" id="tracking-expense-note" placeholder="What was this for? (optional)" style="width:100%; box-sizing:border-box; padding:11px 13px; border:1.5px solid var(--border); border-radius:8px; font-family:'Inter',sans-serif; margin-bottom:16px;"/>
       <div style="display:flex; gap:10px;">
-        <button class="btn-cancel" style="flex:1;" onclick="document.getElementById('tracking-expense-modal').classList.remove('open')">Skip</button>
+        <button class="btn-cancel" style="flex:1;" onclick="skipTrackingExpense()">Skip</button>
         <button class="btn-gold" style="flex:1;" onclick="confirmTrackingExpense()">Add Expense</button>
       </div>
     </div>
@@ -5184,6 +5184,54 @@
 
   let trackingExpenseTargetDocId = null;
 
+  // ── AUTO-MATCH A RECEIVED TRACKING ITEM TO AN INVENTORY PRODUCT ──
+  // A tracking entry's name is usually just the short, main title (e.g. "KZ ZSN Pro"), while the
+  // same product's storefront listing often has extra words tacked on for customer search/SEO
+  // (e.g. "KZ ZSN Pro Dynamic Hybrid Driver In-Ear Monitor Earphones"). This looks for the one
+  // inventory product whose name STARTS WITH those exact main words, so confirming an item
+  // received can jump straight into adjusting that product's stock instead of making staff go
+  // find it in Inventory by hand.
+  function normalizeProductTitle(s) {
+    return (s || '').toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  function findInventoryMatchForTracking(itemName) {
+    const trackWords = normalizeProductTitle(itemName).split(' ').filter(Boolean);
+    if (!trackWords.length) return null;
+    // Prefix match — the product's name starts with these exact words, in this exact order. This
+    // is the main, reliable signal, since it mirrors how a short tracking title is actually typed.
+    let candidates = products.filter(p => {
+      const pWords = normalizeProductTitle(p.name).split(' ').filter(Boolean);
+      return pWords.length >= trackWords.length && trackWords.every((w, i) => pWords[i] === w);
+    });
+    if (candidates.length === 1) return candidates[0];
+    if (candidates.length > 1) return null; // ambiguous — safer to let staff pick than guess wrong
+    // Fallback — every tracking word appears somewhere in the product name, in any order (covers
+    // a word typed in a different order, e.g. "ZSN KZ Pro" vs "KZ ZSN Pro").
+    candidates = products.filter(p => {
+      const pWords = normalizeProductTitle(p.name).split(' ').filter(Boolean);
+      return trackWords.every(w => pWords.includes(w));
+    });
+    return candidates.length === 1 ? candidates[0] : null;
+  }
+
+  // Holds a stock adjustment to auto-open once the (optional) last-mile-expense step is done,
+  // so the two modals don't fight for the screen at the same time.
+  let pendingStockAdjustAfterExpense = null;
+
+  function maybeOpenPendingStockAdjust() {
+    const pending = pendingStockAdjustAfterExpense;
+    pendingStockAdjustAfterExpense = null;
+    if (!pending) return;
+    openAdjustModal(pending.productId, pending.variantIdx, true);
+    const qtyInput = document.getElementById('adj-qty');
+    if (qtyInput && pending.qty) { qtyInput.value = pending.qty; updateAdjPreview(); renderAdjStoreBreakdown(); }
+    const reasonSel = document.getElementById('adj-reason');
+    if (reasonSel) { reasonSel.value = 'New shipment received'; toggleCustomReason(reasonSel.value); }
+    if (pending.multiVariant) {
+      showAppAlert('📦 "' + pending.productName + '" has more than one variant — opened on "' + pending.variantName + '". Please check it\'s the right one before confirming the adjustment.');
+    }
+  }
+
   async function manualMarkReceived(docId) {
     showAppConfirm('Mark this item as received? Use this only if the tracking label is damaged and can\'t be scanned.', async () => {
       await markTrackingReceived(docId);
@@ -5199,6 +5247,18 @@
         receivedBy: currentEmployeeName || 'Employee'
       });
       showSuccessToast('✅ Item marked as received!');
+
+      const item = trackingItems.find(t => t.fbDocId === docId);
+      const matched = item ? findInventoryMatchForTracking(item.itemName) : null;
+      pendingStockAdjustAfterExpense = matched ? {
+        productId: matched.id,
+        variantIdx: 0,
+        qty: item.quantity || 1,
+        multiVariant: (matched.variants || []).length > 1,
+        productName: matched.name,
+        variantName: matched.variants && matched.variants[0] ? matched.variants[0].name : ''
+      } : null;
+
       openTrackingExpensePrompt(docId);
     } catch(e) {
       showAppAlert('Error updating item. Check your connection.');
@@ -5215,11 +5275,17 @@
     document.getElementById('tracking-expense-modal').classList.add('open');
   }
 
+  function skipTrackingExpense() {
+    document.getElementById('tracking-expense-modal').classList.remove('open');
+    maybeOpenPendingStockAdjust();
+  }
+
   async function confirmTrackingExpense() {
     const docId = trackingExpenseTargetDocId;
     const amount = parseInt(document.getElementById('tracking-expense-amount').value) || 0;
     const note = document.getElementById('tracking-expense-note').value.trim();
     document.getElementById('tracking-expense-modal').classList.remove('open');
+    maybeOpenPendingStockAdjust();
     if (!docId || amount <= 0 || !window.fbDb || !window.fbFns) return;
     try {
       const { doc, updateDoc, arrayUnion } = window.fbFns;
