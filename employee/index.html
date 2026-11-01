@@ -5243,9 +5243,23 @@
 
     const QTY_FIRST = /^(\d+)\s*(?:pcs?|pieces?|units?|x)?\.?\s+(.+)$/i;
     const QTY_LAST = /^(.+?)\s*(?:x|[:\-])?\s*(\d+)\s*(?:pcs?|pieces?|units?)?$/i;
+    // Optional trailing "@<price>" per segment — e.g. "6pcs Harman Target @45000" — lets a
+    // variant's own batch cost ride along with its quantity when variants were bought at
+    // different prices. Leave it off any segment to keep that variant's current buy price.
+    // Price must be plain digits (no thousands-separator commas) — commas already separate
+    // variants from each other, so "@22,000" would get cut in half by the segment split above.
+    const PRICE_SUFFIX = /\s*@\s*(\d+)\s*$/;
 
     const parsed = [];
-    for (const seg of segments) {
+    for (const rawSeg of segments) {
+      let seg = rawSeg;
+      let price = null;
+      const priceMatch = seg.match(PRICE_SUFFIX);
+      if (priceMatch) {
+        price = parseInt(priceMatch[1], 10) || null;
+        seg = seg.slice(0, priceMatch.index).trim();
+      }
+
       let qty = null, nameGuess = null;
       let m = seg.match(QTY_FIRST);
       if (m) { qty = parseInt(m[1], 10); nameGuess = m[2]; }
@@ -5256,7 +5270,7 @@
       if (!qty || qty < 1 || !nameGuess) return null;
       const variantIdx = matchVariantFromText(nameGuess, product);
       if (variantIdx === -1) return null;
-      parsed.push({ variantIdx, qty, label: nameGuess.trim() });
+      parsed.push({ variantIdx, qty, label: nameGuess.trim(), price });
     }
     if (new Set(parsed.map(p => p.variantIdx)).size !== parsed.length) return null;
     return parsed;
@@ -5272,7 +5286,7 @@
     if (!pending) return;
 
     if (pending.variantBreakdown && pending.variantBreakdown.length) {
-      const lines = pending.variantBreakdown.map(b => '➕ ' + b.qty + ' → ' + b.label).join('\n');
+      const lines = pending.variantBreakdown.map(b => '➕ ' + b.qty + ' → ' + b.label + (b.price ? ' (@' + fmt(b.price) + '/unit)' : '')).join('\n');
       const total = pending.variantBreakdown.reduce((s, b) => s + b.qty, 0);
       const mismatchNote = (pending.qty && total !== pending.qty)
         ? '\n\n⚠️ These add up to ' + total + ', but the tracking entry says ' + pending.qty + ' total — double-check before applying.'
@@ -5283,7 +5297,7 @@
           let failed = 0;
           for (const b of pending.variantBreakdown) {
             try {
-              await applyStockAdjustmentCore({ productId: pending.productId, variantIdx: b.variantIdx, qty: b.qty, type: 'add', reason: 'New shipment received', buyPrice: null, recordedBy: currentEmployeeName || 'Unknown Employee', store: currentEmployeeStore || '' });
+              await applyStockAdjustmentCore({ productId: pending.productId, variantIdx: b.variantIdx, qty: b.qty, type: 'add', reason: 'New shipment received', buyPrice: b.price, recordedBy: currentEmployeeName || 'Unknown Employee', store: currentEmployeeStore || '' });
             } catch (e) { failed++; console.error(e); }
           }
           showSuccessToast(failed ? '⚠️ ' + failed + ' variant(s) didn\'t update — check Inventory.' : '✅ Stock updated for all variants from the note!');
