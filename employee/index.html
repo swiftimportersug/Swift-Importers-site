@@ -5286,7 +5286,14 @@
     if (!pending) return;
 
     if (pending.variantBreakdown && pending.variantBreakdown.length) {
-      const lines = pending.variantBreakdown.map(b => '➕ ' + b.qty + ' → ' + b.label + (b.price ? ' (@' + fmt(b.price) + '/unit)' : '')).join('\n');
+      // A variant with no @price of its own falls back to the tracking item's own
+      // "Purchase Price (per unit)" — the admin's original intent for that field.
+      const lines = pending.variantBreakdown.map(b => {
+        const priceNote = b.price != null
+          ? ' (@' + fmt(b.price) + '/unit)'
+          : (pending.purchasePrice ? ' (@' + fmt(pending.purchasePrice) + '/unit — from tracking Purchase Price)' : '');
+        return '➕ ' + b.qty + ' → ' + b.label + priceNote;
+      }).join('\n');
       const total = pending.variantBreakdown.reduce((s, b) => s + b.qty, 0);
       const mismatchNote = (pending.qty && total !== pending.qty)
         ? '\n\n⚠️ These add up to ' + total + ', but the tracking entry says ' + pending.qty + ' total — double-check before applying.'
@@ -5296,8 +5303,9 @@
         async function () {
           let failed = 0;
           for (const b of pending.variantBreakdown) {
+            const effectivePrice = b.price != null ? b.price : pending.purchasePrice;
             try {
-              await applyStockAdjustmentCore({ productId: pending.productId, variantIdx: b.variantIdx, qty: b.qty, type: 'add', reason: 'New shipment received', buyPrice: b.price, recordedBy: currentEmployeeName || 'Unknown Employee', store: currentEmployeeStore || '' });
+              await applyStockAdjustmentCore({ productId: pending.productId, variantIdx: b.variantIdx, qty: b.qty, type: 'add', reason: 'New shipment received', buyPrice: effectivePrice, recordedBy: currentEmployeeName || 'Unknown Employee', store: currentEmployeeStore || '' });
             } catch (e) { failed++; console.error(e); }
           }
           showSuccessToast(failed ? '⚠️ ' + failed + ' variant(s) didn\'t update — check Inventory.' : '✅ Stock updated for all variants from the note!');
@@ -5328,6 +5336,10 @@
     }
     const reasonSel = document.getElementById('adj-reason');
     if (reasonSel) { reasonSel.value = 'New shipment received'; toggleCustomReason(reasonSel.value); }
+    // Pre-fill the buy price from the tracking item's own "Purchase Price (per unit)", if it has
+    // one. Logged informationally with the adjustment, same as the manual entry already was.
+    const buyPriceInput = document.getElementById('adj-buy-price');
+    if (buyPriceInput && pending.purchasePrice) { buyPriceInput.value = pending.purchasePrice; }
   }
 
   async function manualMarkReceived(docId) {
@@ -5356,7 +5368,10 @@
         multiVariant: (matched.variants || []).length > 1,
         productName: matched.name,
         variantName: matched.variants && matched.variants[0] ? matched.variants[0].name : '',
-        variantBreakdown: variantBreakdown
+        variantBreakdown: variantBreakdown,
+        // The tracking item's own "Purchase Price (per unit)" — used as a fallback buy price for
+        // any variant that doesn't get its own @price in the notes (see maybeOpenPendingStockAdjust).
+        purchasePrice: parseInt(item.purchasePrice) || null
       } : null;
 
       openTrackingExpensePrompt(docId);
