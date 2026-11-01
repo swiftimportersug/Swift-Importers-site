@@ -2915,6 +2915,59 @@
     return candidates.length === 1 ? candidates[0] : null;
   }
 
+  // ── READING A PER-VARIANT BREAKDOWN OUT OF A TRACKING NOTE ──
+  // Lets a note like "3pcs White, 5pcs Black" (written in the tracking item's Notes field) tell
+  // the system exactly how many of each variant arrived, instead of only knowing a single total.
+  // Deliberately conservative: if ANY piece of the note doesn't parse cleanly, or a name doesn't
+  // map to exactly one variant, the whole thing is thrown out (returns null) and the caller falls
+  // back to the plain single-variant flow — guessing wrong here would silently put stock on the
+  // wrong variant, which is worse than not auto-filling anything at all.
+  function matchVariantFromText(text, product) {
+    const words = normalizeProductTitle(text).split(' ').filter(Boolean);
+    if (!words.length) return -1;
+    const labelWords = (v) => normalizeProductTitle([v.name, v.color].filter(Boolean).join(' ')).split(' ').filter(Boolean);
+    // Exact match first: the note's words are EXACTLY this variant's label (e.g. note "White"
+    // against a variant literally named/colored "White").
+    let candidates = product.variants
+      .map((v, i) => ({ i, lw: labelWords(v) }))
+      .filter(({ lw }) => lw.length === words.length && words.every(w => lw.includes(w)));
+    if (candidates.length === 1) return candidates[0].i;
+    if (candidates.length > 1) return -1;
+    // Relaxed: every note word appears somewhere in the variant's (possibly longer) label — e.g.
+    // note "White" against a variant named "Default" with color "White".
+    candidates = product.variants
+      .map((v, i) => ({ i, lw: labelWords(v) }))
+      .filter(({ lw }) => lw.length && words.every(w => lw.includes(w)));
+    return candidates.length === 1 ? candidates[0].i : -1;
+  }
+
+  function parseVariantNotesBreakdown(notes, product) {
+    if (!notes || !product || !product.variants || product.variants.length < 2) return null;
+    const segments = notes.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+    if (segments.length < 2) return null; // need at least 2 named pieces to call this a "breakdown"
+
+    const QTY_FIRST = /^(\d+)\s*(?:pcs?|pieces?|units?|x)?\.?\s+(.+)$/i;
+    const QTY_LAST = /^(.+?)\s*(?:x|[:\-])?\s*(\d+)\s*(?:pcs?|pieces?|units?)?$/i;
+
+    const parsed = [];
+    for (const seg of segments) {
+      let qty = null, nameGuess = null;
+      let m = seg.match(QTY_FIRST);
+      if (m) { qty = parseInt(m[1], 10); nameGuess = m[2]; }
+      else {
+        m = seg.match(QTY_LAST);
+        if (m) { nameGuess = m[1]; qty = parseInt(m[2], 10); }
+      }
+      if (!qty || qty < 1 || !nameGuess) return null;
+      const variantIdx = matchVariantFromText(nameGuess, product);
+      if (variantIdx === -1) return null;
+      parsed.push({ variantIdx, qty, label: nameGuess.trim() });
+    }
+    // The same variant named twice in one note is ambiguous (which qty is the real one?) — bail.
+    if (new Set(parsed.map(p => p.variantIdx)).size !== parsed.length) return null;
+    return parsed;
+  }
+
   // Holds a stock adjustment to auto-open once the (optional) last-mile-expense step is done,
   // so the two modals don't fight for the screen at the same time.
   let pendingStockAdjustAfterExpense = null;
@@ -2923,14 +2976,46 @@
     const pending = pendingStockAdjustAfterExpense;
     pendingStockAdjustAfterExpense = null;
     if (!pending) return;
+
+    if (pending.variantBreakdown && pending.variantBreakdown.length) {
+      const lines = pending.variantBreakdown.map(b => '➕ ' + b.qty + ' → ' + b.label).join('\n');
+      const total = pending.variantBreakdown.reduce((s, b) => s + b.qty, 0);
+      const mismatchNote = (pending.qty && total !== pending.qty)
+        ? '\n\n⚠️ These add up to ' + total + ', but the tracking entry says ' + pending.qty + ' total — double-check before applying.'
+        : '';
+      showAppConfirm(
+        '📦 Apply received stock for "' + pending.productName + '" from its tracking note?\n\n' + lines + mismatchNote,
+        async function () {
+          let failed = 0;
+          for (const b of pending.variantBreakdown) {
+            try {
+              await applyStockAdjustmentCore({ productId: pending.productId, variantIdx: b.variantIdx, qty: b.qty, type: 'add', reason: 'New shipment received', buyPrice: null, storeBreakdown: null, recordedBy: 'Admin' });
+            } catch (e) { failed++; console.error(e); }
+          }
+          showSuccessToast(failed ? '⚠️ ' + failed + ' variant(s) didn\'t update — check Inventory.' : '✅ Stock updated for all variants from the note!');
+        },
+        function () {
+          // Declined the auto-read breakdown — fall back to the plain single-variant modal so
+          // nothing's lost; the admin can still do it by hand from here.
+          openSingleVariantAdjustForPending(pending);
+        },
+        { icon: '📦', confirmText: 'Apply All' }
+      );
+      return;
+    }
+
+    openSingleVariantAdjustForPending(pending);
+    if (pending.multiVariant) {
+      showAppAlert('📦 "' + pending.productName + '" has more than one variant — opened on "' + pending.variantName + '". Please check it\'s the right one before confirming the adjustment.');
+    }
+  }
+
+  function openSingleVariantAdjustForPending(pending) {
     openAdjustModal(pending.productId, pending.variantIdx, true);
     const qtyInput = document.getElementById('adj-qty');
     if (qtyInput && pending.qty) { qtyInput.value = pending.qty; updateAdjPreview(); renderAdjStoreBreakdown(); }
     const reasonSel = document.getElementById('adj-reason');
     if (reasonSel) { reasonSel.value = 'New shipment received'; toggleCustomReason(reasonSel.value); }
-    if (pending.multiVariant) {
-      showAppAlert('📦 "' + pending.productName + '" has more than one variant — opened on "' + pending.variantName + '". Please check it\'s the right one before confirming the adjustment.');
-    }
   }
 
   async function manualMarkReceived(docId) {
@@ -2951,13 +3036,15 @@
 
       const item = trackingItems.find(t => t.fbDocId === docId);
       const matched = item ? findInventoryMatchForTracking(item.itemName) : null;
+      const variantBreakdown = matched ? parseVariantNotesBreakdown(item.notes, matched) : null;
       pendingStockAdjustAfterExpense = matched ? {
         productId: matched.id,
         variantIdx: 0,
         qty: item.quantity || 1,
         multiVariant: (matched.variants || []).length > 1,
         productName: matched.name,
-        variantName: matched.variants && matched.variants[0] ? matched.variants[0].name : ''
+        variantName: matched.variants && matched.variants[0] ? matched.variants[0].name : '',
+        variantBreakdown: variantBreakdown
       } : null;
 
       openTrackingExpensePrompt(docId);
@@ -10698,6 +10785,52 @@
     preview.textContent = `${currentStock} → ${newStock} pieces (${type === 'add' ? '+' : '-'}${qty})`;
   }
 
+  // The actual Firestore write + adjustment-log entry, with no dependency on any form field —
+  // shared by the manual form below AND by the automated tracking-note multi-variant apply, so
+  // both paths write stock/history in exactly the same way and never drift apart.
+  async function applyStockAdjustmentCore({ productId, variantIdx, qty, type, reason, buyPrice, storeBreakdown, recordedBy }) {
+    const p = products.find(x => x.id === productId);
+    if (!p) throw new Error('Product not found: ' + productId);
+    const currentStock = parseInt(p.variants[variantIdx].stock) || 0;
+    const oldBuyPrice = parseInt(p.variants[variantIdx].buy) || 0;
+    const newStock = type === 'add' ? currentStock + qty : Math.max(0, currentStock - qty);
+
+    // Update stock in Firebase (buy price now lives in a separate, owner-only collection)
+    const updatedVariants = p.variants.map((v, i) => {
+      const { buy, ...rest } = v;
+      return i === variantIdx ? { ...rest, stock: newStock } : rest;
+    });
+
+    const { doc, updateDoc, collection, addDoc, setDoc } = window.fbFns;
+    await updateDoc(doc(window.fbDb, 'products', productId), { variants: updatedVariants });
+
+    if (buyPrice != null) {
+      const existingCosts = (productCosts[productId] || p.variants.map(v => parseInt(v.buy)||0)).slice();
+      existingCosts[variantIdx] = buyPrice;
+      await setDoc(doc(window.fbDb, 'product_costs', productId), { costs: existingCosts, updatedAt: new Date().toISOString() });
+    }
+
+    await addDoc(collection(window.fbDb, 'adjustments'), {
+      productId,
+      productName: p.name,
+      variantName: p.variants[variantIdx].name,
+      variantColor: p.variants[variantIdx].color || '',
+      type,
+      qty,
+      before: currentStock,
+      after: newStock,
+      reason,
+      buyPrice: buyPrice != null ? buyPrice : null,
+      previousBuyPrice: buyPrice != null ? oldBuyPrice : null,
+      storeBreakdown: storeBreakdown || null,
+      recordedBy: recordedBy || 'Admin',
+      timestamp: new Date().toISOString(),
+      date: fmtDMY(new Date(), true)
+    });
+
+    return { before: currentStock, after: newStock };
+  }
+
   async function applyStockAdjustment() {
     const productId = document.getElementById('adj-product-id').value;
     const variantIdx = parseInt(document.getElementById('adj-variant-idx').value);
@@ -10724,44 +10857,9 @@
 
     const p = products.find(x => x.id === productId);
     if (!p) return;
-    const currentStock = parseInt(p.variants[variantIdx].stock) || 0;
-    const oldBuyPrice = parseInt(p.variants[variantIdx].buy) || 0;
-    const newStock = type === 'add' ? currentStock + qty : Math.max(0, currentStock - qty);
-
-    // Update stock in Firebase (buy price now lives in a separate, owner-only collection)
-    const updatedVariants = p.variants.map((v, i) => {
-      const { buy, ...rest } = v;
-      return i === variantIdx ? { ...rest, stock: newStock } : rest;
-    });
 
     try {
-      const { doc, updateDoc, collection, addDoc, setDoc } = window.fbFns;
-      await updateDoc(doc(window.fbDb, 'products', productId), { variants: updatedVariants });
-
-      if (newBuyPrice !== null) {
-        const existingCosts = (productCosts[productId] || p.variants.map(v => parseInt(v.buy)||0)).slice();
-        existingCosts[variantIdx] = newBuyPrice;
-        await setDoc(doc(window.fbDb, 'product_costs', productId), { costs: existingCosts, updatedAt: new Date().toISOString() });
-      }
-
-      // Save adjustment log
-      await addDoc(collection(window.fbDb, 'adjustments'), {
-        productId,
-        productName: p.name,
-        variantName: p.variants[variantIdx].name,
-        variantColor: p.variants[variantIdx].color || '',
-        type,
-        qty,
-        before: currentStock,
-        after: newStock,
-        reason,
-        buyPrice: newBuyPrice !== null ? newBuyPrice : null,
-        previousBuyPrice: newBuyPrice !== null ? oldBuyPrice : null,
-        storeBreakdown: storeBreakdown,
-        recordedBy: 'Admin',
-        timestamp: new Date().toISOString(),
-        date: fmtDMY(new Date(), true)
-      });
+      const { after: newStock } = await applyStockAdjustmentCore({ productId, variantIdx, qty, type, reason, buyPrice: newBuyPrice, storeBreakdown, recordedBy: 'Admin' });
 
       loadAdjHistory(productId, variantIdx);
       document.getElementById('adj-qty').value = '';
